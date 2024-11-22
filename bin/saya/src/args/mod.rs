@@ -1,11 +1,9 @@
 //! Saya binary options.
 use clap::Parser;
-use dojo_utils::keystore::prompt_password_if_needed;
 use saya_core::starknet::account::StarknetAccountData;
 use saya_core::SayaConfig;
 use settlement::SettlementOptions;
 use starknet::core::utils::cairo_short_string_to_felt;
-use starknet::signers::SigningKey;
 use starknet_account::StarknetAccountOptions;
 use tracing::Subscriber;
 use tracing_log::LogTracer;
@@ -88,17 +86,10 @@ impl TryFrom<SayaArgs> for SayaConfig {
         // conventions.
         let private_key = if let Some(pk) = args.starknet_account.signer_key {
             pk
-        } else if let Some(path) = args.starknet_account.signer_keystore_path {
-            let password = prompt_password_if_needed(
-                args.starknet_account.signer_keystore_password.as_deref(),
-                false,
-            )?;
-            SigningKey::from_keystore(path, &password)?.secret_scalar()
         } else {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "Could not find private key. Please specify the private key or path to the \
-                 keystore file.",
+                "Private key is required for the starknet account.",
             )));
         };
 

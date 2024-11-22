@@ -18,13 +18,18 @@ impl SqliteDb {
     pub async fn new(path: &str) -> Result<Self, Error> {
         // Check if there is a database file at the path
         if !Path::new(path).try_exists()? {
-            trace!("Database file not found. A new one will be created at: {}", path);
+            trace!(
+                "Database file not found. A new one will be created at: {}",
+                path
+            );
             fs::File::create(path)?;
         } else {
             trace!("Database file found at: {}", path);
         }
 
-        let pool = SqlitePoolOptions::new().connect(&format!("sqlite:{}", path)).await?;
+        let pool = SqlitePoolOptions::new()
+            .connect(&format!("sqlite:{}", path))
+            .await?;
 
         let table_exists = Self::check_table_exists(&pool).await?;
 
@@ -78,7 +83,12 @@ impl SqliteDb {
             let query_id_step2 = row.get("query_id_step2");
             let status: &str = row.get("status");
             let status = BlockStatus::try_from(status)?;
-            result.push(Block { id, query_id_step1, query_id_step2, status });
+            result.push(Block {
+                id,
+                query_id_step1,
+                query_id_step2,
+                status,
+            });
         }
         Ok(result)
     }
@@ -90,7 +100,10 @@ impl SqliteDb {
         Ok(())
     }
     pub async fn delete_block(&self, block_id: u32) -> Result<(), Error> {
-        query("DELETE FROM blocks WHERE id = ?1").bind(block_id).execute(&self.pool).await?;
+        query("DELETE FROM blocks WHERE id = ?1")
+            .bind(block_id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }
@@ -108,7 +121,12 @@ impl SayaProvingDb for SqliteDb {
         let query_id_step2 = result.get("query_id_step2");
         let status: &str = result.get("status");
         let status = BlockStatus::try_from(status)?;
-        Ok(Block { id, query_id_step1, query_id_step2, status })
+        Ok(Block {
+            id,
+            query_id_step1,
+            query_id_step2,
+            status,
+        })
     }
     async fn insert_block(
         &self,
@@ -175,7 +193,12 @@ impl SayaProvingDb for SqliteDb {
             let query_id_step2 = row.get("query_id_step2");
             let status: &str = row.get("status");
             let status = BlockStatus::try_from(status)?;
-            result.push(Block { id, query_id_step1, query_id_step2, status });
+            result.push(Block {
+                id,
+                query_id_step1,
+                query_id_step2,
+                status,
+            });
         }
         Ok(result)
     }
@@ -187,10 +210,10 @@ impl SayaProvingDb for SqliteDb {
             .execute(&mut *transaction)
             .await?;
         query("UPDATE blocks SET status = ?1 WHERE id = ?2")
-        .bind(BlockStatus::PieProofGenerated.as_str())
-        .bind(block_id)
-        .execute(&mut *transaction) // Use `&mut transaction` explicitly
-        .await?;
+            .bind(BlockStatus::PieProofGenerated.as_str())
+            .bind(block_id)
+            .execute(&mut *transaction) // Use `&mut transaction` explicitly
+            .await?;
         transaction.commit().await?;
         Ok(())
     }
@@ -200,17 +223,17 @@ impl SayaProvingDb for SqliteDb {
         let mut transaction = self.pool.begin().await?;
         // Update the proof in the proofs table
         query("UPDATE proofs SET bridge_proof = ?2 WHERE block_number = ?1")
-        .bind(block_id)
-        .bind(proof)
-        .execute(&mut *transaction) // Use `&mut transaction` explicitly
-        .await?;
+            .bind(block_id)
+            .bind(proof)
+            .execute(&mut *transaction) // Use `&mut transaction` explicitly
+            .await?;
 
         // Update the status in the blocks table
         query("UPDATE blocks SET status = ?1 WHERE id = ?2")
-        .bind(BlockStatus::Completed.as_str())
-        .bind(block_id)
-        .execute(&mut *transaction) // Use `&mut transaction` explicitly
-        .await?;
+            .bind(BlockStatus::Completed.as_str())
+            .bind(block_id)
+            .execute(&mut *transaction) // Use `&mut transaction` explicitly
+            .await?;
         // Commit the transaction
         transaction.commit().await?;
         Ok(())
@@ -230,7 +253,9 @@ impl SayaProvingDb for SqliteDb {
         Ok(row.get("bridge_proof"))
     }
     async fn list_proof(&self) -> Result<Vec<String>, Error> {
-        let rows = query("SELECT pie_proof FROM proofs").fetch_all(&self.pool).await?;
+        let rows = query("SELECT pie_proof FROM proofs")
+            .fetch_all(&self.pool)
+            .await?;
         let mut result = Vec::new();
         for row in rows {
             result.push(row.get("pie_proof"));

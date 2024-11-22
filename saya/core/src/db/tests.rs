@@ -12,8 +12,12 @@ mod tests {
             .expect("Failed to create database pool in memory");
 
         let db = SqliteDb { pool };
-        SqliteDb::create_block_table(&db.pool).await.expect("Failed to create blocks table");
-        SqliteDb::create_proof_table(&db.pool).await.expect("Failed to create proofs table");
+        SqliteDb::create_block_table(&db.pool)
+            .await
+            .expect("Failed to create blocks table");
+        SqliteDb::create_proof_table(&db.pool)
+            .await
+            .expect("Failed to create proofs table");
 
         db
     }
@@ -25,7 +29,10 @@ mod tests {
             .await
             .expect("Failed to insert block");
 
-        let block = db.check_status(1).await.expect("Failed to check block status");
+        let block = db
+            .check_status(1)
+            .await
+            .expect("Failed to check block status");
         assert_eq!(block.id, 1);
         assert_eq!(block.query_id_step1, "query_1");
         assert_eq!(block.status, BlockStatus::PieSubmitted);
@@ -42,7 +49,10 @@ mod tests {
             .await
             .expect("Failed to update block status");
 
-        let block = db.check_status(2).await.expect("Failed to check block status");
+        let block = db
+            .check_status(2)
+            .await
+            .expect("Failed to check block status");
         assert_eq!(block.status, BlockStatus::PieProofGenerated);
     }
     #[tokio::test]
@@ -57,7 +67,10 @@ mod tests {
             .await
             .expect("Failed to update query_id_step2");
 
-        let block = db.check_status(3).await.expect("Failed to check block status");
+        let block = db
+            .check_status(3)
+            .await
+            .expect("Failed to check block status");
         assert_eq!(block.query_id_step2, "query_3_step2");
     }
     #[tokio::test]
@@ -87,7 +100,9 @@ mod tests {
             .await
             .expect("Failed to insert block");
 
-        db.insert_pie_proof(6, "pie_proof_data").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(6, "pie_proof_data")
+            .await
+            .expect("Failed to insert pie proof");
 
         let pie_proof = db.get_pie_proof(6).await.expect("Failed to get pie proof");
         assert_eq!(pie_proof, "pie_proof_data");
@@ -99,13 +114,18 @@ mod tests {
         db.insert_block(7, "query_7", BlockStatus::PieProofGenerated)
             .await
             .expect("Failed to insert block");
-        db.insert_pie_proof(7, "pie_proof_data").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(7, "pie_proof_data")
+            .await
+            .expect("Failed to insert pie proof");
 
         db.insert_bridge_proof(7, "bridge_proof_data")
             .await
             .expect("Failed to insert bridge proof");
 
-        let bridge_proof = db.get_bridge_proof(7).await.expect("Failed to get bridge proof");
+        let bridge_proof = db
+            .get_bridge_proof(7)
+            .await
+            .expect("Failed to get bridge proof");
         assert_eq!(bridge_proof, "bridge_proof_data");
     }
     #[tokio::test]
@@ -115,7 +135,9 @@ mod tests {
         db.insert_block(8, "query_8", BlockStatus::PieSubmitted)
             .await
             .expect("Failed to insert block");
-        db.insert_pie_proof(8, "pie_proof_data").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(8, "pie_proof_data")
+            .await
+            .expect("Failed to insert pie proof");
 
         let pie_proof = db.get_pie_proof(8).await.expect("Failed to get pie proof");
         assert_eq!(pie_proof, "pie_proof_data");
@@ -127,12 +149,17 @@ mod tests {
         db.insert_block(9, "query_9", BlockStatus::PieProofGenerated)
             .await
             .expect("Failed to insert block");
-        db.insert_pie_proof(9, "pie_proof_data").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(9, "pie_proof_data")
+            .await
+            .expect("Failed to insert pie proof");
         db.insert_bridge_proof(9, "bridge_proof_data")
             .await
             .expect("Failed to insert bridge proof");
 
-        let bridge_proof = db.get_bridge_proof(9).await.expect("Failed to get bridge proof");
+        let bridge_proof = db
+            .get_bridge_proof(9)
+            .await
+            .expect("Failed to get bridge proof");
         assert_eq!(bridge_proof, "bridge_proof_data");
     }
     #[tokio::test]
@@ -142,12 +169,16 @@ mod tests {
         db.insert_block(10, "query_10", BlockStatus::PieSubmitted)
             .await
             .expect("Failed to insert block");
-        db.insert_pie_proof(10, "pie_proof_data_1").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(10, "pie_proof_data_1")
+            .await
+            .expect("Failed to insert pie proof");
 
         db.insert_block(11, "query_11", BlockStatus::PieSubmitted)
             .await
             .expect("Failed to insert block");
-        db.insert_pie_proof(11, "pie_proof_data_2").await.expect("Failed to insert pie proof");
+        db.insert_pie_proof(11, "pie_proof_data_2")
+            .await
+            .expect("Failed to insert pie proof");
 
         let proofs = db.list_proof().await.expect("Failed to list proofs");
         assert_eq!(proofs.len(), 2);

@@ -9,7 +9,6 @@ version.workspace = true
 [dependencies]
 clap.workspace = true
 console.workspace = true
-dojo-utils.workspace = true
 saya-core.workspace = true
 starknet.workspace = true
 tokio.workspace = true

@@ -32,7 +32,12 @@ pub struct PiltoverState {
 }
 
 impl Piltover {
-    pub async fn update_state(&self, pie_proof: String, bridge_proof: String,block_number:u32) -> Result<(), Error> {
+    pub async fn update_state(
+        &self,
+        pie_proof: String,
+        bridge_proof: String,
+        block_number: u32,
+    ) -> Result<(), Error> {
         let parsed_proof = parse(pie_proof)?;
         let program_snos_output = calculate_output(parsed_proof);
         let parsed_proof = parse(bridge_proof)?;
@@ -50,18 +55,20 @@ impl Piltover {
         };
         let nonce = self.account.get_nonce().await?;
         let calldata = to_felts(&piltover_calldata)?;
-        let _tx = retry!(
-            self.account
-                .execute_v1(vec![Call {
-                    to: self.contract,
-                    selector: get_selector_from_name("update_state").expect("invalid selector"),
-                    calldata: calldata.clone()
-                }])
-                .nonce(nonce)
-                .send()
-        )?;
+        let _tx = retry!(self
+            .account
+            .execute_v1(vec![Call {
+                to: self.contract,
+                selector: get_selector_from_name("update_state").expect("invalid selector"),
+                calldata: calldata.clone()
+            }])
+            .nonce(nonce)
+            .send())?;
 
-        info!("Block {} settled on piltover contract {:#x}",block_number, self.contract);
+        info!(
+            "Block {} settled on piltover contract {:#x}",
+            block_number, self.contract
+        );
         Ok(())
     }
 

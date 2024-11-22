@@ -24,7 +24,7 @@ use crate::prover::atlantic::AtlanticProver;
 use crate::utlis::graceful_shutdown::shutdown_signal;
 use crate::utlis::pie::CairoPieBytes;
 
-const SNOS: &[u8; 38097088] = include_bytes!("/home/mateuszchudkowski/dev/saya/bin/saya/programs/snos.json");
+const SNOS: &[u8; 38097088] = include_bytes!("../../../bin/saya/programs/snos.json");
 
 pub struct Saya {
     pub config: SayaConfig,
@@ -58,13 +58,23 @@ impl Saya {
             .max_by_key(|block| block.id)
             .map(|block| block.id)
             .unwrap_or(last_settled_block);
-        let prover =
-            AtlanticProver::new(config.prover_key.clone(), config.prover_url.clone(), db.clone());
+        let prover = AtlanticProver::new(
+            config.prover_key.clone(),
+            config.prover_url.clone(),
+            db.clone(),
+        );
 
         info!("Saya initialized");
         info!("Last settled block: {}", last_settled_block);
         info!("Last sent for prove block: {}", last_sent_for_prove_block);
-        Ok(Saya { config, last_settled_block, last_sent_for_prove_block, db, piltover, prover })
+        Ok(Saya {
+            config,
+            last_settled_block,
+            last_sent_for_prove_block,
+            db,
+            piltover,
+            prover,
+        })
     }
 
     pub async fn start(&mut self) -> Result<(), Error> {

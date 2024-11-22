@@ -23,9 +23,15 @@ pub struct CelestiaConfig {
 impl Display for CelestiaConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let node_url = &self.node_url;
-        let auth_token = self.node_auth_token.clone().unwrap_or("not set".to_string());
+        let auth_token = self
+            .node_auth_token
+            .clone()
+            .unwrap_or("not set".to_string());
         let namespace = &self.namespace;
-        write!(f, "* node url: {node_url}\n* namespace: {namespace}\n* auth token: {auth_token}")
+        write!(
+            f,
+            "* node url: {node_url}\n* namespace: {namespace}\n* auth token: {auth_token}"
+        )
     }
 }
 
@@ -57,7 +63,10 @@ impl DataAvailabilityClient for CelestiaClient {
         &self,
         state_diff: &[Felt],
     ) -> DataAvailabilityResult<(Commitment, u64)> {
-        let bytes: Vec<u8> = state_diff.iter().flat_map(|fe| fe.to_bytes_be().to_vec()).collect();
+        let bytes: Vec<u8> = state_diff
+            .iter()
+            .flat_map(|fe| fe.to_bytes_be().to_vec())
+            .collect();
         let commitment = Commitment::from_blob(self.namespace, 0, &bytes)?;
         let blob = Blob::new(self.namespace, bytes)?;
 
@@ -77,11 +86,16 @@ impl DataAvailabilityClient for CelestiaClient {
         state_diff: &[Felt],
         state_diff_proof: &[Felt],
     ) -> DataAvailabilityResult<(Commitment, u64)> {
-        let bytes: Vec<u8> = state_diff.iter().flat_map(|fe| fe.to_bytes_be().to_vec()).collect();
+        let bytes: Vec<u8> = state_diff
+            .iter()
+            .flat_map(|fe| fe.to_bytes_be().to_vec())
+            .collect();
         let commitment = Commitment::from_blob(self.namespace, 0, &bytes)?;
         let blob = Blob::new(self.namespace, bytes)?;
-        let proof_bytes: Vec<u8> =
-            state_diff_proof.iter().flat_map(|fe| fe.to_bytes_be().to_vec()).collect();
+        let proof_bytes: Vec<u8> = state_diff_proof
+            .iter()
+            .flat_map(|fe| fe.to_bytes_be().to_vec())
+            .collect();
         let proof_blob = Blob::new(self.namespace, proof_bytes)?;
 
         let height = self

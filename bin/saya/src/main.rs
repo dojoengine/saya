@@ -48,8 +48,10 @@ Chain ID: {:#x},
 RPC url: {:#},
 
     ",
-        config.settlement_contract, config.starknet_account.signer_address,
-        config.starknet_account.chain_id, config.rpc_url.as_str()
+        config.settlement_contract,
+        config.starknet_account.signer_address,
+        config.starknet_account.chain_id,
+        config.rpc_url.as_str()
     );
     println!(
         r"

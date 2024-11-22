@@ -11,7 +11,9 @@ impl SqliteDb {
         Ok(blocks_table && proof_table)
     }
     pub(crate) async fn check_blocks_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
-        let columns = sqlx::query("PRAGMA table_info(blocks);").fetch_all(pool).await?;
+        let columns = sqlx::query("PRAGMA table_info(blocks);")
+            .fetch_all(pool)
+            .await?;
         // Check if the table has the expected columns: id, query_id, and status
         let mut has_id = false;
         let mut has_query_id_step1 = false;
@@ -31,7 +33,9 @@ impl SqliteDb {
         Ok(has_id && has_query_id_step1 && has_query_id_step2 && has_status)
     }
     pub(crate) async fn check_proof_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
-        let columns = sqlx::query("PRAGMA table_info(proofs);").fetch_all(pool).await?;
+        let columns = sqlx::query("PRAGMA table_info(proofs);")
+            .fetch_all(pool)
+            .await?;
         // Check if the table has the expected columns: id, block_number, and proof
         let mut has_id = false;
         let mut has_block_number = false;

@@ -88,7 +88,11 @@ impl AtlanticProver {
         if job_response.jobs.iter().any(|job| job.status == "FAILED") {
             return Ok(ProverStatus::Failed); // If any job failed
         }
-        if job_response.jobs.iter().all(|job| job.status == "COMPLETED") {
+        if job_response
+            .jobs
+            .iter()
+            .all(|job| job.status == "COMPLETED")
+        {
             return Ok(ProverStatus::Proved); // All jobs completed
         }
         Ok(ProverStatus::Proving)

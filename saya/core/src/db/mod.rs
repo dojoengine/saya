@@ -71,7 +71,9 @@ impl TryFrom<&str> for BlockStatus {
             "PIE_PROOF_GENERATED" => Ok(BlockStatus::PieProofGenerated),
             "BRIDGE_PROOF_SUBMITED" => Ok(BlockStatus::BridgeProofSubmited),
             "COMPLETED" => Ok(BlockStatus::Completed),
-            _ => Err(Error::TryFromStrError("AtlanticStatus conversion error".to_string())),
+            _ => Err(Error::TryFromStrError(
+                "AtlanticStatus conversion error".to_string(),
+            )),
         }
     }
 }
