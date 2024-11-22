@@ -1,0 +1,2 @@
+bin/saya/programs/snos.json filter=lfs diff=lfs merge=lfs -text
+bin/saya/programs/layout_bridge.json filter=lfs diff=lfs merge=lfs -text

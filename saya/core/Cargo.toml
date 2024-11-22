@@ -1,0 +1,35 @@
+[package]
+description = "Saya core implementation."
+edition.workspace = true
+license-file.workspace = true
+name = "saya-core"
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+bigdecimal.workspace = true
+futures.workspace = true
+itertools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+starknet-crypto.workspace = true
+starknet.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+url.workspace = true
+# TODO: use features for each possible DA.
+celestia-rpc = "0.4.0"
+celestia-types = "0.5.0"
+starknet-types-core.workspace = true
+atlantic_client ={ git = "https://github.com/chudkowsky/atlantic_client.git",rev = "7c0f2fc"}
+reqwest.workspace = true
+serde-felt = { git = "https://github.com/cartridge-gg/cairo-proof-parser.git", rev = "f175d58" }
+prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "15a903f"}
+# starknet-os = { path = "/home/mateuszchudkowski/dev/snos/crates/starknet-os" }
+starknet-os = {git = "https://github.com/chudkowsky/snos.git",rev= "15a903f"}
+cairo-vm = { git = "https://github.com/chudkowsky/cairo-vm", branch = "notlesh/snos-2024-11-04", features = ["cairo-1-hints", "extensive_hints", "mod_builtin"] }
+swiftness_proof_parser = "0.1.0"
+sqlx.workspace = true 
