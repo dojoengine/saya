@@ -149,7 +149,8 @@ impl Saya {
                         )
                         .await?;
                         let pie = pie.to_bytes();
-                        let query_id = self.prover.submit_proof_generation(pie).await?;
+                        let label = format!("block_{}", block_number);
+                        let query_id = self.prover.submit_proof_generation(pie,&label).await?;
                         info!("Block status updated to PieSubmitted for block {}", block_number);
                         self.db.insert_block(block_number, &query_id, BlockStatus::PieSubmitted).await?;
                         block_number += 1;
@@ -231,7 +232,8 @@ impl Saya {
                     self.db.list_blocks_with_status(BlockStatus::PieProofGenerated).await?;
                 for block in pie_generated_blocks {
                     let pie_proof = self.db.get_pie_proof(block.id).await?;
-                    let query_id = self.prover.submit_atlantic_query(pie_proof).await?;
+                    let label = format!("bridge_{}", block.id);
+                    let query_id = self.prover.submit_atlantic_query(pie_proof,&label).await?;
                     self.db.update_block_query_id_for_bridge_proof(block.id, &query_id).await?;
                     info!("Block status updated to BridgeProofSubmited for block {}", block.id);
                     }

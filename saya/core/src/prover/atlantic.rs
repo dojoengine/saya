@@ -20,7 +20,11 @@ impl AtlanticProver {
     pub fn new(api_key: String, url: Url, db: SqliteDb) -> Self {
         AtlanticProver { api_key, url, db }
     }
-    pub async fn submit_proof_generation(&self, pie: Vec<u8>) -> Result<QueryId, Error> {
+    pub async fn submit_proof_generation(
+        &self,
+        pie: Vec<u8>,
+        proof_label: &str,
+    ) -> Result<QueryId, Error> {
         let sdk = AtlanticSdk::new(self.api_key.clone(), self.url.clone())?;
         let is_alive = sdk.get_is_alive().await?;
         if !is_alive {
@@ -28,12 +32,16 @@ impl AtlanticProver {
         }
 
         let id = sdk
-            .proof_generation(pie, Layout::Dynamic, ProverVersion::Starkware)
+            .proof_generation(pie, Layout::Dynamic, ProverVersion::Starkware, proof_label)
             .await?
-            .sharp_query_id;
+            .atlantic_query_id;
         Ok(id)
     }
-    pub async fn submit_atlantic_query(&self, proof: String) -> Result<QueryId, Error> {
+    pub async fn submit_atlantic_query(
+        &self,
+        proof: String,
+        proof_label: &str,
+    ) -> Result<QueryId, Error> {
         let sdk = AtlanticSdk::new(self.api_key.clone(), self.url.clone())?;
         let is_alive = sdk.get_is_alive().await?;
         if !is_alive {
@@ -50,9 +58,10 @@ impl AtlanticProver {
                 input.as_bytes().to_vec(),
                 ProverVersion::Starkware,
                 false,
+                proof_label,
             )
             .await?
-            .sharp_query_id;
+            .atlantic_query_id;
         Ok(id)
     }
 
