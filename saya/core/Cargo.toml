@@ -23,12 +23,13 @@ url.workspace = true
 celestia-rpc = "0.4.0"
 celestia-types = "0.5.0"
 starknet-types-core.workspace = true
-atlantic_client = "=0.1.2"
+atlantic_client = "0.2.1"
 reqwest.workspace = true
 serde-felt = { git = "https://github.com/cartridge-gg/cairo-proof-parser.git", rev = "f175d58" }
-prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "15a903f"}
-# starknet-os = { path = "/home/mateuszchudkowski/dev/snos/crates/starknet-os" }
-starknet-os = {git = "https://github.com/chudkowsky/snos.git",rev= "15a903f"}
-cairo-vm = { git = "https://github.com/chudkowsky/cairo-vm", branch = "notlesh/snos-2024-11-04", features = ["cairo-1-hints", "extensive_hints", "mod_builtin"] }
+prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch 
+starknet-os = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch
+
+cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", features = ["cairo-1-hints", "extensive_hints", "mod_builtin"] }
+
 swiftness_proof_parser = "0.1.0"
 sqlx.workspace = true 

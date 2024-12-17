@@ -97,12 +97,10 @@ impl AtlanticProver {
         if job_response.jobs.iter().any(|job| job.status == "FAILED") {
             return Ok(ProverStatus::Failed); // If any job failed
         }
-        if job_response
-            .jobs
-            .iter()
-            .all(|job| job.status == "COMPLETED")
-        {
-            return Ok(ProverStatus::Proved); // All jobs completed
+        let sharp_query_details = sdk.get_sharp_query(query_id).await?.sharp_query;
+
+        if sharp_query_details.status == "DONE" {
+            return Ok(ProverStatus::Proved); // If the query failed
         }
         Ok(ProverStatus::Proving)
     }
