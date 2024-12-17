@@ -1431,7 +1431,7 @@ dependencies = [
 [[package]]
 name = "cairo-type-derive"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1472,7 +1472,7 @@ dependencies = [
 [[package]]
 name = "cairo-vm"
 version = "1.0.1"
-source = "git+https://github.com/chudkowsky/cairo-vm?branch=notlesh/snos-2024-11-04#18fedb3a7907011dc31b36f902d9f5ca3c3c4b34"
+source = "git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh/snos-2024-11-04#1fa902bafae507424b5ea83a625830ffe6b0eca5"
 dependencies = [
  "anyhow",
  "ark-ff 0.4.2",
@@ -3036,18 +3036,15 @@ dependencies = [
 
 [[package]]
 name = "hyper-tls"
-version = "0.6.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+checksum = "d6183ddfa99b85da61a140bea0efc93fdf56ceaa041b37d553518030827f9905"
 dependencies = [
  "bytes",
- "http-body-util",
- "hyper 1.4.1",
- "hyper-util",
+ "hyper 0.14.30",
  "native-tls",
  "tokio",
  "tokio-native-tls",
- "tower-service",
 ]
 
 [[package]]
@@ -3314,9 +3311,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.70"
+version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1868808506b929d7b0cfa8f75951347aa71bb21144b7791bae35d9bccfcfe37a"
+checksum = "29c15563dc2726973df627357ce0c9ddddbea194836909d655df6a75d2cf296d"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -4604,13 +4601,13 @@ dependencies = [
 [[package]]
 name = "prove_block"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "anyhow",
  "blockifier",
  "cairo-lang-starknet-classes",
  "cairo-lang-utils",
- "cairo-vm 1.0.1 (git+https://github.com/chudkowsky/cairo-vm?branch=notlesh/snos-2024-11-04)",
+ "cairo-vm 1.0.1 (git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh/snos-2024-11-04)",
  "clap",
  "env_logger",
  "futures-core",
@@ -4619,7 +4616,7 @@ dependencies = [
  "pathfinder-common",
  "pathfinder-crypto",
  "pathfinder-serde",
- "reqwest 0.12.9",
+ "reqwest 0.11.18",
  "rpc-client",
  "rpc-replay",
  "serde",
@@ -4843,9 +4840,9 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "reqwest"
-version = "0.11.27"
+version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd67538700a17451e7cba03ac727fb961abb7607553461627b97de0b89cf4a62"
+checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
  "base64 0.21.7",
  "bytes",
@@ -4857,10 +4854,12 @@ dependencies = [
  "http-body 0.4.6",
  "hyper 0.14.30",
  "hyper-rustls 0.24.2",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "log",
  "mime",
+ "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -4869,16 +4868,15 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper 0.1.2",
- "system-configuration 0.5.1",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls 0.24.1",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.25.4",
+ "webpki-roots 0.22.6",
  "winreg",
 ]
 
@@ -4891,7 +4889,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.6",
@@ -4900,14 +4897,12 @@ dependencies = [
  "http-body-util",
  "hyper 1.4.1",
  "hyper-rustls 0.27.3",
- "hyper-tls",
  "hyper-util",
  "ipnet",
  "js-sys",
  "log",
  "mime",
  "mime_guess",
- "native-tls",
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
@@ -4919,10 +4914,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper 1.0.1",
- "system-configuration 0.6.1",
+ "sync_wrapper",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.26.0",
  "tower-service",
  "url",
@@ -4971,10 +4964,10 @@ dependencies = [
 [[package]]
 name = "rpc-client"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "log",
- "reqwest 0.12.9",
+ "reqwest 0.11.18",
  "serde",
  "serde_json",
  "starknet 0.11.0",
@@ -4986,7 +4979,7 @@ dependencies = [
 [[package]]
 name = "rpc-replay"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "blockifier",
  "cairo-lang-starknet-classes",
@@ -5392,13 +5385,13 @@ dependencies = [
  "async-trait",
  "atlantic_client",
  "bigdecimal 0.4.5",
- "cairo-vm 1.0.1 (git+https://github.com/chudkowsky/cairo-vm?branch=notlesh/snos-2024-11-04)",
+ "cairo-vm 1.0.1 (git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh/snos-2024-11-04)",
  "celestia-rpc",
  "celestia-types",
  "futures",
  "itertools 0.12.1",
  "prove_block",
- "reqwest 0.12.9",
+ "reqwest 0.11.18",
  "serde",
  "serde-felt",
  "serde_json",
@@ -6376,7 +6369,7 @@ dependencies = [
 [[package]]
 name = "starknet-os"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "anyhow",
  "ark-ec",
@@ -6391,7 +6384,7 @@ dependencies = [
  "cairo-lang-starknet",
  "cairo-lang-starknet-classes",
  "cairo-type-derive",
- "cairo-vm 1.0.1 (git+https://github.com/chudkowsky/cairo-vm?branch=notlesh/snos-2024-11-04)",
+ "cairo-vm 1.0.1 (git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh/snos-2024-11-04)",
  "futures",
  "futures-util",
  "heck 0.4.1",
@@ -6406,7 +6399,7 @@ dependencies = [
  "num-traits 0.2.19",
  "pathfinder-common",
  "pathfinder-crypto",
- "reqwest 0.12.9",
+ "reqwest 0.11.18",
  "serde",
  "serde_json",
  "serde_with 3.9.0",
@@ -6425,11 +6418,11 @@ dependencies = [
 [[package]]
 name = "starknet-os-types"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos.git?rev=15a903f#15a903fc1807b229fb0b39203726a66f9e5df5ee"
+source = "git+https://github.com/keep-starknet-strange/snos.git?rev=35a300a#35a300a10d2107482ada440b5025ee2f651afbd4"
 dependencies = [
  "blockifier",
  "cairo-lang-starknet-classes",
- "cairo-vm 1.0.1 (git+https://github.com/chudkowsky/cairo-vm?branch=notlesh/snos-2024-11-04)",
+ "cairo-vm 1.0.1 (git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh/snos-2024-11-04)",
  "flate2",
  "num-bigint",
  "serde",
@@ -6456,7 +6449,7 @@ dependencies = [
  "flate2",
  "getrandom",
  "log",
- "reqwest 0.11.27",
+ "reqwest 0.11.18",
  "serde",
  "serde_json",
  "serde_with 2.3.3",
@@ -6477,7 +6470,7 @@ dependencies = [
  "flate2",
  "getrandom",
  "log",
- "reqwest 0.11.27",
+ "reqwest 0.11.18",
  "serde",
  "serde_json",
  "serde_with 3.9.0",
@@ -6713,59 +6706,11 @@ dependencies = [
 
 [[package]]
 name = "sync_wrapper"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
-
-[[package]]
-name = "sync_wrapper"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7065abeca94b6a8a577f9bd45aa0867a2238b74e8eb67cf10d492bc39351394"
 dependencies = [
  "futures-core",
-]
-
-[[package]]
-name = "system-configuration"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba3a3adc5c275d719af8cb4272ea1c4a6d668a777f37e115f6d11ddbc1c8e0e7"
-dependencies = [
- "bitflags 1.3.2",
- "core-foundation",
- "system-configuration-sys 0.5.0",
-]
-
-[[package]]
-name = "system-configuration"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c879d448e9d986b661742763247d3693ed13609438cf3d006f51f5368a5ba6b"
-dependencies = [
- "bitflags 2.6.0",
- "core-foundation",
- "system-configuration-sys 0.6.0",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a75fb188eb626b924683e3b95e3a48e63551fcfb51949de2f06a9d91dbee93c9"
-dependencies = [
- "core-foundation-sys",
- "libc",
-]
-
-[[package]]
-name = "system-configuration-sys"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
-dependencies = [
- "core-foundation-sys",
- "libc",
 ]
 
 [[package]]
@@ -7417,20 +7362,19 @@ checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.93"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a82edfc16a6c469f5f44dc7b571814045d60404b55a0ee849f9bcfa2e63dd9b5"
+checksum = "4be2531df63900aeb2bca0daaaddec08491ee64ceecbee5076636a3b026795a8"
 dependencies = [
  "cfg-if",
- "once_cell",
  "wasm-bindgen-macro",
 ]
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.93"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9de396da306523044d3302746f1208fa71d7532227f15e347e2d93e4145dd77b"
+checksum = "614d787b966d3989fa7bb98a654e369c762374fd3213d212cfc0251257e747da"
 dependencies = [
  "bumpalo",
  "log",
@@ -7443,9 +7387,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.43"
+version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e9300f63a621e96ed275155c108eb6f843b6a26d053f122ab69724559dc8ed"
+checksum = "76bc14366121efc8dbb487ab05bcc9d346b3b5ec0eaa76e46594cabbe51762c0"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -7455,9 +7399,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.93"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "585c4c91a46b072c92e908d99cb1dcdf95c5218eeb6f3bf1efa991ee7a68cccf"
+checksum = "a1f8823de937b71b9460c0c34e25f3da88250760bec0ebac694b49997550d726"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -7465,9 +7409,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.93"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afc340c74d9005395cf9dd098506f7f44e38f2b4a21c6aaacf9a105ea5e1e836"
+checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7478,25 +7422,38 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.93"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c62a0a307cb4a311d3a07867860911ca130c3494e8c2719593806c08bc5d0484"
+checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
 
 [[package]]
 name = "web-sys"
-version = "0.3.70"
+version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26fdeaafd9bd129f65e7c031593c24d62186301e0c72c8978fa1678be7d532c0"
+checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
 
 [[package]]
-name = "webpki-roots"
-version = "0.25.4"
+name = "webpki"
+version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
+checksum = "ed63aea5ce73d0ff405984102c42de94fc55a6b75765d621c65262469b3c9b53"
+dependencies = [
+ "ring",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "0.22.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6c71e40d7d2c34a5106301fb632274ca37242cd0c9d3e64dbece371a40a2d87"
+dependencies = [
+ "webpki",
+]
 
 [[package]]
 name = "webpki-roots"
@@ -7746,12 +7703,11 @@ dependencies = [
 
 [[package]]
 name = "winreg"
-version = "0.50.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524e57b2c537c0f9b1e69f1965311ec12182b4122e45035b1508cd24d2adadb1"
+checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
 dependencies = [
- "cfg-if",
- "windows-sys 0.48.0",
+ "winapi",
 ]
 
 [[package]]
