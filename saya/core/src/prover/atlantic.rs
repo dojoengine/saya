@@ -77,7 +77,9 @@ impl AtlanticProver {
         Ok(response_text)
     }
 
-    pub async fn check_query_status(&self, id: u32, query_id: &str) -> Result<ProverStatus, Error> {
+    pub async fn check_query_status(&self, id: u32, query_id: &str) -> Result<ProverStatus, Error> { 
+        //Fix: change checking the status,
+        // instead of checking if all jobs are completed, check the status of query (all available jobs might be completed but some might not be started)    
         trace!("Checking status for block {}, query_id {}", id, query_id);
 
         let sdk = AtlanticSdk::new(self.api_key.clone(), self.url.clone())?;

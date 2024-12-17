@@ -60,7 +60,7 @@ pub struct SayaArgs {
 impl SayaArgs {
     pub fn init_logging(&self) -> Result<(), Box<dyn std::error::Error>> {
         const DEFAULT_LOG_FILTER: &str =
-            "info,saya::core=trace,blockchain=off,provider=off,atlantic_client=off,log=off"; //log is off because its orgin-prove_block is too verbose
+            "info,saya::core=trace,blockchain=off,provider=off,atlantic_client=off,prove_block=off,rpc_client=off"; //log is off because its orgin-prove_block is too verbose
 
         LogTracer::init()?;
 
