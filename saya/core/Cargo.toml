@@ -23,7 +23,7 @@ url.workspace = true
 celestia-rpc = "0.4.0"
 celestia-types = "0.5.0"
 starknet-types-core.workspace = true
-atlantic_client = "=0.1.2"
+atlantic_client = "0.2.1"
 reqwest.workspace = true
 serde-felt = { git = "https://github.com/cartridge-gg/cairo-proof-parser.git", rev = "f175d58" }
 prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch 

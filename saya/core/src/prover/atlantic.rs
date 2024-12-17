@@ -77,9 +77,7 @@ impl AtlanticProver {
         Ok(response_text)
     }
 
-    pub async fn check_query_status(&self, id: u32, query_id: &str) -> Result<ProverStatus, Error> { 
-        //Fix: change checking the status,
-        // instead of checking if all jobs are completed, check the status of query (all available jobs might be completed but some might not be started)    
+    pub async fn check_query_status(&self, id: u32, query_id: &str) -> Result<ProverStatus, Error> {
         trace!("Checking status for block {}, query_id {}", id, query_id);
 
         let sdk = AtlanticSdk::new(self.api_key.clone(), self.url.clone())?;
@@ -99,12 +97,10 @@ impl AtlanticProver {
         if job_response.jobs.iter().any(|job| job.status == "FAILED") {
             return Ok(ProverStatus::Failed); // If any job failed
         }
-        if job_response
-            .jobs
-            .iter()
-            .all(|job| job.status == "COMPLETED")
-        {
-            return Ok(ProverStatus::Proved); // All jobs completed
+        let sharp_query_details = sdk.get_sharp_query(query_id).await?.sharp_query;
+
+        if sharp_query_details.status == "DONE" {
+            return Ok(ProverStatus::Proved); // If the query failed
         }
         Ok(ProverStatus::Proving)
     }

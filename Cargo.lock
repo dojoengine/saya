@@ -522,9 +522,9 @@ dependencies = [
 
 [[package]]
 name = "atlantic_client"
-version = "0.1.2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "220032e064d143e5cf6deffb78b652fea6bd169967f7d13870710634ec623021"
+checksum = "95fa1b754772e264f546b813251d3d306779d227e56adc7c3467875f0c9b4d9a"
 dependencies = [
  "anyhow",
  "clap",
