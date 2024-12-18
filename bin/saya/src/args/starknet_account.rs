@@ -2,14 +2,9 @@
 
 use clap::Args;
 use starknet::core::types::Felt;
-use url::Url;
 
 #[derive(Debug, Args, Clone)]
 pub struct StarknetAccountOptions {
-    #[arg(long, env)]
-    #[arg(help = "The url of the starknet node.")]
-    pub starknet_url: Url,
-
     #[arg(long)]
     #[arg(help = "The chain id of the starknet node.")]
     #[arg(default_value = "SN_SEPOLIA")]

@@ -24,7 +24,7 @@ pub struct SayaArgs {
     /// Specify the Katana URL to fetch data from.
     #[arg(long)]
     #[arg(value_name = "RPC URL")]
-    #[arg(help = "RPC URL to fetch data from.")]
+    #[arg(help = "RPC URL to fetch the blocks from.")]
     #[arg(default_value = "http://localhost:9545")]
     pub rpc_url: Url,
 
@@ -60,7 +60,7 @@ pub struct SayaArgs {
 impl SayaArgs {
     pub fn init_logging(&self) -> Result<(), Box<dyn std::error::Error>> {
         const DEFAULT_LOG_FILTER: &str =
-            "info,saya::core=trace,blockchain=off,provider=off,atlantic_client=off,prove_block=off,rpc_client=off"; //log is off because its orgin-prove_block is too verbose
+            "debug,saya::core=trace,blockchain=off,atlantic_client=off,sqlx=off,hyper=off"; //log is off because its orgin-prove_block is too verbose
 
         LogTracer::init()?;
 
@@ -94,7 +94,7 @@ impl TryFrom<SayaArgs> for SayaConfig {
         };
 
         let starknet_account = StarknetAccountData {
-            starknet_url: args.starknet_account.starknet_url,
+            starknet_url: args.settlement.settlement_rpc_url.clone(),
             chain_id: cairo_short_string_to_felt(&args.starknet_account.chain_id)?,
             signer_address: args.starknet_account.signer_address,
             signer_key: private_key,
@@ -114,6 +114,7 @@ impl TryFrom<SayaArgs> for SayaConfig {
             rpc_url: args.rpc_url,
             prover_url: args.proof.prover_url,
             prover_key: args.proof.private_key,
+            settlement_rpc_url: args.settlement.settlement_rpc_url.clone(),
             settlement_contract,
             starknet_account,
         })
