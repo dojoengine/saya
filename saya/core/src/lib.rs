@@ -40,6 +40,7 @@ pub struct SayaConfig {
     pub prover_url: Url,
     pub prover_key: String,
     pub settlement_contract: Felt,
+    pub settlement_rpc_url: Url,
     pub starknet_account: StarknetAccountData,
 }
 
