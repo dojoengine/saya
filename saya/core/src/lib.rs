@@ -24,7 +24,7 @@ use crate::prover::atlantic::AtlanticProver;
 use crate::utlis::graceful_shutdown::shutdown_signal;
 use crate::utlis::pie::CairoPieBytes;
 
-const SNOS: &[u8; 38097088] = include_bytes!("../../../bin/saya/programs/snos.json");
+const SNOS: &[u8; 37909480] = include_bytes!("../../../bin/saya/programs/snos.json");
 
 pub struct Saya {
     pub config: SayaConfig,
