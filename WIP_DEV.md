@@ -28,6 +28,13 @@ For now, we don't use a full dojo project to prove a very simple block. Then, th
 - SNOS repository on `saya-snos-felt` [branch](https://github.com/cartridge-gg/snos/tree/saya-snos-felt)
 - Saya repository on the `feat/katana-snos` [branch](https://github.com/dojoengine/saya/tree/feat/katana-snos)
 
+Once pulling Saya, you must pull the large files from git lfs to run it:
+
+```bash
+git lfs install
+git lfs pull
+```
+
 Then you can run Saya like so:
 
 ```bash
