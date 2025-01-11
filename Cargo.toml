@@ -17,6 +17,7 @@ repository = "https://github.com/dojoengine/saya"
 saya-core = { path = "saya/core" }
 
 anyhow = { version = "1.0.95", default-features = false }
+# `cairo-vm` fork used by `prove_block` from `snos`
 cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", default-features = false }
 celestia-rpc = { version = "0.8.0", default-features = false }
 celestia-types = { version = "0.9.0", default-features = false }
@@ -28,7 +29,7 @@ futures-util = { version ="0.3.31", default-features = false }
 good_lp = { version = "=1.8.1", default-features = false }
 hex = { version = "0.4.3", default-features = false }
 log = "0.4.22"
-prove_block = { git = "https://github.com/chudkowsky/snos", rev= "f8d5ed3" }
+prove_block = { git = "https://github.com/keep-starknet-strange/snos", rev = "6e0514d" }
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 serde = { version = "1.0.217", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.134", default-features = false }

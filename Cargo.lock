@@ -1228,7 +1228,7 @@ dependencies = [
 [[package]]
 name = "cairo-type-derive"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4317,7 +4317,7 @@ dependencies = [
 [[package]]
 name = "prove_block"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "anyhow",
  "blockifier",
@@ -4345,7 +4345,6 @@ dependencies = [
  "starknet_api",
  "thiserror 1.0.69",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -4673,7 +4672,7 @@ dependencies = [
 [[package]]
 name = "rpc-client"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "log",
  "reqwest 0.11.27",
@@ -4683,13 +4682,12 @@ dependencies = [
  "starknet-os",
  "starknet-types-core",
  "thiserror 1.0.69",
- "tracing",
 ]
 
 [[package]]
 name = "rpc-replay"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "blockifier",
  "cairo-lang-starknet-classes",
@@ -5775,7 +5773,7 @@ dependencies = [
 [[package]]
 name = "starknet-os"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "anyhow",
  "ark-ec",
@@ -5824,7 +5822,7 @@ dependencies = [
 [[package]]
 name = "starknet-os-types"
 version = "0.1.0"
-source = "git+https://github.com/chudkowsky/snos?rev=f8d5ed3#f8d5ed35a087114fdbeb193d683976c4da4942e1"
+source = "git+https://github.com/keep-starknet-strange/snos?rev=6e0514d#6e0514d3cc33d7e2041cfd4a72d0ceca16aaf3c3"
 dependencies = [
  "blockifier",
  "cairo-lang-starknet-classes",
