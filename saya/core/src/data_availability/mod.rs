@@ -1,12 +1,11 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 mod celestia;
 pub use celestia::{CelestiaDataAvailabilityBackend, CelestiaDataAvailabilityBackendBuilder};
 
-use crate::{prover::Proof, service::Daemon};
+use crate::service::Daemon;
 
 pub trait DataAvailabilityBackendBuilder {
     type Backend: DataAvailabilityBackend;
@@ -15,12 +14,26 @@ pub trait DataAvailabilityBackendBuilder {
 
     fn last_pointer(self, last_pointer: Option<DataAvailabilityPointer>) -> Self;
 
-    fn proof_channel(self, proof_channel: Receiver<Proof>) -> Self;
+    fn proof_channel(
+        self,
+        proof_channel: Receiver<<Self::Backend as DataAvailabilityBackend>::Payload>,
+    ) -> Self;
 
-    fn cursor_channel(self, cursor_channel: Sender<DataAvailabilityCursor>) -> Self;
+    fn cursor_channel(
+        self,
+        cursor_channel: Sender<
+            DataAvailabilityCursor<<Self::Backend as DataAvailabilityBackend>::Payload>,
+        >,
+    ) -> Self;
 }
 
-pub trait DataAvailabilityBackend: Daemon {}
+pub trait DataAvailabilityBackend: Daemon {
+    type Payload: DataAvailabilityPayload;
+}
+
+pub trait DataAvailabilityPayload: Serialize + Clone + Send {
+    fn block_number(&self) -> u64;
+}
 
 /// A data availability packet contains data being made available alongside a pointer to the
 /// previous packet.
@@ -33,11 +46,11 @@ pub trait DataAvailabilityBackend: Daemon {}
 /// This issue shouldn't matter much during the proof of concept stage, but should definitely be
 /// revisited before getting production-ready.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DataAvailabilityPacket {
+pub struct DataAvailabilityPacket<P> {
     /// Pointer to the previous [`DataAvailabilityPacket`].
     pub prev: Option<DataAvailabilityPointer>,
     /// The content of the packet.
-    pub content: DataAvailabilityContent,
+    pub content: P,
 }
 
 // TODO: abstract over this to allow other DA backends.
@@ -50,25 +63,12 @@ pub struct DataAvailabilityPointer {
 }
 
 // TODO: abstract over this to allow other DA backends.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DataAvailabilityContent {
-    /// State transition start block.
-    pub from_block_number: u64,
-    /// State transition end block. This should be the same as `from_block_number` if the transition
-    /// involves only one block.
-    pub to_block_number: u64,
-    /// The STARK proof for the state transition.
-    pub proof: StarkProof,
-}
-
-// TODO: abstract over this to allow other DA backends.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DataAvailabilityCursor {
-    /// State transition start block.
-    pub from_block_number: u64,
-    /// State transition end block. This should be the same as `from_block_number` if the transition
-    /// involves only one block.
-    pub to_block_number: u64,
+#[derive(Debug, Clone)]
+pub struct DataAvailabilityCursor<P> {
+    /// State transition block.
+    pub block_number: u64,
     /// Pointer to location of data availability.
     pub pointer: DataAvailabilityPointer,
+    /// Full content of the payload.
+    pub full_payload: P,
 }

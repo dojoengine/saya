@@ -1,18 +1,15 @@
 use anyhow::Result;
 use log::{debug, info};
-use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
     block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
-        DataAvailabilityPointer,
     },
-    orchestrator::Genesis,
-    prover::{Prover, ProverBuilder, SnosProof},
+    prover::{Prover, ProverBuilder, RecursiveProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
-    storage::{BlockWithDa, ChainHead, StorageBackend},
+    settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
 };
 
 /// Size of the `NewBlock` channel.
@@ -26,101 +23,94 @@ const BLOCK_INGESTOR_BUFFER_SIZE: usize = 1;
 const PROOF_BUFFER_SIZE: usize = 1;
 
 /// Size of the `DataAvailabilityCursor` channel.
-const CURSOR_BUFFER_SIZE: usize = 1;
+const DA_CURSOR_BUFFER_SIZE: usize = 1;
 
-/// An orchestrator implementation for running a rollup in sovereign mode.
+/// Size of the `SettlementCursor` channel.
+const SETTLE_CURSOR_BUFFER_SIZE: usize = 1;
+
+/// An orchestrator implementation for running a rollup in persistent mode.
 ///
 /// In this mode, the orchestrator proves blocks and makes full proofs available through a data
-/// availability backend. However, no "settlement" is performed in a decentralized manner (e.g. on a
-/// base "layer-1" blockchain).
+/// availability backend. It then applies the state root transition on a settlement layer and
+/// publishes the data availability fact simultaneously.
+///
+/// Notably, the data availability fact is not verified and opaque to the settlement layer.
+/// Therefore, with the current implementation, there's a risk that a rollup's sequencer would
+/// withhold full state transition data, making it impossible to access the latest state.
 #[derive(Debug)]
-pub struct SovereignOrchestrator<I, P, D, S> {
-    cursor_channel: Receiver<DataAvailabilityCursor<SnosProof<StarkProof>>>,
+pub struct PersistentOrchestrator<I, P, D, S> {
+    cursor_channel: Receiver<SettlementCursor>,
     ingestor: I,
     prover: P,
     da: D,
-    storage: S,
+    settlement: S,
     finish_handle: FinishHandle,
 }
 
 #[derive(Debug)]
-pub struct SovereignOrchestratorBuilder<I, P, D, S> {
+pub struct PersistentOrchestratorBuilder<I, P, D, S> {
     ingestor_builder: I,
     prover_builder: P,
     da_builder: D,
-    storage: S,
-    genesis: Option<Genesis>,
+    settlement_builder: S,
 }
 
-struct SovereignOrchestratorState<S> {
-    cursor_channel: Receiver<DataAvailabilityCursor<SnosProof<StarkProof>>>,
-    storage: S,
+struct PersistentOrchestratorState {
+    cursor_channel: Receiver<SettlementCursor>,
     ingestor_handle: ShutdownHandle,
     prover_handle: ShutdownHandle,
     da_handle: ShutdownHandle,
+    settlement_handle: ShutdownHandle,
     finish_handle: FinishHandle,
 }
 
-impl<I, P, D, S> SovereignOrchestratorBuilder<I, P, D, S> {
+impl<I, P, D, S> PersistentOrchestratorBuilder<I, P, D, S> {
     pub fn new(
         ingestor_builder: I,
         prover_builder: P,
         da_builder: D,
-        storage: S,
-        genesis: Option<Genesis>,
+        settlement_builder: S,
     ) -> Self {
         Self {
             ingestor_builder,
             prover_builder,
             da_builder,
-            storage,
-            genesis,
+            settlement_builder,
         }
     }
 }
 
-impl<I, P, PV, D, DB, S> SovereignOrchestratorBuilder<I, P, D, S>
+impl<I, P, PV, D, DB, S> PersistentOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = NewBlock, Proof = SnosProof<StarkProof>>,
+    PV: Prover<Statement = NewBlock, Proof = RecursiveProof>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
-    DB: DataAvailabilityBackend<Payload = SnosProof<StarkProof>>,
-    S: StorageBackend,
+    DB: DataAvailabilityBackend<Payload = RecursiveProof>,
+    S: SettlementBackendBuilder + Send,
 {
     pub async fn build(
         self,
-    ) -> Result<SovereignOrchestrator<I::Ingestor, P::Prover, D::Backend, S>> {
+    ) -> Result<PersistentOrchestrator<I::Ingestor, P::Prover, D::Backend, S::Backend>> {
         let (new_block_tx, new_block_rx) =
             tokio::sync::mpsc::channel::<NewBlock>(BLOCK_INGESTOR_BUFFER_SIZE);
-        let (proof_tx, proof_rx) =
-            tokio::sync::mpsc::channel::<SnosProof<StarkProof>>(PROOF_BUFFER_SIZE);
-        let (cursor_tx, cursor_rx) = tokio::sync::mpsc::channel::<
-            DataAvailabilityCursor<SnosProof<StarkProof>>,
-        >(CURSOR_BUFFER_SIZE);
+        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<RecursiveProof>(PROOF_BUFFER_SIZE);
+        let (da_cursor_tx, da_cursor_rx) = tokio::sync::mpsc::channel::<
+            DataAvailabilityCursor<RecursiveProof>,
+        >(DA_CURSOR_BUFFER_SIZE);
+        let (settle_cursor_tx, settle_cursor_rx) =
+            tokio::sync::mpsc::channel::<SettlementCursor>(SETTLE_CURSOR_BUFFER_SIZE);
 
-        let chain_head = self.storage.get_chain_head().await;
-        let (start_block, da_builder) = match chain_head {
-            ChainHead::Genesis => match self.genesis {
-                Some(genesis) => (
-                    genesis.first_block_number,
-                    self.da_builder.last_pointer(None),
-                ),
-                None => {
-                    // In sovereign mode the chain is not settled in a decentralized manner. Without
-                    // a pointer to the last published DA we can only rely on the optionally
-                    // supplied genesis info for starting the orchestrator.
-                    anyhow::bail!("genesis not provided when chain head has not been persisted")
-                }
-            },
-            ChainHead::Block(block_with_da) => (
-                block_with_da.height + 1,
-                self.da_builder.last_pointer(Some(DataAvailabilityPointer {
-                    height: block_with_da.height,
-                    commitment: block_with_da.da_pointer.commitment,
-                })),
-            ),
-        };
+        let da_builder = self.da_builder.last_pointer(None);
+
+        let settlement = self
+            .settlement_builder
+            .da_channel(da_cursor_rx)
+            .cursor_channel(settle_cursor_tx)
+            .build()
+            .await
+            .unwrap();
+        let start_block = settlement.get_block_number().await? + 1;
 
         let ingestor = self
             .ingestor_builder
@@ -138,25 +128,22 @@ where
 
         let da = da_builder
             .proof_channel(proof_rx)
-            .cursor_channel(cursor_tx)
+            .cursor_channel(da_cursor_tx)
             .build()
             .unwrap();
 
-        Ok(SovereignOrchestrator {
-            cursor_channel: cursor_rx,
+        Ok(PersistentOrchestrator {
+            cursor_channel: settle_cursor_rx,
             ingestor,
             prover,
             da,
-            storage: self.storage,
+            settlement,
             finish_handle: FinishHandle::new(),
         })
     }
 }
 
-impl<S> SovereignOrchestratorState<S>
-where
-    S: StorageBackend,
-{
+impl PersistentOrchestratorState {
     async fn run(mut self) {
         loop {
             // TODO: handle unexpected exit of descendant services
@@ -169,26 +156,24 @@ where
             // in the future.
             let new_cursor = new_cursor.unwrap();
 
-            self.storage
-                .set_chain_head(BlockWithDa {
-                    height: new_cursor.block_number,
-                    da_pointer: new_cursor.pointer,
-                })
-                .await;
-
-            info!("Chain advanced to block #{}", new_cursor.block_number);
+            info!(
+                "Chain advanced to block #{} (settled with tx: {:#064x})",
+                new_cursor.block_number, new_cursor.transaction_hash
+            );
         }
 
         // Request graceful shutdown for all descendant services
         self.ingestor_handle.shutdown();
         self.prover_handle.shutdown();
         self.da_handle.shutdown();
+        self.settlement_handle.shutdown();
 
         // Wait for all descendant services to finish graceful shutdown
         futures_util::future::join_all([
             self.ingestor_handle.finished(),
             self.prover_handle.finished(),
             self.da_handle.finished(),
+            self.settlement_handle.finished(),
         ])
         .await;
 
@@ -197,30 +182,31 @@ where
     }
 }
 
-impl<I, P, D, S> Daemon for SovereignOrchestrator<I, P, D, S>
+impl<I, P, D, S> Daemon for PersistentOrchestrator<I, P, D, S>
 where
     I: BlockIngestor + Send,
     P: Prover + Send,
     D: DataAvailabilityBackend + Send,
-    S: StorageBackend + Send + 'static,
+    S: SettlementBackend + Send,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }
 
     fn start(self) {
-        let state = SovereignOrchestratorState {
+        let state = PersistentOrchestratorState {
             cursor_channel: self.cursor_channel,
-            storage: self.storage,
             ingestor_handle: self.ingestor.shutdown_handle(),
             prover_handle: self.prover.shutdown_handle(),
             da_handle: self.da.shutdown_handle(),
+            settlement_handle: self.settlement.shutdown_handle(),
             finish_handle: self.finish_handle,
         };
 
         self.ingestor.start();
         self.prover.start();
         self.da.start();
+        self.settlement.start();
 
         tokio::spawn(state.run());
     }

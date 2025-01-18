@@ -6,7 +6,7 @@ use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
-    prover::AtlanticProverBuilder,
+    prover::AtlanticSnosProverBuilder,
     service::Daemon,
     storage::InMemoryStorageBackend,
 };
@@ -73,7 +73,7 @@ impl Start {
 
         // TODO: make impls of these providers configurable
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.starknet_rpc, snos);
-        let prover_builder = AtlanticProverBuilder::new(self.atlantic_key);
+        let prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key);
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();

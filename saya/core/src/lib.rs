@@ -16,8 +16,14 @@ pub mod storage;
 /// Data availability backend abstraction and built-in implementations.
 pub mod data_availability;
 
+/// Base layer settlement provider abstraction and built-in implementations.
+pub mod settlement;
+
 /// Orchestrators for executing different rollup modes.
 pub mod orchestrator;
 
 /// Types related to handling long-running background services.
 pub mod service;
+
+/// Internal utilities.
+mod utils;

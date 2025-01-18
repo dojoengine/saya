@@ -7,10 +7,9 @@ use url::Url;
 
 use crate::{
     data_availability::{
-        DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityContent,
-        DataAvailabilityCursor, DataAvailabilityPacket, DataAvailabilityPointer,
+        DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
+        DataAvailabilityPacket, DataAvailabilityPayload, DataAvailabilityPointer,
     },
-    prover::Proof,
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
 
@@ -18,25 +17,28 @@ use crate::{
 const NAMESPACE: Namespace = Namespace::const_v0(*b"sayaproofs");
 
 #[derive(Debug)]
-pub struct CelestiaDataAvailabilityBackend {
+pub struct CelestiaDataAvailabilityBackend<P> {
     rpc_url: Url,
     auth_token: String,
     last_pointer: Option<DataAvailabilityPointer>,
-    proof_channel: Receiver<Proof>,
-    cursor_channel: Sender<DataAvailabilityCursor>,
+    proof_channel: Receiver<P>,
+    cursor_channel: Sender<DataAvailabilityCursor<P>>,
     finish_handle: FinishHandle,
 }
 
 #[derive(Debug)]
-pub struct CelestiaDataAvailabilityBackendBuilder {
+pub struct CelestiaDataAvailabilityBackendBuilder<P> {
     rpc_url: Url,
     auth_token: String,
     last_pointer: Option<Option<DataAvailabilityPointer>>,
-    proof_channel: Option<Receiver<Proof>>,
-    cursor_channel: Option<Sender<DataAvailabilityCursor>>,
+    proof_channel: Option<Receiver<P>>,
+    cursor_channel: Option<Sender<DataAvailabilityCursor<P>>>,
 }
 
-impl CelestiaDataAvailabilityBackend {
+impl<P> CelestiaDataAvailabilityBackend<P>
+where
+    P: DataAvailabilityPayload,
+{
     async fn run(mut self) {
         loop {
             let new_proof = tokio::select! {
@@ -56,11 +58,7 @@ impl CelestiaDataAvailabilityBackend {
 
             let packet = DataAvailabilityPacket {
                 prev: self.last_pointer,
-                content: DataAvailabilityContent {
-                    from_block_number: new_proof.block_number,
-                    to_block_number: new_proof.block_number,
-                    proof: new_proof.proof,
-                },
+                content: new_proof.clone(),
             };
 
             // TODO: error handling
@@ -68,7 +66,7 @@ impl CelestiaDataAvailabilityBackend {
             ciborium::into_writer(&packet, &mut serialized_packet).unwrap();
             debug!(
                 "Celestia DA blob size for block #{}: {} bytes",
-                new_proof.block_number,
+                new_proof.block_number(),
                 serialized_packet.len()
             );
 
@@ -93,12 +91,12 @@ impl CelestiaDataAvailabilityBackend {
             );
 
             let new_cursor = DataAvailabilityCursor {
-                from_block_number: new_proof.block_number,
-                to_block_number: new_proof.block_number,
+                block_number: new_proof.block_number(),
                 pointer: DataAvailabilityPointer {
                     height: celestia_block,
                     commitment,
                 },
+                full_payload: packet.content,
             };
 
             // Since the channel is bounded, it's possible
@@ -113,7 +111,7 @@ impl CelestiaDataAvailabilityBackend {
     }
 }
 
-impl CelestiaDataAvailabilityBackendBuilder {
+impl<P> CelestiaDataAvailabilityBackendBuilder<P> {
     pub fn new(rpc_url: Url, auth_token: String) -> Self {
         Self {
             rpc_url,
@@ -125,8 +123,11 @@ impl CelestiaDataAvailabilityBackendBuilder {
     }
 }
 
-impl DataAvailabilityBackendBuilder for CelestiaDataAvailabilityBackendBuilder {
-    type Backend = CelestiaDataAvailabilityBackend;
+impl<P> DataAvailabilityBackendBuilder for CelestiaDataAvailabilityBackendBuilder<P>
+where
+    P: DataAvailabilityPayload + 'static,
+{
+    type Backend = CelestiaDataAvailabilityBackend<P>;
 
     fn build(self) -> Result<Self::Backend> {
         Ok(CelestiaDataAvailabilityBackend {
@@ -150,20 +151,28 @@ impl DataAvailabilityBackendBuilder for CelestiaDataAvailabilityBackendBuilder {
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Receiver<Proof>) -> Self {
+    fn proof_channel(mut self, proof_channel: Receiver<P>) -> Self {
         self.proof_channel = Some(proof_channel);
         self
     }
 
-    fn cursor_channel(mut self, cursor_channel: Sender<DataAvailabilityCursor>) -> Self {
+    fn cursor_channel(mut self, cursor_channel: Sender<DataAvailabilityCursor<P>>) -> Self {
         self.cursor_channel = Some(cursor_channel);
         self
     }
 }
 
-impl DataAvailabilityBackend for CelestiaDataAvailabilityBackend {}
+impl<P> DataAvailabilityBackend for CelestiaDataAvailabilityBackend<P>
+where
+    P: DataAvailabilityPayload + 'static,
+{
+    type Payload = P;
+}
 
-impl Daemon for CelestiaDataAvailabilityBackend {
+impl<P> Daemon for CelestiaDataAvailabilityBackend<P>
+where
+    P: DataAvailabilityPayload + 'static,
+{
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }

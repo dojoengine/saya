@@ -85,6 +85,46 @@ impl AtlanticClient {
         Ok(response.atlantic_query_id)
     }
 
+    pub async fn submit_l2_atlantic_query<P, I>(&self, program: P, input: I) -> Result<String>
+    where
+        P: Into<Cow<'static, [u8]>>,
+        I: Into<Cow<'static, [u8]>>,
+    {
+        let mut url = self.api_base.clone();
+        url.path_segments_mut()
+            .unwrap()
+            .push("l2")
+            .push("atlantic-query");
+        url.query_pairs_mut().append_pair("apiKey", &self.api_key);
+
+        let form = Form::new()
+            .text("cairoVersion", "0")
+            .text("mockFactHash", "false")
+            .part(
+                "programFile",
+                Part::bytes(program.into())
+                    .file_name("program.json")
+                    .mime_str("application/json")
+                    .unwrap(),
+            )
+            .part(
+                "inputFile",
+                Part::bytes(input.into())
+                    .file_name("input.json")
+                    .mime_str("application/json")
+                    .unwrap(),
+            )
+            .text("prover", "starkware_sharp");
+
+        let response = self.http_client.post(url).multipart(form).send().await?;
+        if !response.status().is_success() {
+            anyhow::bail!("unsuccessful status code: {}", response.status());
+        }
+
+        let response = response.json::<AtlanticProofGenerationResponse>().await?;
+        Ok(response.atlantic_query_id)
+    }
+
     pub async fn get_query_status(&self, id: &str) -> Result<AtlanticQueryStatus> {
         let mut url = self.api_base.clone();
         url.path_segments_mut()

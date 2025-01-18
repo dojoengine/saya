@@ -1,6 +1,9 @@
 mod sovereign;
 pub use sovereign::{SovereignOrchestrator, SovereignOrchestratorBuilder};
 
+mod persistent;
+pub use persistent::{PersistentOrchestrator, PersistentOrchestratorBuilder};
+
 #[derive(Debug)]
 pub struct Genesis {
     /// Number or height of the first block that transforms the genesis state. This is usually `0`
