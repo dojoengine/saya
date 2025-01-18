@@ -119,7 +119,7 @@ impl Saya {
     /// # Returns
     /// Returns an `Error` if the pie generation or submission fails.
     async fn submit_pie(&self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<(), Error> {
-        let mut block_number = self.last_sent_for_prove_block + 1;
+        let mut block_number = self.last_sent_for_prove_block;
         let blocks = self.db.list_blocks_with_status(BlockStatus::Failed).await?;
         block_number = blocks
             .iter()
@@ -298,7 +298,7 @@ impl Saya {
         let poll_interval_secs = 10;
         let state = self.piltover.get_state().await;
         let last_settled_block = state.block_number;
-        let mut block_number = last_settled_block + 1;
+        let mut block_number = last_settled_block;
         loop {
             tokio::select! {
                 _ = shutdown_rx.recv() => {
