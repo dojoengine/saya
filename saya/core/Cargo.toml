@@ -26,12 +26,16 @@ starknet-types-core.workspace = true
 atlantic_client = "0.2.2"
 reqwest.workspace = true
 serde-felt = { git = "https://github.com/cartridge-gg/cairo-proof-parser.git", rev = "f175d58" }
-#prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch 
-prove_block = { path = "/Users/glihm/sn/snos/crates/bin/prove_block" }
+#prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch
+prove_block = { git = "https://github.com/cartridge-gg/snos", branch = "kariy/katana-compat-genesis" }
 #starknet-os = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch
-starknet-os = { path = "/Users/glihm/sn/snos/crates/starknet-os" }
+starknet-os = { git = "https://github.com/cartridge-gg/snos", branch = "kariy/katana-compat-genesis" }
 
-cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", features = ["cairo-1-hints", "extensive_hints", "mod_builtin"] }
+cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", features = [
+	"cairo-1-hints",
+	"extensive_hints",
+	"mod_builtin",
+] }
 
 swiftness_proof_parser = "0.1.0"
-sqlx.workspace = true 
+sqlx.workspace = true
