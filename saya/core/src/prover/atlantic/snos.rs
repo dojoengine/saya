@@ -10,8 +10,8 @@ use crate::{
     block_ingestor::NewBlock,
     prover::{
         atlantic::{
-            client::{AtlanticClient, AtlanticQueryStatus},
-            AtlanticProof,
+            client::{AtlanticClient, AtlanticJobStatus},
+            AtlanticProof, PROOF_GENERATION_JOB_NAME,
         },
         Prover, ProverBuilder, SnosProof,
     },
@@ -81,16 +81,21 @@ where
                 // TODO: sleep with graceful shutdown
                 tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
 
-                // TODO: check only for the proof generation job as fact registration doesn't matter
                 // TODO: error handling
-                let query_status = self
-                    .client
-                    .get_query_status(&atlantic_query_id)
-                    .await
-                    .unwrap();
-
-                if query_status == AtlanticQueryStatus::Done {
-                    break;
+                if let Ok(jobs) = self.client.get_query_jobs(&atlantic_query_id).await {
+                    if let Some(proof_generation_job) = jobs
+                        .iter()
+                        .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
+                    {
+                        match proof_generation_job.status {
+                            AtlanticJobStatus::Completed => break,
+                            AtlanticJobStatus::Failed => {
+                                // TODO: error handling
+                                panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                            }
+                            AtlanticJobStatus::InProgress => {}
+                        }
+                    }
                 }
             }
 

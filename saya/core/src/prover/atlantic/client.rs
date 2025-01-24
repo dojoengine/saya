@@ -27,6 +27,21 @@ pub enum AtlanticQueryStatus {
     InProgress,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlanticQueryJob {
+    pub job_name: String,
+    pub status: AtlanticJobStatus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AtlanticJobStatus {
+    InProgress,
+    Completed,
+    Failed,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct AtlanticProofGenerationResponse {
@@ -35,14 +50,8 @@ struct AtlanticProofGenerationResponse {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AtlanticQueryResponse {
-    atlantic_query: AtlanticQuery,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AtlanticQuery {
-    status: AtlanticQueryStatus,
+struct AtlanticQueryJobsResponse {
+    jobs: Vec<AtlanticQueryJob>,
 }
 
 impl AtlanticClient {
@@ -125,11 +134,11 @@ impl AtlanticClient {
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn get_query_status(&self, id: &str) -> Result<AtlanticQueryStatus> {
+    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>> {
         let mut url = self.api_base.clone();
         url.path_segments_mut()
             .unwrap()
-            .push("atlantic-query")
+            .push("atlantic-query-jobs")
             .push(id);
 
         let response = self.http_client.get(url).send().await?;
@@ -137,8 +146,8 @@ impl AtlanticClient {
             anyhow::bail!("unsuccessful status code: {}", response.status());
         }
 
-        let response = response.json::<AtlanticQueryResponse>().await?;
-        Ok(response.atlantic_query.status)
+        let response = response.json::<AtlanticQueryJobsResponse>().await?;
+        Ok(response.jobs)
     }
 
     pub async fn get_proof(&self, id: &str) -> Result<String> {

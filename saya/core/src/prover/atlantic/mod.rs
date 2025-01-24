@@ -10,6 +10,8 @@ pub use snos::{AtlanticSnosProver, AtlanticSnosProverBuilder};
 mod layout_bridge;
 pub use layout_bridge::{AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder};
 
+const PROOF_GENERATION_JOB_NAME: &str = "PROOF_GENERATION";
+
 pub trait AtlanticProof: Sized {
     fn parse(raw_proof: String) -> Result<Self>;
 }
