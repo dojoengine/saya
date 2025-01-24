@@ -1,14 +1,18 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
+use integrity::{split_proof, VerifierConfiguration};
 use log::{debug, info};
 use starknet::{
-    accounts::{Account, SingleOwnerAccount},
+    accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
         codec::{Decode, Encode},
-        types::{BlockId, BlockTag, Call, FunctionCall, U256},
+        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt, U256},
     },
-    macros::selector,
+    macros::{selector, short_string},
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
     signers::{LocalWallet, SigningKey},
 };
@@ -21,14 +25,17 @@ use crate::{
     prover::RecursiveProof,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
-    utils::{calculate_output, felt_to_bigdecimal, watch_tx},
+    utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
 };
+
+const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
 pub struct PiltoverSettlementBackend {
     provider: Arc<JsonRpcClient<HttpTransport>>,
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
-    contract_address: Felt,
+    integrity_address: Felt,
+    piltover_address: Felt,
     da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
@@ -37,7 +44,8 @@ pub struct PiltoverSettlementBackend {
 #[derive(Debug)]
 pub struct PiltoverSettlementBackendBuilder {
     rpc_url: Url,
-    contract_address: Felt,
+    integrity_address: Felt,
+    piltover_address: Felt,
     account_address: Felt,
     account_private_key: Felt,
     da_channel: Option<Receiver<DataAvailabilityCursor<RecursiveProof>>>,
@@ -67,7 +75,7 @@ impl PiltoverSettlementBackend {
             .provider
             .call(
                 FunctionCall {
-                    contract_address: self.contract_address,
+                    contract_address: self.piltover_address,
                     entry_point_selector: selector!("get_state"),
                     calldata: vec![],
                 },
@@ -90,8 +98,85 @@ impl PiltoverSettlementBackend {
             let new_da = new_da.unwrap();
             debug!("Received new DA cursor");
 
+            // TODO: error handling
+            let split_proof =
+                split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
+                    new_da.full_payload.layout_bridge_proof.clone(),
+                )
+                .unwrap();
+            let integrity_job_id = SigningKey::from_random().secret_scalar();
+            let integrity_calls = split_proof
+                .into_calls(
+                    integrity_job_id,
+                    VerifierConfiguration {
+                        layout: short_string!("recursive_with_poseidon"),
+                        hasher: short_string!("keccak_160_lsb"),
+                        stone_version: short_string!("stone6"),
+                        memory_verification: short_string!("cairo1"),
+                    },
+                )
+                .collect_calls(self.integrity_address);
+            let integrity_call_chunks = split_calls(integrity_calls);
+            debug!(
+                "{} transactions to integrity verifier generated (job id: {:#064x})",
+                integrity_call_chunks.len(),
+                integrity_job_id
+            );
+
+            // TODO: error handling
+            let mut nonce = self.account.get_nonce().await.unwrap();
+            let mut total_fee = Felt::ZERO;
+
+            let proof_start = Instant::now();
+
+            for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
+                let tx = self
+                    .account
+                    .execute_v3(chunk.to_owned())
+                    .nonce(nonce)
+                    .send()
+                    .await
+                    .unwrap();
+                debug!(
+                    "[{} / {}] Integrity verification transaction sent: {:#064x}",
+                    ind + 1,
+                    integrity_call_chunks.len(),
+                    tx.transaction_hash
+                );
+
+                // TODO: error handling
+                let receipt = watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                    .await
+                    .unwrap();
+
+                let fee = match &receipt.receipt {
+                    TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
+                    TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
+                    TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
+                    TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
+                    TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
+                };
+
+                debug!(
+                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                    ind + 1,
+                    integrity_call_chunks.len(),
+                    tx.transaction_hash
+                );
+
+                nonce += Felt::ONE;
+                total_fee += fee.amount;
+            }
+
+            let proof_end = Instant::now();
+            info!(
+                "Proof successfully verified on integrity in {:.2} seconds. Total cost: {} STRK",
+                proof_end.duration_since(proof_start).as_secs_f32(),
+                felt_to_bigdecimal(total_fee, 18)
+            );
+
             let update_state_call = Call {
-                to: self.contract_address,
+                to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
@@ -123,7 +208,7 @@ impl PiltoverSettlementBackend {
             // TODO: error handling
             let transaction = execution.send().await.unwrap();
             info!(
-                "Piltover statement transaction sent for block #{}: {}",
+                "Piltover statement transaction sent for block #{}: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
             );
 
@@ -132,12 +217,12 @@ impl PiltoverSettlementBackend {
             watch_tx(
                 &self.provider,
                 transaction.transaction_hash,
-                Duration::from_secs(2),
+                POLLING_INTERVAL,
             )
             .await
             .unwrap();
             info!(
-                "Piltover statement transaction block #{} confirmed: {}",
+                "Piltover statement transaction block #{} confirmed: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
             );
 
@@ -161,13 +246,15 @@ impl PiltoverSettlementBackend {
 impl PiltoverSettlementBackendBuilder {
     pub fn new(
         rpc_url: Url,
-        contract_address: Felt,
+        integrity_address: Felt,
+        piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
     ) -> Self {
         Self {
             rpc_url,
-            contract_address,
+            integrity_address,
+            piltover_address,
             account_address,
             account_private_key,
             da_channel: None,
@@ -195,7 +282,8 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
         Ok(PiltoverSettlementBackend {
             provider,
             account,
-            contract_address: self.contract_address,
+            integrity_address: self.integrity_address,
+            piltover_address: self.piltover_address,
             da_channel: self
                 .da_channel
                 .ok_or_else(|| anyhow::anyhow!("`da_channel` not set"))?,

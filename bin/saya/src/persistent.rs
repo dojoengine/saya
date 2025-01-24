@@ -53,9 +53,12 @@ struct Start {
     /// Celestia RPC node auth token
     #[clap(long, env)]
     celestia_token: String,
-    /// Settlement network settlement contract address
+    /// Settlement network integrity contract address
     #[clap(long, env)]
-    settlement_contract_address: Felt,
+    settlement_integrity_address: Felt,
+    /// Settlement network piltover contract address
+    #[clap(long, env)]
+    settlement_piltover_address: Felt,
     /// Settlement network account contract address
     #[clap(long, env)]
     settlement_account_address: Felt,
@@ -92,7 +95,8 @@ impl Start {
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
-            self.settlement_contract_address,
+            self.settlement_integrity_address,
+            self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
         );

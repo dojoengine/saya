@@ -3048,6 +3048,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "integrity"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "878eb1ce3a656d21761d5b69636aa7adcdf1ae902a34cc9d565219cbb96f1ccc"
+dependencies = [
+ "starknet-core 0.12.1",
+ "starknet-crypto 0.7.4",
+ "swiftness",
+ "swiftness_air",
+ "swiftness_commitment",
+ "swiftness_fri",
+ "swiftness_pow",
+ "swiftness_stark",
+ "swiftness_transcript",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5076,6 +5093,7 @@ dependencies = [
  "futures-util",
  "good_lp",
  "hex",
+ "integrity",
  "log",
  "num-traits 0.2.19",
  "prove_block",
@@ -5085,6 +5103,7 @@ dependencies = [
  "starknet 0.13.0",
  "starknet-types-core",
  "swiftness",
+ "swiftness_air",
  "swiftness_stark",
  "tokio",
  "tokio-util",

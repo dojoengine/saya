@@ -7,11 +7,20 @@ use bigdecimal::{
 };
 use num_traits::ToPrimitive;
 use starknet::{
-    core::types::{ExecutionResult, StarknetError},
+    core::types::{Call, ExecutionResult, StarknetError, TransactionReceiptWithBlockInfo},
     providers::{Provider, ProviderError},
 };
 use starknet_types_core::felt::Felt;
 use swiftness_stark::types::StarkProof;
+
+const STARKNET_TX_CALLDATA_LIMIT: usize = 5_000;
+
+/// 3 extra field elements are needed to add a call:
+///
+/// - callee contract address
+/// - entrypoint selector
+/// - calldata length prefix
+const ACCOUNT_CALL_OVERHEAD: usize = 3;
 
 // Ported from `saya` pre-rewrite.
 pub fn calculate_output(proof: &StarkProof) -> Vec<Felt> {
@@ -36,7 +45,11 @@ where
     )
 }
 
-pub async fn watch_tx<P>(provider: P, transaction_hash: Felt, poll_interval: Duration) -> Result<()>
+pub async fn watch_tx<P>(
+    provider: P,
+    transaction_hash: Felt,
+    poll_interval: Duration,
+) -> Result<TransactionReceiptWithBlockInfo>
 where
     P: Provider,
 {
@@ -44,7 +57,7 @@ where
         match provider.get_transaction_receipt(transaction_hash).await {
             Ok(receipt) => match receipt.receipt.execution_result() {
                 ExecutionResult::Succeeded => {
-                    return Ok(());
+                    return Ok(receipt);
                 }
                 ExecutionResult::Reverted { reason } => {
                     return Err(anyhow::anyhow!("transaction reverted: {}", reason));
@@ -56,4 +69,29 @@ where
 
         tokio::time::sleep(poll_interval).await;
     }
+}
+
+pub fn split_calls(calls: Vec<Call>) -> Vec<Vec<Call>> {
+    let mut chunks = vec![];
+
+    let mut iter = calls.into_iter().peekable();
+
+    while iter.peek().is_some() {
+        let mut chunk = vec![];
+
+        // 1 slot is always used for calls length prefix
+        let mut chunk_size = 1;
+
+        while let Some(call) = iter.next_if(|next_call| {
+            chunk_size + next_call.calldata.len() + ACCOUNT_CALL_OVERHEAD
+                <= STARKNET_TX_CALLDATA_LIMIT
+        }) {
+            chunk_size += call.calldata.len() + ACCOUNT_CALL_OVERHEAD;
+            chunk.push(call);
+        }
+
+        chunks.push(chunk);
+    }
+
+    chunks
 }
