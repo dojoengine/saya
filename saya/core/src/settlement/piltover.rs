@@ -112,7 +112,7 @@ impl PiltoverSettlementBackend {
                         layout: short_string!("recursive_with_poseidon"),
                         hasher: short_string!("keccak_160_lsb"),
                         stone_version: short_string!("stone6"),
-                        memory_verification: short_string!("cairo1"),
+                        memory_verification: short_string!("relaxed"),
                     },
                 )
                 .collect_calls(self.integrity_address);
