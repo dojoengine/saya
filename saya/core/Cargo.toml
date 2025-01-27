@@ -1,35 +1,34 @@
 [package]
-description = "Saya core implementation."
-edition.workspace = true
-license-file.workspace = true
 name = "saya-core"
-repository.workspace = true
 version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Saya core implementation."
 
 [dependencies]
 anyhow.workspace = true
-async-trait.workspace = true
 bigdecimal.workspace = true
-futures.workspace = true
-itertools.workspace = true
+cairo-vm.workspace = true
+celestia-rpc.workspace = true
+celestia-types.workspace = true
+ciborium.workspace = true
+futures-util.workspace = true
+good_lp.workspace = true
+hex.workspace = true
+integrity.workspace = true
+log.workspace = true
+num-traits.workspace = true
+prove_block.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-starknet-crypto.workspace = true
 starknet.workspace = true
-thiserror.workspace = true
-tokio.workspace = true
-tracing.workspace = true
-url.workspace = true
-celestia-rpc = "0.4.0"
-celestia-types = "0.5.0"
 starknet-types-core.workspace = true
-atlantic_client = "0.2.2"
-reqwest.workspace = true
-serde-felt = { git = "https://github.com/cartridge-gg/cairo-proof-parser.git", rev = "f175d58" }
-prove_block = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch 
-starknet-os = {git = "https://github.com/chudkowsky/snos.git",rev= "f8d5ed3"} #main branch
-
-cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", features = ["cairo-1-hints", "extensive_hints", "mod_builtin"] }
-
-swiftness_proof_parser = "0.1.0"
-sqlx.workspace = true 
+swiftness.workspace = true
+swiftness_air.workspace = true
+swiftness_stark.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+url.workspace = true
+zip.workspace = true

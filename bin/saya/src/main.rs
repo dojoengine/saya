@@ -1,71 +1,51 @@
-#![warn(unused_crate_dependencies)]
+//! # Saya
+//!
+//! Saya is the proving orchestrator of the Dojo stack. `saya` is a binary crate for a command line
+//! application for running Saya.
 
-//! Saya executable entry point.
-use clap::Parser;
-use console::Style;
-use saya_core::{Saya, SayaConfig};
+use anyhow::Result;
+use clap::{Parser, Subcommand};
 
-mod args;
+mod sovereign;
+use sovereign::Sovereign;
 
-use args::SayaArgs;
+mod persistent;
+use persistent::Persistent;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = SayaArgs::parse();
-    args.init_logging()?;
-    let saya_config = args.try_into()?;
-    print_intro(&saya_config);
-    let mut saya = Saya::new(saya_config).await?;
-    saya.start().await?;
-    Ok(())
+mod sharding;
+use sharding::Sharding;
+
+#[derive(Debug, Parser)]
+#[clap(about, version)]
+struct Cli {
+    #[clap(subcommand)]
+    command: Subcommands,
 }
 
-fn print_intro(config: &SayaConfig) {
-    println!(
-        "{}",
-        Style::new().color256(94).apply_to(
-            r"
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Subcommand)]
+enum Subcommands {
+    /// Run and manage Saya in sovereign mode where the network settles interally without a "base
+    /// layer".
+    Sovereign(Sovereign),
+    /// Run and manage Saaya in persistent L3 mode where proofs are settled in a "base layer"
+    /// netowrk.
+    Persistent(Persistent),
+    Sharding(Sharding),
+}
 
- _______  _______           _______
-(  ____ \(  ___  )|\     /|(  ___  )
-| (    \/| (   ) |( \   / )| (   ) |
-| (_____ | (___) | \ (_) / | (___) |
-(_____  )|  ___  |  \   /  |  ___  |
-      ) || (   ) |   ) (   | (   ) |
-/\____) || )   ( |   | |   | )   ( |
-\_______)|/     \|   \_/   |/     \|
-"
-        )
-    );
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse();
 
-    println!(
-        r"
-CONFIGURATION
-=============
-Settlement contract: {:#x}
-Settlement account: {:#x}
-Chain ID: {:#x},
-RPC url: {:#},
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", "info,saya=debug,saya_core=debug");
+    }
+    env_logger::init();
 
-    ",
-        config.settlement_contract,
-        config.starknet_account.signer_address,
-        config.starknet_account.chain_id,
-        config.rpc_url.as_str()
-    );
-    println!(
-        r"
-PROVER
-==================
-Prover: {}
-    ",
-        config.prover_url
-    );
-
-    println!(
-        r"
-VERIFIER
-==================
-    ",
-    );
+    match cli.command {
+        Subcommands::Sovereign(cmd) => cmd.run().await,
+        Subcommands::Persistent(cmd) => cmd.run().await,
+        Subcommands::Sharding(cmd) => cmd.run().await,
+    }
 }

@@ -1,115 +1,74 @@
-//! Data availability.
-//!
-//! For a starknet based sequencer, the data posted to the DA
-//! is the state diff as encoded here:
-//! <https://docs.starknet.io/documentation/architecture_and_concepts/Network_Architecture/on-chain-data/#data_availability_v0_11_0_and_forward>.
-use std::fmt::Display;
-
-use async_trait::async_trait;
-use celestia_types::Commitment;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use starknet::core::types::Felt;
+use tokio::sync::mpsc::{Receiver, Sender};
 
-pub mod celestia;
+mod celestia;
+pub use celestia::{CelestiaDataAvailabilityBackend, CelestiaDataAvailabilityBackendBuilder};
 
-pub mod error;
-use error::DataAvailabilityResult;
+use crate::service::Daemon;
 
-/// All possible chains configuration for data availability.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub enum DataAvailabilityConfig {
-    Celestia(celestia::CelestiaConfig),
+pub trait DataAvailabilityBackendBuilder {
+    type Backend: DataAvailabilityBackend;
+
+    fn build(self) -> Result<Self::Backend>;
+
+    fn last_pointer(self, last_pointer: Option<DataAvailabilityPointer>) -> Self;
+
+    fn proof_channel(
+        self,
+        proof_channel: Receiver<<Self::Backend as DataAvailabilityBackend>::Payload>,
+    ) -> Self;
+
+    fn cursor_channel(
+        self,
+        cursor_channel: Sender<
+            DataAvailabilityCursor<<Self::Backend as DataAvailabilityBackend>::Payload>,
+        >,
+    ) -> Self;
 }
 
-impl Display for DataAvailabilityConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DataAvailabilityConfig::Celestia(conf) => {
-                write!(f, "chain: celestia\n{conf}")
-            }
-        }
-    }
+pub trait DataAvailabilityBackend: Daemon {
+    type Payload: DataAvailabilityPayload;
 }
 
-/// The data availability mode.
-#[derive(Debug, Copy, Clone)]
-pub enum DataAvailabilityMode {
-    /// The data are posted on the verification layer.
-    Rollup,
-    /// The data are posted off-chain (not the verification layer).
-    Validium,
-    /// The data are posted using one of rollup or validium, at the
-    /// transaction level.
-    Volition,
+pub trait DataAvailabilityPayload: Serialize + Clone + Send {
+    fn block_number(&self) -> u64;
 }
 
-/// The data availbility client in charge
-/// of interacting with the DA layer.
-#[async_trait]
-pub trait DataAvailabilityClient {
-    /// Retrieves the client's DA mode.
-    fn mode(&self) -> DataAvailabilityMode;
-
-    /// Publishes data on the DA layer.
-    /// Returns the block height in which the state diff was included.
-    ///
-    /// # Arguments
-    ///
-    /// * `state_diff` - An array of felt representing the data to be published on the DA layer. We
-    ///   use felt as all fields inside the state diff can be expressed as a felt. Nonce and updates
-    ///   count are limited to 64 bits anyway.
-    async fn publish_state_diff_felts(
-        &self,
-        state_diff: &[Felt],
-    ) -> DataAvailabilityResult<(Commitment, u64)>;
-
-    /// Publishes both data and transition proof on the DA layer atomically.
-    /// Returns the block height in which the state diff was included.
-    ///
-    /// # Arguments
-    ///
-    /// * `state_diff` - An array of felt representing the data to be published on the DA layer. We
-    ///   use felt as all fields inside the state diff can be expressed as a felt. Nonce and updates
-    ///   count are limited to 64 bits anyway.
-    ///  * `state_diff_proof` - The serialized transition proof corresponding to the `state_diff`.
-    async fn publish_state_diff_and_proof_felts(
-        &self,
-        state_diff: &[Felt],
-        state_diff_proof: &[Felt],
-    ) -> DataAvailabilityResult<(Commitment, u64)>;
-
-    /// Publishes a JSON-formatted proof on the DA layer.
-    /// Returns the block height in which the proof was included.
-    ///
-    /// # Arguments
-    ///
-    /// * `state_diff` - A JSON string representing the proof to be published.
-    async fn publish_checkpoint(
-        &self,
-        state_diff: PublishedStateDiff,
-    ) -> DataAvailabilityResult<(Commitment, u64)>;
-}
-
-/// Initializes a [`DataAvailabilityClient`] from a [`DataAvailabilityConfig`].
+/// A data availability packet contains data being made available alongside a pointer to the
+/// previous packet.
 ///
-/// # Arguments
+/// Note that such a design makes an implicit assumption that a full chain of available data can be
+/// retrieved by following the pointers backward. This goes against the purpose of data availability
+/// layers, which exist only to ensure certain pieces of data are published for a limited period of
+/// time, *not* that such data would remain retrievable afterwards.
 ///
-/// * `config` - The data availability configuration.
-pub async fn client_from_config(
-    config: DataAvailabilityConfig,
-) -> DataAvailabilityResult<Box<dyn DataAvailabilityClient>> {
-    match config {
-        DataAvailabilityConfig::Celestia(c) => {
-            Ok(Box::new(celestia::CelestiaClient::new(c).await?))
-        }
-    }
-}
-pub type BlockHeight = u64;
+/// This issue shouldn't matter much during the proof of concept stage, but should definitely be
+/// revisited before getting production-ready.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PublishedStateDiff {
-    pub prev_state_root: Felt,
-    pub state_root: Felt,
-    pub prev_height: Option<BlockHeight>,
-    pub prev_commitment: Option<Commitment>,
-    pub proof: serde_json::Value,
+pub struct DataAvailabilityPacket<P> {
+    /// Pointer to the previous [`DataAvailabilityPacket`].
+    pub prev: Option<DataAvailabilityPointer>,
+    /// The content of the packet.
+    pub content: P,
+}
+
+// TODO: abstract over this to allow other DA backends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataAvailabilityPointer {
+    /// Celestia block height.
+    pub height: u64,
+    /// Celestia blob commitment.
+    pub commitment: [u8; 32],
+}
+
+// TODO: abstract over this to allow other DA backends.
+#[derive(Debug, Clone)]
+pub struct DataAvailabilityCursor<P> {
+    /// State transition block.
+    pub block_number: u64,
+    /// Pointer to location of data availability.
+    pub pointer: DataAvailabilityPointer,
+    /// Full content of the payload.
+    pub full_payload: P,
 }
