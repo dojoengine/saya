@@ -15,6 +15,7 @@ use crate::{
         Prover, ProverBuilder, RecursiveProof, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
+    utils::calculate_output,
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
@@ -117,7 +118,7 @@ impl AtlanticLayoutBridgeProver {
 
             let new_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
-                snos_proof: parsed_snos_proof,
+                snos_output: calculate_output(&parsed_snos_proof),
                 layout_bridge_proof: verifier_proof,
             };
 

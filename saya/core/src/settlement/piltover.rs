@@ -180,7 +180,7 @@ impl PiltoverSettlementBackend {
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
-                        snos_output: calculate_output(&new_da.full_payload.snos_proof),
+                        snos_output: new_da.full_payload.snos_output,
                         program_output: calculate_output(&new_da.full_payload.layout_bridge_proof),
                         onchain_data_hash: Felt::ZERO,
                         onchain_data_size: U256::from_words(0, 0),
