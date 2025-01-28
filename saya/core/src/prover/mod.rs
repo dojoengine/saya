@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::Serialize;
+use starknet_types_core::felt::Felt;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -41,7 +42,7 @@ pub struct SnosProof<P> {
 #[derive(Debug, Clone, Serialize)]
 pub struct RecursiveProof {
     pub block_number: u64,
-    pub snos_proof: StarkProof,
+    pub snos_output: Vec<Felt>,
     pub layout_bridge_proof: StarkProof,
 }
 
