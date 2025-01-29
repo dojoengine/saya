@@ -1,11 +1,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use starknet_types_core::felt::Felt;
+use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 mod celestia;
 pub use celestia::{CelestiaDataAvailabilityBackend, CelestiaDataAvailabilityBackendBuilder};
 
-use crate::service::Daemon;
+use crate::{prover::SnosProof, service::Daemon};
 
 pub trait DataAvailabilityBackendBuilder {
     type Backend: DataAvailabilityBackend;
@@ -31,26 +33,48 @@ pub trait DataAvailabilityBackend: Daemon {
     type Payload: DataAvailabilityPayload;
 }
 
-pub trait DataAvailabilityPayload: Serialize + Clone + Send {
+pub trait DataAvailabilityPayload: Clone + Send {
+    type Packet: Serialize + Send;
+
     fn block_number(&self) -> u64;
+
+    fn into_packet(self, ctx: DataAvailabilityPacketContext) -> Self::Packet;
 }
 
-/// A data availability packet contains data being made available alongside a pointer to the
-/// previous packet.
-///
-/// Note that such a design makes an implicit assumption that a full chain of available data can be
-/// retrieved by following the pointers backward. This goes against the purpose of data availability
-/// layers, which exist only to ensure certain pieces of data are published for a limited period of
-/// time, *not* that such data would remain retrievable afterwards.
-///
-/// This issue shouldn't matter much during the proof of concept stage, but should definitely be
-/// revisited before getting production-ready.
+pub struct DataAvailabilityPacketContext {
+    pub prev: Option<DataAvailabilityPointer>,
+}
+
+/// Data made available in `sovereign` mode, which contains the full `snos` proof to be verified
+/// off-chain.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DataAvailabilityPacket<P> {
-    /// Pointer to the previous [`DataAvailabilityPacket`].
+pub struct SovereignPacket {
+    /// Pointer to the previous [`SovereignPacket`].
     pub prev: Option<DataAvailabilityPointer>,
     /// The content of the packet.
-    pub content: P,
+    pub proof: SnosProof<StarkProof>,
+}
+
+/// Data made available in `persistent` mode, containing only the `snos` output.
+///
+/// No STARK proof needs to be made available as proofs are supposedly verified in a decentralized
+/// manner in `persistent` mode.
+///
+/// Note that depending on the settlement layer, the exact data to be made available could be
+/// different. However, since currently only one settlement implementation (i.e. `piltover`) is
+/// available, this type is hard-coded to tailor for that specific implementation.
+///
+/// Also note that, technically speaking, no data needs to be made available for the current
+/// `piltover` implementation, as its `update_state` entrypoint takes full `snos` output, which
+/// contains the full state diff needed to reconstruct network state. However, this `piltover`
+/// behaviour is considered suboptimal and will eventually be changed to take only the digest of the
+/// `snos` output, at which point something (not necessarily the full `snos` output; probably just
+/// the state diff section) needs to be made available anyway, so we might as well just keep the DA
+/// posting mechanism in place for now.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PersistentPacket {
+    /// The output of the `snos` Cairo program.
+    pub snos_output: Vec<Felt>,
 }
 
 // TODO: abstract over this to allow other DA backends.

@@ -1,10 +1,15 @@
 use anyhow::Result;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{data_availability::DataAvailabilityPayload, service::Daemon};
+use crate::{
+    data_availability::{
+        DataAvailabilityPacketContext, DataAvailabilityPayload, PersistentPacket, SovereignPacket,
+    },
+    service::Daemon,
+};
 
 mod atlantic;
 pub use atlantic::{
@@ -33,30 +38,44 @@ pub trait Prover: Daemon {
     type Proof;
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnosProof<P> {
     pub block_number: u64,
     pub proof: P,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecursiveProof {
     pub block_number: u64,
     pub snos_output: Vec<Felt>,
     pub layout_bridge_proof: StarkProof,
 }
 
-impl<P> DataAvailabilityPayload for SnosProof<P>
-where
-    P: Serialize + Clone + Send,
-{
+impl DataAvailabilityPayload for SnosProof<StarkProof> {
+    type Packet = SovereignPacket;
+
     fn block_number(&self) -> u64 {
         self.block_number
+    }
+
+    fn into_packet(self, ctx: DataAvailabilityPacketContext) -> Self::Packet {
+        SovereignPacket {
+            prev: ctx.prev,
+            proof: self,
+        }
     }
 }
 
 impl DataAvailabilityPayload for RecursiveProof {
+    type Packet = PersistentPacket;
+
     fn block_number(&self) -> u64 {
         self.block_number
+    }
+
+    fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
+        PersistentPacket {
+            snos_output: self.snos_output,
+        }
     }
 }

@@ -8,7 +8,7 @@ use url::Url;
 use crate::{
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
-        DataAvailabilityPacket, DataAvailabilityPayload, DataAvailabilityPointer,
+        DataAvailabilityPacketContext, DataAvailabilityPayload, DataAvailabilityPointer,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
@@ -56,10 +56,11 @@ where
                 .await
                 .unwrap();
 
-            let packet = DataAvailabilityPacket {
-                prev: self.last_pointer,
-                content: new_proof.clone(),
-            };
+            let packet = new_proof
+                .clone()
+                .into_packet(DataAvailabilityPacketContext {
+                    prev: self.last_pointer,
+                });
 
             // TODO: error handling
             let mut serialized_packet: Vec<u8> = Vec::new();
@@ -96,7 +97,7 @@ where
                     height: celestia_block,
                     commitment,
                 },
-                full_payload: packet.content,
+                full_payload: new_proof,
             };
 
             // Since the channel is bounded, it's possible
