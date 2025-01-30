@@ -1,4 +1,4 @@
-# Consider building the cairo programs before building the image to embed them.
+# Consider compiling the cairo programs before building the image to embed them.
 
 FROM rust:alpine AS build
 
