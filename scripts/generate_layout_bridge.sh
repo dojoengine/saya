@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # Uses Docker to deterministically generate the `layout_bridge` program artifact.
 #
