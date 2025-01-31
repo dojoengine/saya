@@ -169,10 +169,13 @@ where
             // in the future.
             let new_cursor = new_cursor.unwrap();
 
+            // TODO: error handling
+            let da_pointer = new_cursor.pointer.unwrap();
+
             self.storage
                 .set_chain_head(BlockWithDa {
                     height: new_cursor.block_number,
-                    da_pointer: new_cursor.pointer,
+                    da_pointer,
                 })
                 .await;
 
