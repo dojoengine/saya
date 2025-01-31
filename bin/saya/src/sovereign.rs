@@ -40,10 +40,10 @@ struct Start {
     atlantic_key: String,
     /// Celestia RPC endpoint URL
     #[clap(long, env)]
-    celestia_rpc: Url,
+    celestia_rpc: Option<Url>,
     /// Celestia RPC node auth token
     #[clap(long, env)]
-    celestia_token: String,
+    celestia_token: Option<String>,
     #[clap(flatten)]
     genesis: GenesisOptions,
 }
@@ -75,7 +75,7 @@ impl Start {
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.starknet_rpc, snos);
         let prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key);
         let da_builder =
-            CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
+            CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc.unwrap(), self.celestia_token.unwrap());
         let storage = InMemoryStorageBackend::new();
 
         let orchestrator = SovereignOrchestratorBuilder::new(
