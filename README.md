@@ -5,8 +5,12 @@ Saya is a settlement service for Katana.
 ## Requirements
 
 - Katana up and running in provable mode (run `katana init` to generate the chain spec, and then start katana with `katana --chain <CHAIN_ID>` to load the generated parameters).
-- Celestia node up and running that you can send blob to using a celestia token.
 - Herodotus Dev account with API key, which can be obtained from https://staging.dashboard.herodotus.dev.
+
+### Sovereign mode
+- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment).
+
+### Persistent mode
 - Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
 - An account on the settlement chain with funds to verify the proof.
 
@@ -15,10 +19,8 @@ Saya is a settlement service for Katana.
 Saya currently requires the following Cairo programs to work. Use the scripts in the `scripts` folder to compile them.
 
 ```bash
-# SNOS
 ./scripts/generate_snos.sh
 
-# Layout bridge
 ./scripts/generate_layout_bridge.sh
 ```
 
