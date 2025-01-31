@@ -93,10 +93,10 @@ where
 
             let new_cursor = DataAvailabilityCursor {
                 block_number: new_proof.block_number(),
-                pointer: DataAvailabilityPointer {
+                pointer: Some(DataAvailabilityPointer {
                     height: celestia_block,
                     commitment,
-                },
+                }),
                 full_payload: new_proof,
             };
 

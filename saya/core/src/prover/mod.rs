@@ -74,8 +74,6 @@ impl DataAvailabilityPayload for RecursiveProof {
     }
 
     fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
-        PersistentPacket {
-            snos_output: self.snos_output,
-        }
+        PersistentPacket
     }
 }

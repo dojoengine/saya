@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
-    data_availability::CelestiaDataAvailabilityBackendBuilder,
+    data_availability::NoopDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
         AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, RecursiveProverBuilder,
@@ -47,12 +47,6 @@ struct Start {
     /// Atlantic prover API key
     #[clap(long, env)]
     atlantic_key: String,
-    /// Celestia RPC endpoint URL
-    #[clap(long, env)]
-    celestia_rpc: Url,
-    /// Celestia RPC node auth token
-    #[clap(long, env)]
-    celestia_token: String,
     /// Settlement network integrity contract address
     #[clap(long, env)]
     settlement_integrity_address: Felt,
@@ -91,8 +85,7 @@ impl Start {
             AtlanticSnosProverBuilder::new(self.atlantic_key.clone()),
             AtlanticLayoutBridgeProverBuilder::new(self.atlantic_key, layout_bridge),
         );
-        let da_builder =
-            CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
+        let da_builder = NoopDataAvailabilityBackendBuilder::new();
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_integrity_address,
