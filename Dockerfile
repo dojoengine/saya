@@ -28,4 +28,7 @@ LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 COPY --from=build /src/build/saya /usr/bin/
 COPY programs /programs
 
+ENV SNOS_PROGRAM=/programs/snos.json
+ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
+
 ENTRYPOINT [ "saya" ]
