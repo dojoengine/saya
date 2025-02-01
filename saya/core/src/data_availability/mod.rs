@@ -1,11 +1,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use starknet_types_core::felt::Felt;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 mod celestia;
 pub use celestia::{CelestiaDataAvailabilityBackend, CelestiaDataAvailabilityBackendBuilder};
+
+mod noop;
+pub use noop::{NoopDataAvailabilityBackend, NoopDataAvailabilityBackendBuilder};
 
 use crate::{prover::SnosProof, service::Daemon};
 
@@ -72,10 +74,7 @@ pub struct SovereignPacket {
 /// the state diff section) needs to be made available anyway, so we might as well just keep the DA
 /// posting mechanism in place for now.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PersistentPacket {
-    /// The output of the `snos` Cairo program.
-    pub snos_output: Vec<Felt>,
-}
+pub struct PersistentPacket;
 
 // TODO: abstract over this to allow other DA backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -91,8 +90,8 @@ pub struct DataAvailabilityPointer {
 pub struct DataAvailabilityCursor<P> {
     /// State transition block.
     pub block_number: u64,
-    /// Pointer to location of data availability.
-    pub pointer: DataAvailabilityPointer,
+    /// Pointer to location of data availability. `None` if data publishing was not performed.
+    pub pointer: Option<DataAvailabilityPointer>,
     /// Full content of the payload.
     pub full_payload: P,
 }

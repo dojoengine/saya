@@ -32,7 +32,7 @@ hex = { version = "0.4.3", default-features = false }
 integrity = { version = "0.1.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
 log = "0.4.22"
 num-traits = { version = "0.2.19", default-features = false }
-prove_block = { git = "https://github.com/cartridge-gg/snos", rev = "8bc02a4" }
+prove_block = { git = "https://github.com/cartridge-gg/snos", rev = "7183af4" }
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 serde = { version = "1.0.217", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.134", default-features = false }

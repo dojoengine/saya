@@ -101,8 +101,6 @@ where
         let (settle_cursor_tx, settle_cursor_rx) =
             tokio::sync::mpsc::channel::<SettlementCursor>(SETTLE_CURSOR_BUFFER_SIZE);
 
-        let da_builder = self.da_builder.last_pointer(None);
-
         let settlement = self
             .settlement_builder
             .da_channel(da_cursor_rx)
@@ -126,7 +124,8 @@ where
             .build()
             .unwrap();
 
-        let da = da_builder
+        let da = self
+            .da_builder
             .proof_channel(proof_rx)
             .cursor_channel(da_cursor_tx)
             .build()
