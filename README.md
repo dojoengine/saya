@@ -2,9 +2,33 @@
 
 Saya is a settlement service for Katana.
 
+## Katana provable mode
+
+Katana must be running in provable mode to be proven by Saya.
+
+Use this [PR](https://github.com/dojoengine/dojo/pull/2980) for the latest Katana changes related to provable mode.
+
+1. Use `katana init` CLI interface to setup the chain spec, the questions will be:
+```
+# A chain ID (short string).
+> Id <CHAIN_ID>
+
+# Currently only Sepolia supported.
+> Settlement chain Sepolia
+
+# Account to deploy appchain core contract and associated private key.
+> Account
+> Private key
+
+# Answer `Yes` to automatically deploy the settlement contract and setup it's configuration:
+✓ Deployment successful (0x391401b25a12e821e12b3e0992c5e98822b07dc11e17ba2e8dfff27ba180564)
+```
+2. `katana init` generates a directory with configuration file and genesis block. Use `katana init --show-config <CHAIN_ID>` to display the configuration file path if you want to inspect it.
+3. Start Katana with `katana --chain <CHAIN_ID>` to load the generated parameters at start.
+
 ## Requirements
 
-- Katana up and running in provable mode (run `katana init` to generate the chain spec, and then start katana with `katana --chain <CHAIN_ID>` to load the generated parameters).
+- Katana up and running in provable mode.
 - Herodotus Dev account with API key, which can be obtained from https://staging.dashboard.herodotus.dev.
 
 ### Sovereign mode
