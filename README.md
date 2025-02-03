@@ -8,9 +8,11 @@ Saya is a settlement service for Katana.
 - Herodotus Dev account with API key, which can be obtained from https://staging.dashboard.herodotus.dev.
 
 ### Sovereign mode
+
 - Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment).
 
 ### Persistent mode
+
 - Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
 - An account on the settlement chain with funds to verify the proof.
 
