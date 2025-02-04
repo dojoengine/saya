@@ -51,7 +51,9 @@ where
             {
                 Ok((pie, _)) => pie,
                 Err(err) => {
-                    error!("Failed to prove block #{}: {}", self.current_block, err);
+                    if !err.contains("BlockNotFound") {
+                        error!("Failed to prove block #{}: {}", self.current_block, err);
+                    }
 
                     tokio::select! {
                         _ = self.finish_handle.shutdown_requested() => break,

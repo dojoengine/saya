@@ -20,6 +20,9 @@ pub use atlantic::{
 mod recursive;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
 
+mod mock;
+pub use mock::{LayoutBridgeMockProver, LayoutBridgeMockProverBuilder};
+
 pub trait ProverBuilder {
     type Prover: Prover;
 

@@ -7,7 +7,7 @@ use saya_core::{
     data_availability::NoopDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
-        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, RecursiveProverBuilder,
+        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, LayoutBridgeMockProverBuilder, Prover, ProverBuilder, RecursiveProverBuilder
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
@@ -59,6 +59,9 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
+    /// Mock the bridge layout proof generation.
+    #[clap(long, env)]
+    mock_layout_bridge: bool,
 }
 
 impl Persistent {
@@ -81,10 +84,22 @@ impl Start {
 
         // TODO: make impls of these providers configurable
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.rollup_rpc, snos);
+
+        let snos_prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key.clone());
+
+/*         let prover_builder = if self.mock_layout_bridge {
+            RecursiveProverBuilder::new(
+                snos_prover_builder,
+                Box::new(LayoutBridgeMockProverBuilder::new()),
+            )
+        } else {
+            // Existing one.
+        }; */
+
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key.clone()),
-            AtlanticLayoutBridgeProverBuilder::new(self.atlantic_key, layout_bridge),
-        );
+            snos_prover_builder,
+            AtlanticLayoutBridgeProverBuilder::new(self.atlantic_key, layout_bridge, self.mock_layout_bridge));
+
         let da_builder = NoopDataAvailabilityBackendBuilder::new();
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
@@ -92,6 +107,7 @@ impl Start {
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
+            self.mock_layout_bridge,
         );
 
         let orchestrator = PersistentOrchestratorBuilder::new(

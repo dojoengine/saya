@@ -12,6 +12,7 @@ use crate::{
             client::{AtlanticClient, AtlanticJobStatus},
             PROOF_GENERATION_JOB_NAME,
         },
+        mock::StarkProofMockBuilder,
         Prover, ProverBuilder, RecursiveProof, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
@@ -29,6 +30,7 @@ pub struct AtlanticLayoutBridgeProver {
     statement_channel: Receiver<SnosProof<String>>,
     proof_channel: Sender<RecursiveProof>,
     finish_handle: FinishHandle,
+    is_mocked: bool,
 }
 
 #[derive(Debug)]
@@ -37,6 +39,7 @@ pub struct AtlanticLayoutBridgeProverBuilder {
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Option<Receiver<SnosProof<String>>>,
     proof_channel: Option<Sender<RecursiveProof>>,
+    is_mocked: bool,
 }
 
 impl AtlanticLayoutBridgeProver {
@@ -63,63 +66,79 @@ impl AtlanticLayoutBridgeProver {
                 .unwrap()
                 .transform_to();
 
-            // Hacky way to wrap proof due to the lack of serialization support for the parsed type
-            // TODO: patch `swiftness` and fix this
-            let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
+            let new_proof = if self.is_mocked {
+                info!("Proof mocked for block #{}", new_snos_proof.block_number);
 
-            // TODO: error handling
-            let atlantic_query_id = self
-                .client
-                .submit_l2_atlantic_query(self.layout_bridge.clone(), input.into_bytes())
-                .await
-                .unwrap();
+                let snos_output = calculate_output(&parsed_snos_proof);
+                let layout_bridge_proof = StarkProof::mock_from_output(&snos_output);
 
-            info!(
-                "Atlantic layout bridge proof generation submitted for block #{}: {}",
-                new_snos_proof.block_number, atlantic_query_id
-            );
-
-            // Wait for bridge layout proof to be done
-            loop {
-                // TODO: sleep with graceful shutdown
-                tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+                RecursiveProof {
+                    block_number: new_snos_proof.block_number,
+                    snos_output,
+                    layout_bridge_proof,
+                }
+            } else {
+                // Hacky way to wrap proof due to the lack of serialization support for the parsed type
+                // TODO: patch `swiftness` and fix this
+                let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
 
                 // TODO: error handling
-                if let Ok(jobs) = self.client.get_query_jobs(&atlantic_query_id).await {
-                    if let Some(proof_generation_job) = jobs
-                        .iter()
-                        .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                    {
-                        match proof_generation_job.status {
-                            AtlanticJobStatus::Completed => break,
-                            AtlanticJobStatus::Failed => {
-                                // TODO: error handling
-                                panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                let atlantic_query_id = self
+                    .client
+                    .submit_l2_atlantic_query(self.layout_bridge.clone(), input.into_bytes())
+                    .await
+                    .unwrap();
+
+                info!(
+                    "Atlantic layout bridge proof generation submitted for block #{}: {}",
+                    new_snos_proof.block_number, atlantic_query_id
+                );
+
+                // Wait for bridge layout proof to be done
+                loop {
+                    // TODO: sleep with graceful shutdown
+                    tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+
+                    // TODO: error handling
+                    if let Ok(jobs) = self.client.get_query_jobs(&atlantic_query_id).await {
+                        if let Some(proof_generation_job) = jobs
+                            .iter()
+                            .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
+                        {
+                            match proof_generation_job.status {
+                                AtlanticJobStatus::Completed => break,
+                                AtlanticJobStatus::Failed => {
+                                    // TODO: error handling
+                                    panic!(
+                                        "Atlantic proof generation {} failed",
+                                        atlantic_query_id
+                                    );
+                                }
+                                AtlanticJobStatus::InProgress => {}
                             }
-                            AtlanticJobStatus::InProgress => {}
                         }
                     }
                 }
-            }
 
-            debug!(
-                "Atlantic layout bridge proof generation finished for query: {}",
-                atlantic_query_id
-            );
+                debug!(
+                    "Atlantic layout bridge proof generation finished for query: {}",
+                    atlantic_query_id
+                );
 
-            // TODO: error handling
-            let verifier_proof = self.client.get_proof(&atlantic_query_id).await.unwrap();
+                // TODO: error handling
+                let verifier_proof = self.client.get_proof(&atlantic_query_id).await.unwrap();
 
-            // TODO: error handling
-            let verifier_proof: StarkProof =
-                swiftness::parse(verifier_proof).unwrap().transform_to();
+                // TODO: error handling
+                let verifier_proof: StarkProof =
+                    swiftness::parse(verifier_proof).unwrap().transform_to();
 
-            info!("Proof generated for block #{}", new_snos_proof.block_number);
+                info!("Proof generated for block #{}", new_snos_proof.block_number);
 
-            let new_proof = RecursiveProof {
-                block_number: new_snos_proof.block_number,
-                snos_output: calculate_output(&parsed_snos_proof),
-                layout_bridge_proof: verifier_proof,
+                RecursiveProof {
+                    block_number: new_snos_proof.block_number,
+                    snos_output: calculate_output(&parsed_snos_proof),
+                    layout_bridge_proof: verifier_proof,
+                }
             };
 
             tokio::select! {
@@ -134,7 +153,7 @@ impl AtlanticLayoutBridgeProver {
 }
 
 impl AtlanticLayoutBridgeProverBuilder {
-    pub fn new<P>(api_key: String, layout_bridge: P) -> Self
+    pub fn new<P>(api_key: String, layout_bridge: P, is_mocked: bool) -> Self
     where
         P: Into<Cow<'static, [u8]>>,
     {
@@ -143,6 +162,7 @@ impl AtlanticLayoutBridgeProverBuilder {
             layout_bridge: layout_bridge.into(),
             statement_channel: None,
             proof_channel: None,
+            is_mocked,
         }
     }
 }
@@ -161,6 +181,7 @@ impl ProverBuilder for AtlanticLayoutBridgeProverBuilder {
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            is_mocked: self.is_mocked,
         })
     }
 

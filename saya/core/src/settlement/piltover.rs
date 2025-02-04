@@ -39,6 +39,7 @@ pub struct PiltoverSettlementBackend {
     da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
+    use_mock_layout_bridge: bool,
 }
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ pub struct PiltoverSettlementBackendBuilder {
     account_private_key: Felt,
     da_channel: Option<Receiver<DataAvailabilityCursor<RecursiveProof>>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
+    use_mock_layout_bridge: bool,
 }
 
 #[derive(Debug, Decode)]
@@ -98,82 +100,97 @@ impl PiltoverSettlementBackend {
             let new_da = new_da.unwrap();
             debug!("Received new DA cursor");
 
-            // TODO: error handling
-            let split_proof =
-                split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
-                    new_da.full_payload.layout_bridge_proof.clone(),
-                )
+            if !self.use_mock_layout_bridge {
+                // TODO: error handling
+                let split_proof = split_proof::<
+                    swiftness_air::layout::recursive_with_poseidon::Layout,
+                >(new_da.full_payload.layout_bridge_proof.clone())
                 .unwrap();
-            let integrity_job_id = SigningKey::from_random().secret_scalar();
-            let integrity_calls = split_proof
-                .into_calls(
-                    integrity_job_id,
-                    VerifierConfiguration {
-                        layout: short_string!("recursive_with_poseidon"),
-                        hasher: short_string!("keccak_160_lsb"),
-                        stone_version: short_string!("stone6"),
-                        memory_verification: short_string!("relaxed"),
-                    },
-                )
-                .collect_calls(self.integrity_address);
-            let integrity_call_chunks = split_calls(integrity_calls);
-            debug!(
-                "{} transactions to integrity verifier generated (job id: {:#064x})",
-                integrity_call_chunks.len(),
-                integrity_job_id
-            );
-
-            // TODO: error handling
-            let mut nonce = self.account.get_nonce().await.unwrap();
-            let mut total_fee = Felt::ZERO;
-
-            let proof_start = Instant::now();
-
-            for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
-                let tx = self
-                    .account
-                    .execute_v3(chunk.to_owned())
-                    .nonce(nonce)
-                    .send()
-                    .await
-                    .unwrap();
+                let integrity_job_id = SigningKey::from_random().secret_scalar();
+                let integrity_calls = split_proof
+                    .into_calls(
+                        integrity_job_id,
+                        VerifierConfiguration {
+                            layout: short_string!("recursive_with_poseidon"),
+                            hasher: short_string!("keccak_160_lsb"),
+                            stone_version: short_string!("stone6"),
+                            memory_verification: short_string!("relaxed"),
+                        },
+                    )
+                    .collect_calls(self.integrity_address);
+                let integrity_call_chunks = split_calls(integrity_calls);
                 debug!(
-                    "[{} / {}] Integrity verification transaction sent: {:#064x}",
-                    ind + 1,
+                    "{} transactions to integrity verifier generated (job id: {:#064x})",
                     integrity_call_chunks.len(),
-                    tx.transaction_hash
+                    integrity_job_id
                 );
 
                 // TODO: error handling
-                let receipt = watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
-                    .await
-                    .unwrap();
+                let mut nonce = self.account.get_nonce().await.unwrap();
+                let mut total_fee = Felt::ZERO;
 
-                let fee = match &receipt.receipt {
-                    TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
-                };
+                let proof_start = Instant::now();
 
-                debug!(
-                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
-                    ind + 1,
-                    integrity_call_chunks.len(),
-                    tx.transaction_hash
-                );
+                for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
+                    let tx = self
+                        .account
+                        .execute_v3(chunk.to_owned())
+                        .nonce(nonce)
+                        .send()
+                        .await
+                        .unwrap();
+                    debug!(
+                        "[{} / {}] Integrity verification transaction sent: {:#064x}",
+                        ind + 1,
+                        integrity_call_chunks.len(),
+                        tx.transaction_hash
+                    );
 
-                nonce += Felt::ONE;
-                total_fee += fee.amount;
-            }
+                    // TODO: error handling
+                    let receipt = watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                        .await
+                        .unwrap();
 
-            let proof_end = Instant::now();
-            info!(
+                    let fee = match &receipt.receipt {
+                        TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
+                        TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
+                        TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
+                        TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
+                        TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
+                    };
+
+                    debug!(
+                        "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                        ind + 1,
+                        integrity_call_chunks.len(),
+                        tx.transaction_hash
+                    );
+
+                    nonce += Felt::ONE;
+                    total_fee += fee.amount;
+                }
+
+                let proof_end = Instant::now();
+                info!(
                 "Proof successfully verified on integrity in {:.2} seconds. Total cost: {} STRK",
                 proof_end.duration_since(proof_start).as_secs_f32(),
-                felt_to_bigdecimal(total_fee, 18)
-            );
+                felt_to_bigdecimal(total_fee, 18));
+            }
+
+            let program_output = if self.use_mock_layout_bridge {
+                // The SNOS output hash is the only value required to be correct when layout bridge proof is mocked.
+                // The fact registry will always return true, so the size of the program output only matter for SNOS output hash.
+                // It is located at the index `4` in the `program_output` array.
+                vec![
+                    Felt::ZERO,
+                    Felt::ZERO,
+                    Felt::ZERO,
+                    Felt::ZERO,
+                    starknet_crypto::poseidon_hash_many(&new_da.full_payload.snos_output),
+                ]
+            } else {
+                calculate_output(&new_da.full_payload.layout_bridge_proof)
+            };
 
             let update_state_call = Call {
                 to: self.piltover_address,
@@ -181,7 +198,7 @@ impl PiltoverSettlementBackend {
                 calldata: {
                     let calldata = UpdateStateCalldata {
                         snos_output: new_da.full_payload.snos_output,
-                        program_output: calculate_output(&new_da.full_payload.layout_bridge_proof),
+                        program_output,
                         onchain_data_hash: Felt::ZERO,
                         onchain_data_size: U256::from_words(0, 0),
                     };
@@ -194,6 +211,7 @@ impl PiltoverSettlementBackend {
                 },
             };
 
+            dbg!(&update_state_call);
             let execution = self.account.execute_v3(vec![update_state_call]);
 
             // TODO: error handling
@@ -250,6 +268,7 @@ impl PiltoverSettlementBackendBuilder {
         piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
+        use_mock_layout_bridge: bool,
     ) -> Self {
         Self {
             rpc_url,
@@ -259,6 +278,7 @@ impl PiltoverSettlementBackendBuilder {
             account_private_key,
             da_channel: None,
             cursor_channel: None,
+            use_mock_layout_bridge,
         }
     }
 }
@@ -291,6 +311,7 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
                 .cursor_channel
                 .ok_or_else(|| anyhow::anyhow!("`cursor_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            use_mock_layout_bridge: self.use_mock_layout_bridge,
         })
     }
 
