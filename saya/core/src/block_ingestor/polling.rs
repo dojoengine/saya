@@ -1,8 +1,9 @@
-use std::time::Duration;
+use std::{fs::File, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::types::layout_name::LayoutName;
 use log::{debug, error};
+use starknet::{core::types::BlockId, providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider}};
 use tokio::sync::mpsc::Sender;
 use url::Url;
 
@@ -36,12 +37,14 @@ where
     S: AsRef<[u8]>,
 {
     async fn run(mut self) {
+        let url = self.rpc_url.clone();
+
         loop {
             let pie = match prove_block::prove_block(
                 self.snos.as_ref(),
                 self.current_block,
                 // This is because `snos` expects a base URL to be able to derive `pathfinder` RPC path.
-                self.rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
+                url.clone().as_str().trim_end_matches("/rpc/v0_7"),
                 LayoutName::all_cairo,
                 true,
             )
@@ -62,7 +65,16 @@ where
                 }
             };
 
-            debug!("PIE generated for block #{}", self.current_block);
+            // For testing, let's gather some into of the block.
+            let provider = JsonRpcClient::new(HttpTransport::new(url.clone()));
+            let block = provider.get_block_with_tx_hashes(BlockId::Number(self.current_block)).await.unwrap();
+            let n_txs = block.transactions().len() as u64;
+
+            debug!("PIE generated for block #{} ({} steps)", self.current_block, pie.execution_resources.n_steps);
+
+            // Write the PIE to a file to debug (using json serde)
+            let mut file = File::create(format!("pie_{}_{}.json", self.current_block, n_txs)).unwrap();
+            serde_json::to_writer(&mut file, &pie).unwrap();
 
             // No way to hook into `prove_block` for cancellation. The next best thing we can do is
             // to check cancellation immediately after PIE generation.
@@ -73,6 +85,7 @@ where
             let new_block = NewBlock {
                 number: self.current_block,
                 pie,
+                n_txs,
             };
 
             // Since the channel is bounded, it's possible

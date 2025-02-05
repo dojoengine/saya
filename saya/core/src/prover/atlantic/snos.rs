@@ -1,8 +1,9 @@
-use std::{io::Write, time::Duration};
+use std::{collections::VecDeque, io::Write, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
+use futures_util::{stream::{FuturesOrdered, FuturesUnordered}, StreamExt};
+use log::{debug, error, info, trace};
 use tokio::sync::mpsc::{Receiver, Sender};
 use zip::{write::FileOptions, ZipWriter};
 
@@ -44,87 +45,113 @@ where
     async fn run(mut self) {
         // TODO: add persistence for in-flight proof requests to be able to resume progress
 
+        // For the stress test, we want to prove blocks in parallel and don't care about the order.
+        // Use `Ordered` here if we want to preserve the order of the blocks.
+        // If we don't, then the settlement part of the pipeline will have to cache the proofs
+        // and ensure the order is conserved. But it may be hard due to block size being very different.
+        let mut in_progress_proofs = FuturesUnordered::new();
+
         loop {
-            let new_block = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                new_block = self.statement_channel.recv() => new_block,
-            };
+            tokio::select! {
+                new_block = self.statement_channel.recv() => {
+                    match new_block {
+                        Some(block) => {
+                            let proof_future = Self::submit_proof_generation(block, self.client.clone());
+                            in_progress_proofs.push(proof_future);
+                        }
+                        None => break, // Channel closed
+                    }
+                },
 
-            // This should be fine for now as block ingestors wouldn't drop senders. This might
-            // change in the future.
-            let new_block = new_block.unwrap();
-
-            trace!("Compressing PIE for block #{}", new_block.number);
-
-            // TODO: error handling
-            let compressed_pie = compress_pie(&new_block.pie).unwrap();
-            debug!(
-                "Compressed PIE size for block #{}: {} bytes",
-                new_block.number,
-                compressed_pie.len()
-            );
-
-            // TODO: error handling
-            let atlantic_query_id = self
-                .client
-                .submit_proof_generation(compressed_pie)
-                .await
-                .unwrap();
-
-            info!(
-                "Atlantic proof generation submitted for block #{}: {}",
-                new_block.number, atlantic_query_id
-            );
-
-            // Wait for PIE proof to be done
-            loop {
-                // TODO: sleep with graceful shutdown
-                tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
-
-                // TODO: error handling
-                if let Ok(jobs) = self.client.get_query_jobs(&atlantic_query_id).await {
-                    if let Some(proof_generation_job) = jobs
-                        .iter()
-                        .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                    {
-                        match proof_generation_job.status {
-                            AtlanticJobStatus::Completed => break,
-                            AtlanticJobStatus::Failed => {
-                                // TODO: error handling
-                                panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                // Handle completed proofs
+                Some(proof_result) = in_progress_proofs.next(), if !in_progress_proofs.is_empty() => {
+                    match proof_result {
+                        Ok(proof) => {
+                            if let Err(_) = self.proof_channel.send(proof).await {
+                                break; // Channel closed
                             }
-                            AtlanticJobStatus::InProgress => {}
+                        }
+                        Err(e) => {
+                            error!("Proof generation failed: {}", e);
                         }
                     }
-                }
-            }
+                },
 
-            debug!(
-                "Atlantic PIE proof generation finished for query: {}",
-                atlantic_query_id
-            );
-
-            // TODO: error handling
-            let raw_proof = self.client.get_proof(&atlantic_query_id).await.unwrap();
-
-            // TODO: error handling
-            let parsed_proof: P = P::parse(raw_proof).unwrap();
-
-            info!("Proof generated for block #{}", new_block.number);
-
-            let new_proof = SnosProof {
-                block_number: new_block.number,
-                proof: parsed_proof,
-            };
-
-            tokio::select! {
+                // Check for shutdown request
                 _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.proof_channel.send(new_proof) => {},
             }
         }
 
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
+    }
+
+    async fn submit_proof_generation(new_block: NewBlock, client: AtlanticClient) -> Result<SnosProof<P>> {
+        trace!("Compressing PIE for block #{}", new_block.number);
+
+        // TODO: error handling
+        let compressed_pie = compress_pie(&new_block.pie).unwrap();
+        debug!(
+            "Compressed PIE size for block #{}: {} bytes",
+            new_block.number,
+            compressed_pie.len()
+        );
+
+        let external_id = format!("c7e_{}_{}", new_block.number, new_block.n_txs);
+
+        // TODO: error handling
+        let atlantic_query_id = client
+            .submit_proof_generation(compressed_pie, Some(external_id))
+            .await
+            .unwrap();
+
+        info!(
+            "Atlantic proof generation submitted for block #{}: {}",
+            new_block.number, atlantic_query_id
+        );
+
+        // Wait for PIE proof to be done
+        loop {
+            // TODO: sleep with graceful shutdown
+            tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+
+            // TODO: error handling
+            if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
+                if let Some(proof_generation_job) = jobs
+                    .iter()
+                    .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
+                {
+                    match proof_generation_job.status {
+                        AtlanticJobStatus::Completed => break,
+                        AtlanticJobStatus::Failed => {
+                            // TODO: error handling
+                            panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                        }
+                        AtlanticJobStatus::InProgress => {}
+                    }
+                }
+            }
+        };
+
+        debug!(
+            "Atlantic PIE proof generation finished for query: {}",
+            atlantic_query_id
+        );
+
+        // TODO: error handling
+        let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
+
+        // TODO: error handling
+        let parsed_proof: P = P::parse(raw_proof).unwrap();
+
+        info!("Proof generated for block #{}", new_block.number);
+
+        let new_proof = SnosProof {
+            block_number: new_block.number,
+            proof: parsed_proof,
+        };
+
+        Ok(new_proof)
     }
 }
 

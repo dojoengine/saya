@@ -23,4 +23,5 @@ pub trait BlockIngestor: Daemon {}
 pub struct NewBlock {
     pub number: u64,
     pub pie: CairoPie,
+    pub n_txs: u64,
 }

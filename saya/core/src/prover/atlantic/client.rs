@@ -11,7 +11,7 @@ use url::Url;
 const ATLANTIC_API_BASE: &str = "https://atlantic.api.herodotus.cloud/v1";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AtlanticClient {
     http_client: Client,
     api_base: Url,
@@ -66,7 +66,7 @@ impl AtlanticClient {
         }
     }
 
-    pub async fn submit_proof_generation<T>(&self, compressed_pie: T) -> Result<String>
+    pub async fn submit_proof_generation<T>(&self, compressed_pie: T, external_id: Option<String>) -> Result<String>
     where
         T: Into<Cow<'static, [u8]>>,
     {
@@ -74,7 +74,7 @@ impl AtlanticClient {
         url.path_segments_mut().unwrap().push("proof-generation");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
 
-        let form = Form::new()
+        let mut form = Form::new()
             .part(
                 "pieFile",
                 Part::bytes(compressed_pie)
@@ -85,6 +85,10 @@ impl AtlanticClient {
             .text("layout", "dynamic")
             .text("prover", "starkware_sharp");
 
+        if let Some(external_id) = external_id {
+            form = form.text("externalId", external_id);
+        }
+
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
             anyhow::bail!("unsuccessful status code: {}", response.status());
@@ -94,7 +98,7 @@ impl AtlanticClient {
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn submit_l2_atlantic_query<P, I>(&self, program: P, input: I) -> Result<String>
+    pub async fn submit_l2_atlantic_query<P, I>(&self, program: P, input: I, external_id: Option<String>) -> Result<String>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
@@ -106,7 +110,7 @@ impl AtlanticClient {
             .push("atlantic-query");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
 
-        let form = Form::new()
+        let mut form = Form::new()
             .text("cairoVersion", "0")
             .text("mockFactHash", "false")
             .part(
@@ -124,6 +128,10 @@ impl AtlanticClient {
                     .unwrap(),
             )
             .text("prover", "starkware_sharp");
+
+        if let Some(external_id) = external_id {
+            form = form.text("externalId", external_id);
+        }
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
