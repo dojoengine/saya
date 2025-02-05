@@ -17,6 +17,9 @@ pub use atlantic::{
     AtlanticSnosProverBuilder,
 };
 
+mod mock;
+pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
+
 mod recursive;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
 
