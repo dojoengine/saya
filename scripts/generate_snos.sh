@@ -11,8 +11,8 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPO_ROOT=$( dirname -- $SCRIPT_DIR )
 
-CAIRO_VERSION="0.13.2.1"
-COMPILER_VERSION="0.13.2"
+CAIRO_VERSION="0.13.3"
+COMPILER_VERSION="0.13.3"
 
 mkdir -p $REPO_ROOT/programs
 
