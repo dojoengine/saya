@@ -34,7 +34,7 @@ const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 pub struct PiltoverSettlementBackend {
     provider: Arc<JsonRpcClient<HttpTransport>>,
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
-    integrity_address: Felt,
+    fact_registration: FactRegistrationConfig,
     piltover_address: Felt,
     da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
     cursor_channel: Sender<SettlementCursor>,
@@ -44,7 +44,8 @@ pub struct PiltoverSettlementBackend {
 #[derive(Debug)]
 pub struct PiltoverSettlementBackendBuilder {
     rpc_url: Url,
-    integrity_address: Felt,
+    integrity_address: Option<Felt>,
+    skip_fact_registration: bool,
     piltover_address: Felt,
     account_address: Felt,
     account_private_key: Felt,
@@ -67,6 +68,12 @@ struct UpdateStateCalldata {
     program_output: Vec<Felt>,
     onchain_data_hash: Felt,
     onchain_data_size: U256,
+}
+
+#[derive(Debug)]
+enum FactRegistrationConfig {
+    Integrity(Felt),
+    Skipped,
 }
 
 impl PiltoverSettlementBackend {
@@ -98,82 +105,94 @@ impl PiltoverSettlementBackend {
             let new_da = new_da.unwrap();
             debug!("Received new DA cursor");
 
-            // TODO: error handling
-            let split_proof =
-                split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
-                    new_da.full_payload.layout_bridge_proof.clone(),
-                )
-                .unwrap();
-            let integrity_job_id = SigningKey::from_random().secret_scalar();
-            let integrity_calls = split_proof
-                .into_calls(
-                    integrity_job_id,
-                    VerifierConfiguration {
-                        layout: short_string!("recursive_with_poseidon"),
-                        hasher: short_string!("keccak_160_lsb"),
-                        stone_version: short_string!("stone6"),
-                        memory_verification: short_string!("relaxed"),
-                    },
-                )
-                .collect_calls(self.integrity_address);
-            let integrity_call_chunks = split_calls(integrity_calls);
-            debug!(
-                "{} transactions to integrity verifier generated (job id: {:#064x})",
-                integrity_call_chunks.len(),
-                integrity_job_id
-            );
+            match self.fact_registration {
+                FactRegistrationConfig::Integrity(integrity_address) => {
+                    // TODO: error handling
+                    let split_proof =
+                        split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
+                            new_da.full_payload.layout_bridge_proof.clone(),
+                        )
+                        .unwrap();
+                    let integrity_job_id = SigningKey::from_random().secret_scalar();
+                    let integrity_calls = split_proof
+                        .into_calls(
+                            integrity_job_id,
+                            VerifierConfiguration {
+                                layout: short_string!("recursive_with_poseidon"),
+                                hasher: short_string!("keccak_160_lsb"),
+                                stone_version: short_string!("stone6"),
+                                memory_verification: short_string!("relaxed"),
+                            },
+                        )
+                        .collect_calls(integrity_address);
+                    let integrity_call_chunks = split_calls(integrity_calls);
+                    debug!(
+                        "{} transactions to integrity verifier generated (job id: {:#064x})",
+                        integrity_call_chunks.len(),
+                        integrity_job_id
+                    );
 
-            // TODO: error handling
-            let mut nonce = self.account.get_nonce().await.unwrap();
-            let mut total_fee = Felt::ZERO;
+                    // TODO: error handling
+                    let mut nonce = self.account.get_nonce().await.unwrap();
+                    let mut total_fee = Felt::ZERO;
 
-            let proof_start = Instant::now();
+                    let proof_start = Instant::now();
 
-            for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
-                let tx = self
-                    .account
-                    .execute_v3(chunk.to_owned())
-                    .nonce(nonce)
-                    .send()
-                    .await
-                    .unwrap();
-                debug!(
-                    "[{} / {}] Integrity verification transaction sent: {:#064x}",
-                    ind + 1,
-                    integrity_call_chunks.len(),
-                    tx.transaction_hash
-                );
+                    for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
+                        let tx = self
+                            .account
+                            .execute_v3(chunk.to_owned())
+                            .nonce(nonce)
+                            .send()
+                            .await
+                            .unwrap();
+                        debug!(
+                            "[{} / {}] Integrity verification transaction sent: {:#064x}",
+                            ind + 1,
+                            integrity_call_chunks.len(),
+                            tx.transaction_hash
+                        );
 
-                // TODO: error handling
-                let receipt = watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
-                    .await
-                    .unwrap();
+                        // TODO: error handling
+                        let receipt =
+                            watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                                .await
+                                .unwrap();
 
-                let fee = match &receipt.receipt {
-                    TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
-                    TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
-                };
+                        let fee = match &receipt.receipt {
+                            TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
+                            TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
+                            TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
+                            TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
+                            TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
+                        };
 
-                debug!(
-                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
-                    ind + 1,
-                    integrity_call_chunks.len(),
-                    tx.transaction_hash
-                );
+                        debug!(
+                            "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                            ind + 1,
+                            integrity_call_chunks.len(),
+                            tx.transaction_hash
+                        );
 
-                nonce += Felt::ONE;
-                total_fee += fee.amount;
+                        nonce += Felt::ONE;
+                        total_fee += fee.amount;
+                    }
+
+                    let proof_end = Instant::now();
+                    info!(
+                        "Proof successfully verified on integrity in {:.2} \
+                        seconds. Total cost: {} STRK",
+                        proof_end.duration_since(proof_start).as_secs_f32(),
+                        felt_to_bigdecimal(total_fee, 18)
+                    );
+                }
+                FactRegistrationConfig::Skipped => {
+                    info!(
+                        "On-chain fact-registration skipped for block #{}",
+                        new_da.block_number
+                    );
+                }
             }
-
-            let proof_end = Instant::now();
-            info!(
-                "Proof successfully verified on integrity in {:.2} seconds. Total cost: {} STRK",
-                proof_end.duration_since(proof_start).as_secs_f32(),
-                felt_to_bigdecimal(total_fee, 18)
-            );
 
             let update_state_call = Call {
                 to: self.piltover_address,
@@ -246,20 +265,30 @@ impl PiltoverSettlementBackend {
 impl PiltoverSettlementBackendBuilder {
     pub fn new(
         rpc_url: Url,
-        integrity_address: Felt,
         piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
     ) -> Self {
         Self {
             rpc_url,
-            integrity_address,
+            integrity_address: None,
+            skip_fact_registration: false,
             piltover_address,
             account_address,
             account_private_key,
             da_channel: None,
             cursor_channel: None,
         }
+    }
+
+    pub fn integrity_address(mut self, integrity_address: Felt) -> Self {
+        self.integrity_address = Some(integrity_address);
+        self
+    }
+
+    pub fn skip_fact_registration(mut self, skip_fact_registration: bool) -> Self {
+        self.skip_fact_registration = skip_fact_registration;
+        self
     }
 }
 
@@ -282,7 +311,14 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
         Ok(PiltoverSettlementBackend {
             provider,
             account,
-            integrity_address: self.integrity_address,
+            fact_registration: if self.skip_fact_registration {
+                FactRegistrationConfig::Skipped
+            } else {
+                FactRegistrationConfig::Integrity(
+                    self.integrity_address
+                        .ok_or_else(|| anyhow::anyhow!("`integrity_address` not set"))?,
+                )
+            },
             piltover_address: self.piltover_address,
             da_channel: self
                 .da_channel
