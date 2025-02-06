@@ -7,13 +7,16 @@ use saya_core::{
     data_availability::NoopDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
-        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, RecursiveProverBuilder,
+        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
+        MockLayoutBridgeProverBuilder, RecursiveProverBuilder,
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
+
+use crate::any::AnyLayoutBridgeProverBuilder;
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -43,13 +46,16 @@ struct Start {
     snos_program: PathBuf,
     /// Path to the compiled Cairo verifier program
     #[clap(long, env)]
-    layout_bridge_program: PathBuf,
+    layout_bridge_program: Option<PathBuf>,
     /// Atlantic prover API key
     #[clap(long, env)]
     atlantic_key: String,
     /// Settlement network integrity contract address
     #[clap(long, env)]
-    settlement_integrity_address: Felt,
+    settlement_integrity_address: Option<Felt>,
+    /// Generate mock layout bridge proofs and skip on-chain fact registration
+    #[clap(long, env)]
+    mock_layout_bridge: bool,
     /// Settlement network piltover contract address
     #[clap(long, env)]
     settlement_piltover_address: Felt,
@@ -75,24 +81,55 @@ impl Start {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
-        let mut layout_bridge_file = std::fs::File::open(self.layout_bridge_program)?;
-        let mut layout_bridge = Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
-        layout_bridge_file.read_to_end(&mut layout_bridge)?;
+        let layout_bridge_prover_builder =
+            match (self.mock_layout_bridge, self.layout_bridge_program) {
+                // We don't need the `layout_bridge` program in this case but it's okay if it's given.
+                (true, _) => {
+                    AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new())
+                }
+                (false, Some(layout_bridge_program)) => {
+                    let mut layout_bridge_file = std::fs::File::open(layout_bridge_program)?;
+                    let mut layout_bridge =
+                        Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
+                    layout_bridge_file.read_to_end(&mut layout_bridge)?;
+
+                    AnyLayoutBridgeProverBuilder::Atlantic(AtlanticLayoutBridgeProverBuilder::new(
+                        self.atlantic_key.clone(),
+                        layout_bridge,
+                    ))
+                }
+                (false, None) => anyhow::bail!(
+                    "invalid config: `layout_bridge` program must be \
+                provided when `--mock-layout-bridge` is used"
+                ),
+            };
 
         // TODO: make impls of these providers configurable
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.rollup_rpc, snos);
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key.clone()),
-            AtlanticLayoutBridgeProverBuilder::new(self.atlantic_key, layout_bridge),
+            AtlanticSnosProverBuilder::new(self.atlantic_key),
+            layout_bridge_prover_builder,
         );
         let da_builder = NoopDataAvailabilityBackendBuilder::new();
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
-            self.settlement_integrity_address,
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
         );
+
+        let settlement_builder = match (self.mock_layout_bridge, self.settlement_integrity_address)
+        {
+            // We don't need `integrity` address but it's okay if it's given.
+            (true, _) => settlement_builder.skip_fact_registration(true),
+            (false, Some(integrity_address)) => {
+                settlement_builder.integrity_address(integrity_address)
+            }
+            (false, None) => anyhow::bail!(
+                "invalid config: `integrity` address must be \
+                provided unless `--mock-layout-bridge` is used"
+            ),
+        };
 
         let orchestrator = PersistentOrchestratorBuilder::new(
             block_ingestor_builder,

@@ -15,6 +15,8 @@ use persistent::Persistent;
 mod sharding;
 use sharding::Sharding;
 
+mod any;
+
 #[derive(Debug, Parser)]
 #[clap(about, version)]
 struct Cli {
