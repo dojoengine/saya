@@ -20,7 +20,10 @@ pub trait SettlementBackendBuilder {
 }
 
 pub trait SettlementBackend: Daemon {
-    fn get_block_number(&self) -> impl Future<Output = Result<u64>> + Send;
+    /// Gets the block number of the last block verified by the settlement layer.
+    ///
+    /// It returns a `Felt` since the previous block value for genesis block is `Felt::MAX`.
+    fn get_block_number(&self) -> impl Future<Output = Result<Felt>> + Send;
 }
 
 // TODO: abstract over this to allow other settlement backends.

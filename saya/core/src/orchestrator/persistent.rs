@@ -108,7 +108,16 @@ where
             .build()
             .await
             .unwrap();
+
+        // Since the `Felt` type is wrapping (`Felt::MAX + 1 = 0`), there is not
+        // need for a special case for the genesis block, and `+1` works as expected.
+        //
+        // TODO: should we change to `settlement.next_block_number()` instead to always return `u64`?
         let start_block = settlement.get_block_number().await? + 1;
+
+        // Now that the special value of `Felt::MAX` is handled, we can use the block number as `u64`.
+        let start_block: u64 = start_block.try_into()?;
+        dbg!(start_block);
 
         let ingestor = self
             .ingestor_builder
