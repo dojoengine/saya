@@ -16,7 +16,7 @@ COMPILER_VERSION="0.13.2"
 
 mkdir -p $REPO_ROOT/programs
 
-$SUDO docker run -it --rm \
+$SUDO docker run --rm \
   -v "$REPO_ROOT/programs:/output" \
   -v "$SCRIPT_DIR/entrypoints/layout_bridge.sh:/entry:ro" \
   -e "CAIRO_VERSION=$CAIRO_VERSION" \
@@ -28,3 +28,9 @@ $SUDO docker run --rm \
   --user root \
   tmknom/prettier:3.2.5 \
   --write "/output/layout_bridge.json"
+
+$SUDO docker run --rm \
+  -v "$REPO_ROOT/programs/layout_bridge.json:/program.json" \
+  -v "$SCRIPT_DIR/entrypoints/hash_program.py:/entry:ro" \
+  --entrypoint "/entry" \
+  starknet/cairo-lang:$COMPILER_VERSION

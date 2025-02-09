@@ -1,0 +1,31 @@
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+  workflow_dispatch:
+
+name: "Build and hash programs"
+
+jobs:
+  build:
+    name: "Build and hash ${{ matrix.name }}"
+    runs-on: "${{ matrix.runner }}"
+
+    strategy:
+      matrix:
+        include:
+          - name: "snos"
+            runner: "ubuntu-latest-8-cores"
+            script: "generate_snos.sh"
+          - name: "layout_bridge"
+            runner: "ubuntu-latest-16-cores"
+            script: "generate_layout_bridge.sh"
+
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+
+      - name: "Build and hash program"
+        run: |
+          ./scripts/${{ matrix.script }}

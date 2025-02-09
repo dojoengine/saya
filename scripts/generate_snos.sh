@@ -16,7 +16,7 @@ COMPILER_VERSION="0.13.3"
 
 mkdir -p $REPO_ROOT/programs
 
-$SUDO docker run -it --rm \
+$SUDO docker run --rm \
   -v "$REPO_ROOT/programs:/output" \
   -v "$SCRIPT_DIR/entrypoints/snos.sh:/entry:ro" \
   -e "CAIRO_VERSION=$CAIRO_VERSION" \
@@ -28,3 +28,9 @@ $SUDO docker run --rm \
   --user root \
   tmknom/prettier:3.2.5 \
   --write "/output/snos.json"
+
+$SUDO docker run --rm \
+  -v "$REPO_ROOT/programs/snos.json:/program.json" \
+  -v "$SCRIPT_DIR/entrypoints/hash_program.py:/entry:ro" \
+  --entrypoint "/entry" \
+  starknet/cairo-lang:$COMPILER_VERSION
