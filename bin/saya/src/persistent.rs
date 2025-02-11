@@ -56,6 +56,9 @@ struct Start {
     /// Generate mock layout bridge proofs and skip on-chain fact registration
     #[clap(long, env)]
     mock_layout_bridge: bool,
+    /// Layout bridge program hash when using mock layout bridge
+    #[clap(long, env)]
+    mock_layout_bridge_program_hash: Option<Felt>,
     /// Settlement network piltover contract address
     #[clap(long, env)]
     settlement_piltover_address: Felt,
@@ -85,7 +88,11 @@ impl Start {
             match (self.mock_layout_bridge, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
                 (true, _) => {
-                    AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new())
+                    AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new(
+                        self.mock_layout_bridge_program_hash
+                            .expect("`mock_layout_bridge_program_hash` must be set when \
+                            `--mock-layout-bridge` is used"),
+                    ))
                 }
                 (false, Some(layout_bridge_program)) => {
                     let mut layout_bridge_file = std::fs::File::open(layout_bridge_program)?;

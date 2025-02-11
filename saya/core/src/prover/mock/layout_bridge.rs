@@ -19,6 +19,7 @@ use crate::{
 pub struct MockLayoutBridgeProver {
     statement_channel: Receiver<SnosProof<String>>,
     proof_channel: Sender<RecursiveProof>,
+    layout_bridge_program_hash: Felt,
     finish_handle: FinishHandle,
 }
 
@@ -26,6 +27,7 @@ pub struct MockLayoutBridgeProver {
 pub struct MockLayoutBridgeProverBuilder {
     statement_channel: Option<Receiver<SnosProof<String>>>,
     proof_channel: Option<Sender<RecursiveProof>>,
+    layout_bridge_program_hash: Felt,
 }
 
 impl MockLayoutBridgeProver {
@@ -103,7 +105,7 @@ impl MockLayoutBridgeProver {
                         [
                             Felt::ZERO,
                             Felt::ZERO,
-                            Felt::ZERO,
+                            self.layout_bridge_program_hash,
                             Felt::ZERO,
                             poseidon_hash_many(&snos_output),
                         ]
@@ -189,10 +191,11 @@ impl MockLayoutBridgeProver {
 }
 
 impl MockLayoutBridgeProverBuilder {
-    pub fn new() -> Self {
+    pub fn new(layout_bridge_program_hash: Felt) -> Self {
         Self {
             statement_channel: None,
             proof_channel: None,
+            layout_bridge_program_hash,
         }
     }
 }
@@ -209,6 +212,7 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            layout_bridge_program_hash: self.layout_bridge_program_hash,
         })
     }
 
