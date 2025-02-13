@@ -57,7 +57,7 @@ pub struct PiltoverSettlementBackendBuilder {
 struct AppchainState {
     #[allow(unused)]
     state_root: Felt,
-    block_number: u64,
+    block_number: Felt,
     #[allow(unused)]
     block_hash: Felt,
 }
@@ -342,7 +342,7 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
 }
 
 impl SettlementBackend for PiltoverSettlementBackend {
-    async fn get_block_number(&self) -> Result<u64> {
+    async fn get_block_number(&self) -> Result<Felt> {
         let appchain_state = self.get_state().await?;
         Ok(appchain_state.block_number)
     }
