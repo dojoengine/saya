@@ -83,7 +83,8 @@ impl AtlanticClient {
                     .unwrap(),
             )
             .text("layout", "dynamic")
-            .text("prover", "starkware_sharp");
+            .text("prover", "starkware_sharp")
+            .text("skipFactHashGeneration", "true");
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
