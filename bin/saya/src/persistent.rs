@@ -89,9 +89,10 @@ impl Start {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
                 (true, _) => {
                     AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new(
-                        self.mock_layout_bridge_program_hash
-                            .expect("`mock_layout_bridge_program_hash` must be set when \
-                            `--mock-layout-bridge` is used"),
+                        self.mock_layout_bridge_program_hash.expect(
+                            "`mock_layout_bridge_program_hash` must be set when \
+                            `--mock-layout-bridge` is used",
+                        ),
                     ))
                 }
                 (false, Some(layout_bridge_program)) => {
