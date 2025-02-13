@@ -2,7 +2,7 @@
 
 FROM rust:alpine AS build
 
-RUN apk add --update alpine-sdk linux-headers libressl-dev
+RUN apk add --update alpine-sdk linux-headers libressl-dev tini
 
 WORKDIR /src
 COPY ./rust-toolchain.toml /src/
@@ -25,10 +25,13 @@ FROM alpine
 
 LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 
+COPY --from=build /sbin/tini /tini
+ENTRYPOINT ["/tini", "--"]
+
 COPY --from=build /src/build/saya /usr/bin/
 COPY programs /programs
 
 ENV SNOS_PROGRAM=/programs/snos.json
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
 
-ENTRYPOINT [ "saya" ]
+CMD [ "saya" ]
