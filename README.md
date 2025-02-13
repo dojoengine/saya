@@ -5,7 +5,7 @@ Saya is a settlement service for Katana.
 ## Katana provable mode
 
 Katana must be running in provable mode to be proven by Saya.
-All the following Katana commands are available starting Dojo `1.2.0`.
+All the following Katana commands are available from Dojo `1.2.0` and above.
 
 1. Use `katana init` to setup the chain spec, you can use the prompt or the following arguments:
 
