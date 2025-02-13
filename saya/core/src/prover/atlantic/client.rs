@@ -110,6 +110,7 @@ impl AtlanticClient {
         let form = Form::new()
             .text("cairoVersion", "0")
             .text("mockFactHash", "false")
+            .text("skipFactHashGeneration", "true")
             .part(
                 "programFile",
                 Part::bytes(program.into())
