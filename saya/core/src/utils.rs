@@ -5,12 +5,14 @@ use bigdecimal::{
     num_bigint::{BigInt, Sign},
     BigDecimal,
 };
+use cairo_vm::{program_hash::compute_program_hash_chain, vm::runners::cairo_pie::CairoPie};
 use num_traits::ToPrimitive;
 use starknet::{
     core::types::{Call, ExecutionResult, StarknetError, TransactionReceiptWithBlockInfo},
     providers::{Provider, ProviderError},
 };
 use starknet_types_core::felt::Felt;
+use swiftness_air::types::SegmentInfo;
 use swiftness_stark::types::StarkProof;
 
 const STARKNET_TX_CALLDATA_LIMIT: usize = 5_000;
@@ -94,4 +96,148 @@ pub fn split_calls(calls: Vec<Call>) -> Vec<Vec<Call>> {
     }
 
     chunks
+}
+
+/// Computes the program hash from a `CairoPie` instance, mostly used for
+/// testing to avoid extracting the program hash from the SHARP bootloader.
+/// (which also extracts the program hash from the PIE)
+pub fn compute_program_hash_from_pie(pie: &CairoPie) -> Result<Felt> {
+    let hash = compute_program_hash_chain(&pie.metadata.program, 0)?;
+    let bytes = hash.to_bytes_be();
+    Ok(Felt::from_bytes_be(&bytes))
+}
+
+/// Extracts the output of a program from a `CairoPie`.
+///
+/// This output is the one that is returned by the prover at the end
+/// of the `public_input`.
+pub fn extract_pie_output(pie: &CairoPie) -> Vec<Felt> {
+    let output_segment_index = 2_usize;
+    let output_segment = prove_block::get_memory_segment(pie, output_segment_index);
+    let output: Vec<Felt> = output_segment
+        .iter()
+        .map(|(_key, value)| value.get_int().unwrap())
+        .collect::<Vec<_>>();
+    output
+}
+
+/// This proof is mocked but calling `calculate_output` on it correctly yields
+/// the expected output.
+///
+/// This spaghetti is needed because `StarkProof` does not implement `Default`.
+pub fn stark_proof_mock(output: &[Felt]) -> StarkProof {
+    StarkProof {
+        config: swiftness::config::StarkConfig {
+            traces: swiftness_air::trace::config::Config {
+                original: default_table_commitment_config(),
+                interaction: default_table_commitment_config(),
+            },
+            composition: default_table_commitment_config(),
+            fri: swiftness_fri::config::Config {
+                log_input_size: Default::default(),
+                n_layers: Default::default(),
+                inner_layers: Default::default(),
+                fri_step_sizes: Default::default(),
+                log_last_layer_degree_bound: Default::default(),
+            },
+            proof_of_work: swiftness_pow::config::Config {
+                n_bits: Default::default(),
+            },
+            log_trace_domain_size: Default::default(),
+            n_queries: Default::default(),
+            log_n_cosets: Default::default(),
+            n_verifier_friendly_commitment_layers: Default::default(),
+        },
+        public_input: swiftness_air::public_memory::PublicInput {
+            log_n_steps: Default::default(),
+            range_check_min: Default::default(),
+            range_check_max: Default::default(),
+            layout: Default::default(),
+            dynamic_params: Default::default(),
+            segments: vec![
+                SegmentInfo {
+                    begin_addr: Default::default(),
+                    stop_ptr: Default::default(),
+                },
+                SegmentInfo {
+                    begin_addr: Default::default(),
+                    stop_ptr: Default::default(),
+                },
+                SegmentInfo {
+                    begin_addr: Felt::ZERO,
+                    stop_ptr: Felt::from(output.len()),
+                },
+            ],
+            padding_addr: Default::default(),
+            padding_value: Default::default(),
+            main_page: swiftness_air::types::Page(
+                output
+                    .iter()
+                    .map(|value| swiftness_air::types::AddrValue {
+                        address: Default::default(),
+                        value: *value,
+                    })
+                    .collect(),
+            ),
+            continuous_page_headers: Default::default(),
+        },
+        unsent_commitment: swiftness::types::StarkUnsentCommitment {
+            traces: swiftness_air::trace::UnsentCommitment {
+                original: Default::default(),
+                interaction: Default::default(),
+            },
+            composition: Default::default(),
+            oods_values: Default::default(),
+            fri: swiftness_fri::types::UnsentCommitment {
+                inner_layers: Default::default(),
+                last_layer_coefficients: Default::default(),
+            },
+            proof_of_work: swiftness_pow::pow::UnsentCommitment {
+                nonce: Default::default(),
+            },
+        },
+        witness: swiftness_stark::types::StarkWitness {
+            traces_decommitment: swiftness_air::trace::Decommitment {
+                original: swiftness_commitment::table::types::Decommitment {
+                    values: Default::default(),
+                },
+                interaction: swiftness_commitment::table::types::Decommitment {
+                    values: Default::default(),
+                },
+            },
+            traces_witness: swiftness_air::trace::Witness {
+                original: swiftness_commitment::table::types::Witness {
+                    vector: swiftness_commitment::vector::types::Witness {
+                        authentications: Default::default(),
+                    },
+                },
+                interaction: swiftness_commitment::table::types::Witness {
+                    vector: swiftness_commitment::vector::types::Witness {
+                        authentications: Default::default(),
+                    },
+                },
+            },
+            composition_decommitment: swiftness_commitment::table::types::Decommitment {
+                values: Default::default(),
+            },
+            composition_witness: swiftness_commitment::table::types::Witness {
+                vector: swiftness_commitment::vector::types::Witness {
+                    authentications: Default::default(),
+                },
+            },
+            fri_witness: swiftness_fri::types::Witness {
+                layers: Default::default(),
+            },
+        },
+    }
+}
+
+fn default_table_commitment_config() -> swiftness_commitment::table::config::Config {
+    swiftness_commitment::table::config::Config {
+        n_columns: Default::default(),
+        vector: swiftness_commitment::vector::config::Config {
+            height: Default::default(),
+            n_verifier_friendly_commitment_layers: Default::default(),
+        },
+    }
 }
