@@ -89,7 +89,7 @@ cargo run --bin saya -r -- sovereign start --genesis.first-block-number <first_b
 
 ## Testing
 
-Since persistent mode requires two proofs (SNOS and Layout bridge), you can opt to mock the layout bridge proof by providing the `--mock-layout-bridge-proof` flag and the associated hash for testing purposes.
+Since persistent mode requires two proofs (SNOS and Layout bridge), you can opt to mock the layout bridge proof by providing the `--mock-layout-bridge-program-hash` argument for testing purposes.
 
 Before running Saya, you must first change the fact registry address for the piltover settlement contract to use a mock one.
 
