@@ -53,9 +53,9 @@ struct Start {
     /// Settlement network integrity contract address
     #[clap(long, env)]
     settlement_integrity_address: Option<Felt>,
-    /// Generate mock layout bridge proofs and skip on-chain fact registration
+    /// Generate mock layout bridge proof and skip on-chain fact registration if provided
     #[clap(long, env)]
-    mock_layout_bridge: bool,
+    mock_layout_bridge_program_hash: Option<Felt>,
     /// Settlement network piltover contract address
     #[clap(long, env)]
     settlement_piltover_address: Felt,
@@ -82,12 +82,14 @@ impl Start {
         snos_file.read_to_end(&mut snos)?;
 
         let layout_bridge_prover_builder =
-            match (self.mock_layout_bridge, self.layout_bridge_program) {
+            match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
-                (true, _) => {
-                    AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new())
+                (Some(mock_layout_bridge_program_hash), _) => {
+                    AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new(
+                        mock_layout_bridge_program_hash,
+                    ))
                 }
-                (false, Some(layout_bridge_program)) => {
+                (None, Some(layout_bridge_program)) => {
                     let mut layout_bridge_file = std::fs::File::open(layout_bridge_program)?;
                     let mut layout_bridge =
                         Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
@@ -98,9 +100,8 @@ impl Start {
                         layout_bridge,
                     ))
                 }
-                (false, None) => anyhow::bail!(
-                    "invalid config: `layout_bridge` program must be \
-                provided when `--mock-layout-bridge` is used"
+                (None, None) => anyhow::bail!(
+                    "invalid config: `--layout-bridge-program` must be provided unless `--mock-layout-bridge-program-hash` is used"
                 ),
             };
 
@@ -118,16 +119,18 @@ impl Start {
             self.settlement_account_private_key,
         );
 
-        let settlement_builder = match (self.mock_layout_bridge, self.settlement_integrity_address)
-        {
+        let settlement_builder = match (
+            self.mock_layout_bridge_program_hash,
+            self.settlement_integrity_address,
+        ) {
             // We don't need `integrity` address but it's okay if it's given.
-            (true, _) => settlement_builder.skip_fact_registration(true),
-            (false, Some(integrity_address)) => {
+            (Some(_), _) => settlement_builder.skip_fact_registration(true),
+            (None, Some(integrity_address)) => {
                 settlement_builder.integrity_address(integrity_address)
             }
-            (false, None) => anyhow::bail!(
+            (None, None) => anyhow::bail!(
                 "invalid config: `integrity` address must be \
-                provided unless `--mock-layout-bridge` is used"
+                provided unless `--mock-layout-bridge-program-hash` is used"
             ),
         };
 

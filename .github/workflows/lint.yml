@@ -1,0 +1,47 @@
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+name: "Linting"
+
+jobs:
+  format:
+    name: "Check code format"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v3"
+
+      - name: "Use Rust cache"
+        uses: "Swatinem/rust-cache@v2"
+        with:
+          cache-on-failure: true
+
+      - name: "Install prettier"
+        run: |
+          yarn global add prettier
+
+      - name: "Lint check"
+        run: |
+          bash scripts/lint.sh
+
+  clippy:
+    name: "Run Clippy"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v3"
+
+      - name: "Setup toolchain"
+        uses: "actions-rs/toolchain@v1"
+        with:
+          toolchain: "nightly"
+          components: "clippy"
+          override: true
+
+      - name: "Run Clippy"
+        run: |
+          bash scripts/clippy.sh
