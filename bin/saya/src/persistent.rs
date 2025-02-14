@@ -53,7 +53,7 @@ struct Start {
     /// Settlement network integrity contract address
     #[clap(long, env)]
     settlement_integrity_address: Option<Felt>,
-    /// Layout bridge program hash when using mock layout bridge
+    /// Generate mock layout bridge proof and skip on-chain fact registration if provided
     #[clap(long, env)]
     mock_layout_bridge_program_hash: Option<Felt>,
     /// Settlement network piltover contract address
