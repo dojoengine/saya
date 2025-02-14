@@ -103,7 +103,6 @@ Then you can run Saya with:
 
 ```
 saya persistent start \
-    --mock-layout-bridge \
     --mock-layout-bridge-program-hash 0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0
 ```
 
