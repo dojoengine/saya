@@ -38,8 +38,8 @@ jobs:
       - name: "Setup toolchain"
         uses: "actions-rs/toolchain@v1"
         with:
-          toolchain: "stable"
-          components: "nightly"
+          toolchain: "nightly"
+          components: "clippy"
           override: true
 
       - name: "Run Clippy"
