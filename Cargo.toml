@@ -20,6 +20,7 @@ anyhow = { version = "1.0.95", default-features = false }
 bigdecimal = { version = "0.3.1", default-features = false }
 # `cairo-vm` fork used by `prove_block` from `snos`
 cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", default-features = false }
+prover-sdk ={ git = "https://github.com/cartridge-gg/http-prover.git",rev = "19fa403"}
 celestia-rpc = { version = "0.8.0", default-features = false }
 celestia-types = { version = "0.9.0", default-features = false }
 ciborium = { version = "0.2.2", default-features = false }

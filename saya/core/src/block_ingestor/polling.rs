@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use cairo_vm::types::layout_name::LayoutName;
 use log::{debug, error};
 use tokio::sync::mpsc::Sender;
 use url::Url;
@@ -11,45 +10,50 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
 
+use super::BlockPieGenerator;
+
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
 #[derive(Debug)]
-pub struct PollingBlockIngestor<S> {
+pub struct PollingBlockIngestor<S, B> {
     rpc_url: Url,
     snos: S,
     current_block: u64,
     channel: Sender<NewBlock>,
     finish_handle: FinishHandle,
+    block_pie_generator: B,
 }
 
 #[derive(Debug)]
-pub struct PollingBlockIngestorBuilder<S> {
+pub struct PollingBlockIngestorBuilder<S, B> {
     rpc_url: Url,
     snos: S,
     start_block: Option<u64>,
     channel: Option<Sender<NewBlock>>,
+    block_pie_generator: B,
 }
 
-impl<S> PollingBlockIngestor<S>
+impl<S, B> PollingBlockIngestor<S, B>
 where
     S: AsRef<[u8]>,
+    B: BlockPieGenerator + Send + Sync,
 {
     async fn run(mut self) {
         loop {
-            let pie = match prove_block::prove_block(
-                self.snos.as_ref(),
-                self.current_block,
-                // This is because `snos` expects a base URL to be able to derive `pathfinder` RPC path.
-                self.rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
-                LayoutName::all_cairo,
-                true,
-            )
-            .await
-            // Need to do this as `ProveBlockError::ReExecutionError` is not `Send`
-            .map_err(|err| format!("{}", err))
+            let pie = match self
+                .block_pie_generator
+                .prove_block(
+                    self.snos.as_ref(),
+                    self.current_block,
+                    // This is because `snos` expects a base URL to be able to derive `pathfinder` RPC path.
+                    self.rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
+                )
+                .await
+                // Need to do this as `ProveBlockError::ReExecutionError` is not `Send`
+                .map_err(|err| format!("{}", err))
             {
-                Ok((pie, _)) => pie,
+                Ok(pie) => pie,
                 Err(err) => {
                     error!("Failed to prove block #{}: {}", self.current_block, err);
 
@@ -87,22 +91,24 @@ where
     }
 }
 
-impl<S> PollingBlockIngestorBuilder<S> {
-    pub fn new(rpc_url: Url, snos: S) -> Self {
+impl<S, B> PollingBlockIngestorBuilder<S, B> {
+    pub fn new(rpc_url: Url, snos: S, block_pie_generator: B) -> Self {
         Self {
             rpc_url,
             snos,
             start_block: None,
             channel: None,
+            block_pie_generator,
         }
     }
 }
 
-impl<S> BlockIngestorBuilder for PollingBlockIngestorBuilder<S>
+impl<S, B> BlockIngestorBuilder for PollingBlockIngestorBuilder<S, B>
 where
     S: AsRef<[u8]> + Send + 'static,
+    B: BlockPieGenerator + Send + Sync + 'static,
 {
-    type Ingestor = PollingBlockIngestor<S>;
+    type Ingestor = PollingBlockIngestor<S, B>;
 
     fn build(self) -> Result<Self::Ingestor> {
         Ok(PollingBlockIngestor {
@@ -115,6 +121,7 @@ where
                 .channel
                 .ok_or_else(|| anyhow::anyhow!("`channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            block_pie_generator: self.block_pie_generator,
         })
     }
 
@@ -129,11 +136,17 @@ where
     }
 }
 
-impl<S> BlockIngestor for PollingBlockIngestor<S> where S: AsRef<[u8]> + Send + 'static {}
-
-impl<S> Daemon for PollingBlockIngestor<S>
+impl<S, B> BlockIngestor for PollingBlockIngestor<S, B>
 where
     S: AsRef<[u8]> + Send + 'static,
+    B: BlockPieGenerator + Send + Sync + 'static,
+{
+}
+
+impl<S, B> Daemon for PollingBlockIngestor<S, B>
+where
+    S: AsRef<[u8]> + Send + 'static,
+    B: BlockPieGenerator + Send + Sync + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()

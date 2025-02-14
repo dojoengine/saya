@@ -2,8 +2,12 @@ use std::{io::Read, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use prover_sdk::access_key::ProverAccessKey;
 use saya_core::{
-    block_ingestor::PollingBlockIngestorBuilder,
+    block_ingestor::{
+        pie_generator::{local::LocalPieGenerator, remote::RemotePieGenerator, SnosPieGenerator},
+        PollingBlockIngestorBuilder,
+    },
     data_availability::NoopDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
@@ -65,6 +69,24 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
+
+    #[clap(subcommand)]
+    pie_mode: PieGenerationMode,
+}
+
+#[derive(Debug, Subcommand)]
+enum PieGenerationMode {
+    /// Use local PIE generation
+    Local,
+    /// Use remote PIE generation (requires URL and access key)
+    Remote {
+        /// Remote prover URL
+        #[clap(long, env)]
+        url: Url,
+        /// Remote prover API access key
+        #[clap(long, env)]
+        access_key: String,
+    },
 }
 
 impl Persistent {
@@ -106,7 +128,9 @@ impl Start {
             };
 
         // TODO: make impls of these providers configurable
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.rollup_rpc, snos);
+        let pie_gen: SnosPieGenerator = self.pie_mode.into();
+        let block_ingestor_builder =
+            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen);
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(self.atlantic_key),
             layout_bridge_prover_builder,
@@ -164,6 +188,21 @@ impl Start {
             _ = orchestrator_shutdown.finished() => {
                 Ok(())
             },
+        }
+    }
+}
+
+impl From<PieGenerationMode> for SnosPieGenerator {
+    fn from(pie_mode: PieGenerationMode) -> Self {
+        match pie_mode {
+            PieGenerationMode::Local => SnosPieGenerator::Local(LocalPieGenerator),
+            PieGenerationMode::Remote { url, access_key } => {
+                SnosPieGenerator::Remote(RemotePieGenerator {
+                    url: url.to_string(),
+                    access_key: ProverAccessKey::from_hex_string(&access_key)
+                        .expect("Invalid access key"), // You might want to handle this error better
+                })
+            }
         }
     }
 }
