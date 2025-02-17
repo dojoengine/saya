@@ -10,7 +10,7 @@ pub mod remote;
 #[derive(Debug)]
 pub enum SnosPieGenerator {
     Local(LocalPieGenerator),
-    Remote(RemotePieGenerator),
+    Remote(Box<RemotePieGenerator>),
 }
 
 impl BlockPieGenerator for SnosPieGenerator {

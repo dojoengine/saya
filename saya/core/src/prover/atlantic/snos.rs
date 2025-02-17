@@ -67,7 +67,7 @@ where
             // TODO: error handling
             let atlantic_query_id = self
                 .client
-                .submit_proof_generation(compressed_pie)
+                .submit_proof_generation(compressed_pie, "dynamic".to_string())
                 .await
                 .unwrap();
 
@@ -193,7 +193,7 @@ where
 ///
 /// Unfortunately `cairo-vm` does not offer a generic API for converting PIE to Zip bytes that
 /// doesn't involve using the file system. This is mostly copied from `CairoPie::write_zip_file`.
-fn compress_pie(pie: &CairoPie) -> std::result::Result<Vec<u8>, std::io::Error> {
+pub fn compress_pie(pie: &CairoPie) -> std::result::Result<Vec<u8>, std::io::Error> {
     let mut bytes = std::io::Cursor::new(Vec::<u8>::new());
     let mut zip_writer = ZipWriter::new(&mut bytes);
     let options =

@@ -11,7 +11,8 @@ use saya_core::{
     data_availability::NoopDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
-        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
+        trace::{AtlanticTraceGenerator, HttpProverTraceGen, TraceGenerator},
+        AtlanticClient, AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
         MockLayoutBridgeProverBuilder, RecursiveProverBuilder,
     },
     service::Daemon,
@@ -37,7 +38,7 @@ enum Subcommands {
     Start(Start),
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 struct Start {
     /// Rollup network Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
@@ -74,7 +75,7 @@ struct Start {
     pie_mode: PieGenerationMode,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, Subcommand, Clone)]
 enum PieGenerationMode {
     /// Use local PIE generation
     Local,
@@ -99,10 +100,10 @@ impl Persistent {
 
 impl Start {
     pub async fn run(self) -> Result<()> {
-        let mut snos_file = std::fs::File::open(self.snos_program)?;
+        let mut snos_file = std::fs::File::open(self.snos_program.clone())?;
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
-
+        let trace_gen: TraceGenerator = self.clone().into();
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
@@ -116,10 +117,10 @@ impl Start {
                     let mut layout_bridge =
                         Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
                     layout_bridge_file.read_to_end(&mut layout_bridge)?;
-
                     AnyLayoutBridgeProverBuilder::Atlantic(AtlanticLayoutBridgeProverBuilder::new(
                         self.atlantic_key.clone(),
                         layout_bridge,
+                        trace_gen,
                     ))
                 }
                 (None, None) => anyhow::bail!(
@@ -197,11 +198,28 @@ impl From<PieGenerationMode> for SnosPieGenerator {
         match pie_mode {
             PieGenerationMode::Local => SnosPieGenerator::Local(LocalPieGenerator),
             PieGenerationMode::Remote { url, access_key } => {
-                SnosPieGenerator::Remote(RemotePieGenerator {
+                SnosPieGenerator::Remote(Box::new(RemotePieGenerator {
                     url: url.to_string(),
                     access_key: ProverAccessKey::from_hex_string(&access_key)
                         .expect("Invalid access key"), // You might want to handle this error better
-                })
+                }))
+            }
+        }
+    }
+}
+
+impl From<Start> for TraceGenerator {
+    fn from(value: Start) -> Self {
+        match value.pie_mode {
+            PieGenerationMode::Local => TraceGenerator::Atlantic(AtlanticTraceGenerator {
+                atlantic_client: AtlanticClient::new(value.atlantic_key),
+            }),
+            PieGenerationMode::Remote { url, access_key } => {
+                TraceGenerator::HttpProver(Box::new(HttpProverTraceGen {
+                    url: url.to_string(),
+                    access_key: ProverAccessKey::from_hex_string(&access_key)
+                        .expect("Invalid access key"), // You might want to handle this error better
+                }))
             }
         }
     }

@@ -10,9 +10,10 @@ use crate::{
     prover::{
         atlantic::{
             client::{AtlanticClient, AtlanticJobStatus},
+            snos::compress_pie,
             PROOF_GENERATION_JOB_NAME,
         },
-        Prover, ProverBuilder, RecursiveProof, SnosProof,
+        LayoutBridgeTraceGenerator, Prover, ProverBuilder, RecursiveProof, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     utils::calculate_output,
@@ -23,23 +24,28 @@ const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
-pub struct AtlanticLayoutBridgeProver {
+pub struct AtlanticLayoutBridgeProver<T> {
     client: AtlanticClient,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Receiver<SnosProof<String>>,
     proof_channel: Sender<RecursiveProof>,
     finish_handle: FinishHandle,
+    trace_generator: T,
 }
 
 #[derive(Debug)]
-pub struct AtlanticLayoutBridgeProverBuilder {
+pub struct AtlanticLayoutBridgeProverBuilder<T> {
     api_key: String,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Option<Receiver<SnosProof<String>>>,
     proof_channel: Option<Sender<RecursiveProof>>,
+    trace_generator: T,
 }
 
-impl AtlanticLayoutBridgeProver {
+impl<T> AtlanticLayoutBridgeProver<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
     async fn run(mut self) {
         // TODO: add persistence for in-flight proof requests to be able to resume progress
 
@@ -63,17 +69,22 @@ impl AtlanticLayoutBridgeProver {
                 .unwrap()
                 .transform_to();
 
-            // Hacky way to wrap proof due to the lack of serialization support for the parsed type
+            // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
             // TODO: patch `swiftness` and fix this
             let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-
-            // TODO: error handling
-            let atlantic_query_id = self
-                .client
-                .submit_l2_atlantic_query(self.layout_bridge.clone(), input.into_bytes())
+            //trace gen Trait executed here.
+            let layout_bridge_pie = self
+                .trace_generator
+                .generate_trace(self.layout_bridge.clone().to_vec(), input.into_bytes())
                 .await
                 .unwrap();
 
+            let compressed_pie = compress_pie(&layout_bridge_pie).unwrap();
+            let atlantic_query_id = self
+                .client
+                .submit_proof_generation(compressed_pie, "recursive_with_poseidon".to_string())
+                .await
+                .unwrap();
             info!(
                 "Atlantic layout bridge proof generation submitted for block #{}: {}",
                 new_snos_proof.block_number, atlantic_query_id
@@ -133,22 +144,27 @@ impl AtlanticLayoutBridgeProver {
     }
 }
 
-impl AtlanticLayoutBridgeProverBuilder {
-    pub fn new<P>(api_key: String, layout_bridge: P) -> Self
+impl<T> AtlanticLayoutBridgeProverBuilder<T> {
+    pub fn new<P>(api_key: String, layout_bridge: P, trace_generator: T) -> Self
     where
         P: Into<Cow<'static, [u8]>>,
+        T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
     {
         Self {
             api_key,
             layout_bridge: layout_bridge.into(),
             statement_channel: None,
             proof_channel: None,
+            trace_generator,
         }
     }
 }
 
-impl ProverBuilder for AtlanticLayoutBridgeProverBuilder {
-    type Prover = AtlanticLayoutBridgeProver;
+impl<T> ProverBuilder for AtlanticLayoutBridgeProverBuilder<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
+    type Prover = AtlanticLayoutBridgeProver<T>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(AtlanticLayoutBridgeProver {
@@ -161,6 +177,7 @@ impl ProverBuilder for AtlanticLayoutBridgeProverBuilder {
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            trace_generator: self.trace_generator,
         })
     }
 
@@ -175,12 +192,18 @@ impl ProverBuilder for AtlanticLayoutBridgeProverBuilder {
     }
 }
 
-impl Prover for AtlanticLayoutBridgeProver {
+impl<T> Prover for AtlanticLayoutBridgeProver<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
     type Statement = SnosProof<String>;
     type Proof = RecursiveProof;
 }
 
-impl Daemon for AtlanticLayoutBridgeProver {
+impl<T> Daemon for AtlanticLayoutBridgeProver<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }

@@ -66,7 +66,11 @@ impl AtlanticClient {
         }
     }
 
-    pub async fn submit_proof_generation<T>(&self, compressed_pie: T) -> Result<String>
+    pub async fn submit_proof_generation<T>(
+        &self,
+        compressed_pie: T,
+        layout: String,
+    ) -> Result<String>
     where
         T: Into<Cow<'static, [u8]>>,
     {
@@ -82,7 +86,7 @@ impl AtlanticClient {
                     .mime_str("application/zip")
                     .unwrap(),
             )
-            .text("layout", "dynamic")
+            .text("layout", layout)
             .text("prover", "starkware_sharp")
             .text("skipFactHashGeneration", "true");
 
@@ -95,22 +99,16 @@ impl AtlanticClient {
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn submit_l2_atlantic_query<P, I>(&self, program: P, input: I) -> Result<String>
+    pub async fn submit_trace_generation<P, I>(&self, program: P, input: I) -> Result<String>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
     {
         let mut url = self.api_base.clone();
-        url.path_segments_mut()
-            .unwrap()
-            .push("l2")
-            .push("atlantic-query");
+        url.path_segments_mut().unwrap().push("trace-generation");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
-
         let form = Form::new()
             .text("cairoVersion", "0")
-            .text("mockFactHash", "false")
-            .text("skipFactHashGeneration", "true")
             .part(
                 "programFile",
                 Part::bytes(program.into())
@@ -124,14 +122,11 @@ impl AtlanticClient {
                     .file_name("input.json")
                     .mime_str("application/json")
                     .unwrap(),
-            )
-            .text("prover", "starkware_sharp");
-
+            );
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
             anyhow::bail!("unsuccessful status code: {}", response.status());
         }
-
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
@@ -164,5 +159,14 @@ impl AtlanticClient {
         }
 
         Ok(response.text().await?)
+    }
+
+    pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>> {
+        let url = format!(
+            "https://atlantic-queries.s3.nl-ams.scw.cloud/sharp_queries/query_{}/pie.zip",
+            id
+        );
+        let response = self.http_client.get(url).send().await?;
+        Ok(response.bytes().await?.to_vec())
     }
 }

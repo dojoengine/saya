@@ -80,11 +80,11 @@ impl From<PieGenerationMode> for SnosPieGenerator {
         match pie_mode {
             PieGenerationMode::Local => SnosPieGenerator::Local(LocalPieGenerator),
             PieGenerationMode::Remote { url, access_key } => {
-                SnosPieGenerator::Remote(RemotePieGenerator {
+                SnosPieGenerator::Remote(Box::new(RemotePieGenerator {
                     url: url.to_string(),
                     access_key: ProverAccessKey::from_hex_string(&access_key)
                         .expect("Invalid access key"), // You might want to handle this error better
-                })
+                }))
             }
         }
     }

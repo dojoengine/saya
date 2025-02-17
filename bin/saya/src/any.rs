@@ -1,31 +1,38 @@
 use anyhow::Result;
 use saya_core::{
     prover::{
-        AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, MockLayoutBridgeProver,
-        MockLayoutBridgeProverBuilder, Prover, ProverBuilder, RecursiveProof, SnosProof,
+        AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, LayoutBridgeTraceGenerator,
+        MockLayoutBridgeProver, MockLayoutBridgeProverBuilder, Prover, ProverBuilder,
+        RecursiveProof, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProver {
-    Atlantic(AtlanticLayoutBridgeProver),
+pub enum AnyLayoutBridgeProver<T> {
+    Atlantic(AtlanticLayoutBridgeProver<T>),
     Mock(MockLayoutBridgeProver),
 }
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProverBuilder {
-    Atlantic(AtlanticLayoutBridgeProverBuilder),
+pub enum AnyLayoutBridgeProverBuilder<T> {
+    Atlantic(AtlanticLayoutBridgeProverBuilder<T>),
     Mock(MockLayoutBridgeProverBuilder),
 }
 
-impl Prover for AnyLayoutBridgeProver {
+impl<T> Prover for AnyLayoutBridgeProver<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
     type Statement = SnosProof<String>;
     type Proof = RecursiveProof;
 }
 
-impl Daemon for AnyLayoutBridgeProver {
+impl<T> Daemon for AnyLayoutBridgeProver<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
     fn shutdown_handle(&self) -> ShutdownHandle {
         match self {
             Self::Atlantic(inner) => inner.shutdown_handle(),
@@ -41,8 +48,11 @@ impl Daemon for AnyLayoutBridgeProver {
     }
 }
 
-impl ProverBuilder for AnyLayoutBridgeProverBuilder {
-    type Prover = AnyLayoutBridgeProver;
+impl<T> ProverBuilder for AnyLayoutBridgeProverBuilder<T>
+where
+    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+{
+    type Prover = AnyLayoutBridgeProver<T>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(match self {
