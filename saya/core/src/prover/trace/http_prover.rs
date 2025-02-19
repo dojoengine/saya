@@ -3,7 +3,7 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use prover_sdk::sdk::ProverSDK;
 use prover_sdk::{access_key::ProverAccessKey, Cairo0ProverInput};
 use prover_sdk::{JobResponse, JobResult, Layout, RunResult};
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HttpProverTraceGen {
     pub url: String,
     pub access_key: ProverAccessKey,

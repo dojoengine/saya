@@ -8,7 +8,7 @@ pub mod http_prover;
 pub use atlantic::AtlanticTraceGenerator;
 pub use http_prover::HttpProverTraceGen;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TraceGenerator {
     Atlantic(AtlanticTraceGenerator),
     HttpProver(Box<HttpProverTraceGen>),

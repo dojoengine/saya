@@ -9,7 +9,7 @@ use crate::prover::atlantic::{AtlanticClient, AtlanticJobStatus};
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 const TRACE_GENERATION_JOB_NAME: &str = "TRACE_GENERATION";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AtlanticTraceGenerator {
     pub atlantic_client: AtlanticClient,
 }

@@ -23,7 +23,7 @@ pub enum AnyLayoutBridgeProverBuilder<T> {
 
 impl<T> Prover for AnyLayoutBridgeProver<T>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
     type Proof = RecursiveProof;
@@ -31,7 +31,7 @@ where
 
 impl<T> Daemon for AnyLayoutBridgeProver<T>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         match self {
@@ -50,7 +50,7 @@ where
 
 impl<T> ProverBuilder for AnyLayoutBridgeProverBuilder<T>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + 'static,
+    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
 {
     type Prover = AnyLayoutBridgeProver<T>;
 
