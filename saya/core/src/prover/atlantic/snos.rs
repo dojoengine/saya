@@ -1,9 +1,16 @@
-use std::{io::Write, time::Duration};
+use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
-use tokio::sync::mpsc::{Receiver, Sender};
+use log::{debug, info};
+use tokio::{
+    sync::{
+        mpsc::{Receiver, Sender},
+        Mutex,
+    },
+    task,
+    time::sleep,
+};
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
@@ -19,7 +26,7 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-
+const WORKER_COUNT: usize = 10;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -39,35 +46,39 @@ pub struct AtlanticSnosProverBuilder<P> {
 
 impl<P> AtlanticSnosProver<P>
 where
-    P: AtlanticProof,
+    P: AtlanticProof + Send + Sync + 'static,
 {
-    async fn run(mut self) {
-        // TODO: add persistence for in-flight proof requests to be able to resume progress
-
+    async fn worker(
+        task_rx: Arc<Mutex<Receiver<NewBlock>>>,
+        task_tx: Sender<SnosProof<P>>,
+        client: AtlanticClient,
+        finish_handle: FinishHandle,
+    ) where
+        P: AtlanticProof,
+    {
         loop {
-            let new_block = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                new_block = self.statement_channel.recv() => new_block,
+            let new_block = if let Some(new_block) = task_rx.lock().await.recv().await {
+                new_block
+            } else {
+                break;
             };
-
-            // This should be fine for now as block ingestors wouldn't drop senders. This might
-            // change in the future.
-            let new_block = new_block.unwrap();
-
-            trace!("Compressing PIE for block #{}", new_block.number);
-
-            // TODO: error handling
-            let compressed_pie = compress_pie(&new_block.pie).unwrap();
+            if new_block.number % 2 == 0 {
+                sleep(Duration::from_secs(10)).await;
+            }
+            debug!("Compressing PIE for block #{}", new_block.number);
+            let compressed_pie = compress_pie(new_block.pie).await.unwrap();
             debug!(
                 "Compressed PIE size for block #{}: {} bytes",
                 new_block.number,
                 compressed_pie.len()
             );
 
-            // TODO: error handling
-            let atlantic_query_id = self
-                .client
-                .submit_proof_generation(compressed_pie, "dynamic".to_string())
+            let atlantic_query_id = client
+                .submit_proof_generation(
+                    compressed_pie,
+                    "dynamic".to_string(),
+                    format!("block-{}", new_block.number),
+                )
                 .await
                 .unwrap();
 
@@ -75,14 +86,12 @@ where
                 "Atlantic proof generation submitted for block #{}: {}",
                 new_block.number, atlantic_query_id
             );
-
-            // Wait for PIE proof to be done
             loop {
                 // TODO: sleep with graceful shutdown
                 tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
 
                 // TODO: error handling
-                if let Ok(jobs) = self.client.get_query_jobs(&atlantic_query_id).await {
+                if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
                     if let Some(proof_generation_job) = jobs
                         .iter()
                         .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
@@ -103,9 +112,8 @@ where
                 "Atlantic PIE proof generation finished for query: {}",
                 atlantic_query_id
             );
-
             // TODO: error handling
-            let raw_proof = self.client.get_proof(&atlantic_query_id).await.unwrap();
+            let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
 
             // TODO: error handling
             let parsed_proof: P = P::parse(raw_proof).unwrap();
@@ -116,13 +124,26 @@ where
                 block_number: new_block.number,
                 proof: parsed_proof,
             };
-
             tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.proof_channel.send(new_proof) => {},
+                _ = finish_handle.shutdown_requested() => break,
+                _ = task_tx.send(new_proof) => {},
             }
         }
+    }
 
+    async fn run(self) {
+        let mut workers = Vec::new();
+        let task_rx = Arc::new(Mutex::new(self.statement_channel));
+        for _ in 0..WORKER_COUNT {
+            let worker_task_tx = self.proof_channel.clone();
+            workers.push(task::spawn(Self::worker(
+                task_rx.clone(),
+                worker_task_tx,
+                self.client.clone(),
+                self.finish_handle.clone(),
+            )));
+        }
+        futures_util::future::join_all(workers).await;
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
     }
@@ -140,7 +161,7 @@ impl<P> AtlanticSnosProverBuilder<P> {
 
 impl<P> ProverBuilder for AtlanticSnosProverBuilder<P>
 where
-    P: AtlanticProof + Send + 'static,
+    P: AtlanticProof + Send + Sync + 'static,
 {
     type Prover = AtlanticSnosProver<P>;
 
@@ -170,7 +191,7 @@ where
 
 impl<P> Prover for AtlanticSnosProver<P>
 where
-    P: AtlanticProof + Send + 'static,
+    P: AtlanticProof + Send + Sync + 'static,
 {
     type Statement = NewBlock;
     type Proof = SnosProof<P>;
@@ -178,7 +199,7 @@ where
 
 impl<P> Daemon for AtlanticSnosProver<P>
 where
-    P: AtlanticProof + Send + 'static,
+    P: AtlanticProof + Send + Sync + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
@@ -193,23 +214,26 @@ where
 ///
 /// Unfortunately `cairo-vm` does not offer a generic API for converting PIE to Zip bytes that
 /// doesn't involve using the file system. This is mostly copied from `CairoPie::write_zip_file`.
-pub fn compress_pie(pie: &CairoPie) -> std::result::Result<Vec<u8>, std::io::Error> {
-    let mut bytes = std::io::Cursor::new(Vec::<u8>::new());
-    let mut zip_writer = ZipWriter::new(&mut bytes);
-    let options =
-        FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
+pub async fn compress_pie(pie: CairoPie) -> std::result::Result<Vec<u8>, std::io::Error> {
+    task::spawn_blocking(move || {
+        let mut bytes = std::io::Cursor::new(Vec::<u8>::new());
+        let mut zip_writer = ZipWriter::new(&mut bytes);
+        let options =
+            FileOptions::<'_, ()>::default().compression_method(zip::CompressionMethod::Deflated);
 
-    zip_writer.start_file("version.json", options)?;
-    serde_json::to_writer(&mut zip_writer, &pie.version)?;
-    zip_writer.start_file("metadata.json", options)?;
-    serde_json::to_writer(&mut zip_writer, &pie.metadata)?;
-    zip_writer.start_file("memory.bin", options)?;
-    zip_writer.write_all(&pie.memory.to_bytes())?;
-    zip_writer.start_file("additional_data.json", options)?;
-    serde_json::to_writer(&mut zip_writer, &pie.additional_data)?;
-    zip_writer.start_file("execution_resources.json", options)?;
-    serde_json::to_writer(&mut zip_writer, &pie.execution_resources)?;
-    zip_writer.finish()?;
+        zip_writer.start_file("version.json", options)?;
+        serde_json::to_writer(&mut zip_writer, &pie.version)?;
+        zip_writer.start_file("metadata.json", options)?;
+        serde_json::to_writer(&mut zip_writer, &pie.metadata)?;
+        zip_writer.start_file("memory.bin", options)?;
+        zip_writer.write_all(&pie.memory.to_bytes())?;
+        zip_writer.start_file("additional_data.json", options)?;
+        serde_json::to_writer(&mut zip_writer, &pie.additional_data)?;
+        zip_writer.start_file("execution_resources.json", options)?;
+        serde_json::to_writer(&mut zip_writer, &pie.execution_resources)?;
+        zip_writer.finish()?;
 
-    Ok(bytes.into_inner())
+        Ok(bytes.into_inner())
+    })
+    .await?
 }

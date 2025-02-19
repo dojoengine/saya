@@ -79,12 +79,17 @@ where
                 .await
                 .unwrap();
 
-            let compressed_pie = compress_pie(&layout_bridge_pie).unwrap();
+            let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
             let atlantic_query_id = self
                 .client
-                .submit_proof_generation(compressed_pie, "recursive_with_poseidon".to_string())
+                .submit_proof_generation(
+                    compressed_pie,
+                    "recursive_with_poseidon".to_string(),
+                    "layout_block-".to_string() + &new_snos_proof.block_number.to_string(),
+                )
                 .await
                 .unwrap();
+
             info!(
                 "Atlantic layout bridge proof generation submitted for block #{}: {}",
                 new_snos_proof.block_number, atlantic_query_id

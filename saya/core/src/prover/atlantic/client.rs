@@ -11,7 +11,7 @@ use url::Url;
 const ATLANTIC_API_BASE: &str = "https://atlantic.api.herodotus.cloud/v1";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AtlanticClient {
     http_client: Client,
     api_base: Url,
@@ -70,6 +70,7 @@ impl AtlanticClient {
         &self,
         compressed_pie: T,
         layout: String,
+        label: String,
     ) -> Result<String>
     where
         T: Into<Cow<'static, [u8]>>,
@@ -87,6 +88,7 @@ impl AtlanticClient {
                     .unwrap(),
             )
             .text("layout", layout)
+            .text("externalId", label)
             .text("prover", "starkware_sharp")
             .text("skipFactHashGeneration", "true");
 

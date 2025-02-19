@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
 use tokio::{
     sync::{
@@ -164,7 +164,7 @@ where
                     self.current_block += 1;
                 }
                 _ => {
-                    debug!("Block #{} is not available yet", self.current_block);
+                    trace!("Block #{} is not available yet", self.current_block);
                     sleep(BLOCK_CHECK_INTERVAL).await;
                 }
             }
