@@ -1,7 +1,7 @@
 use anyhow::Result;
 use cairo_vm::{types::layout_name::LayoutName, vm::runners::cairo_pie::CairoPie};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LocalPieGenerator;
 
 impl LocalPieGenerator {

@@ -7,7 +7,7 @@ use remote::RemotePieGenerator;
 pub mod local;
 pub mod remote;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SnosPieGenerator {
     Local(LocalPieGenerator),
     Remote(Box<RemotePieGenerator>),

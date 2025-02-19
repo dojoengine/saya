@@ -1,8 +1,16 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
-use log::{debug, error};
-use tokio::sync::mpsc::Sender;
+use log::{debug, error, info};
+use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
+use tokio::{
+    sync::{
+        mpsc::{self, Sender},
+        Mutex,
+    },
+    task,
+    time::sleep,
+};
 use url::Url;
 
 use crate::{
@@ -13,6 +21,10 @@ use crate::{
 use super::BlockPieGenerator;
 
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
+const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
+const TASK_BUFFER_SIZE: usize = 10;
+const WORKER_COUNT: usize = 5;
+const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
 #[derive(Debug)]
@@ -36,56 +48,130 @@ pub struct PollingBlockIngestorBuilder<S, B> {
 
 impl<S, B> PollingBlockIngestor<S, B>
 where
-    S: AsRef<[u8]>,
-    B: BlockPieGenerator + Send + Sync,
+    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
+    B: BlockPieGenerator + Send + Sync + Clone + 'static,
 {
-    async fn run(mut self) {
-        loop {
-            let pie = match self
-                .block_pie_generator
-                .prove_block(
-                    self.snos.as_ref(),
-                    self.current_block,
-                    // This is because `snos` expects a base URL to be able to derive `pathfinder` RPC path.
-                    self.rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
-                )
-                .await
-                // Need to do this as `ProveBlockError::ReExecutionError` is not `Send`
-                .map_err(|err| format!("{}", err))
-            {
-                Ok(pie) => pie,
-                Err(err) => {
-                    error!("Failed to prove block #{}: {}", self.current_block, err);
+    /// Fetches the latest block number from the StarkNet RPC.
+    async fn get_latest_block(&self) -> Option<u64> {
+        let provider = JsonRpcClient::new(HttpTransport::new(self.rpc_url.clone()));
+        match provider.block_number().await {
+            Ok(block_number) => Some(block_number),
+            Err(err) => {
+                error!("Failed to fetch latest block: {}", err);
+                None
+            }
+        }
+    }
 
-                    tokio::select! {
-                        _ = self.finish_handle.shutdown_requested() => break,
-                        _ = tokio::time::sleep(PROVE_BLOCK_FAILURE_BACKOFF) => continue,
+    /// Worker function: proves a block and sends the result.
+    async fn worker(
+        task_rx: Arc<Mutex<mpsc::Receiver<u64>>>,
+        block_pie_generator: B,
+        finish_handle: FinishHandle,
+        rpc_url: Url,
+        channel: mpsc::Sender<NewBlock>,
+        snos: S,
+    ) where
+        S: AsRef<[u8]> + Send + Sync + 'static,
+        B: BlockPieGenerator + Send + Sync + 'static,
+    {
+        loop {
+            let block_number = if let Some(block_number) = task_rx.lock().await.recv().await {
+                block_number
+            } else {
+                break;
+            };
+
+            if finish_handle.is_shutdown_requested() {
+                break;
+            }
+
+            let mut retries = 0;
+            let pie = loop {
+                match block_pie_generator
+                    .prove_block(
+                        snos.as_ref(),
+                        block_number,
+                        rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
+                    )
+                    .await
+                {
+                    Ok(pie) => break pie,
+                    Err(err) => {
+                        error!(
+                            "Failed to prove block #{} (attempt {}/{}): {}",
+                            block_number,
+                            retries + 1,
+                            MAX_RETRIES,
+                            err
+                        );
+
+                        if retries >= MAX_RETRIES {
+                            error!("Exceeded max retries for block #{}", block_number);
+                            return;
+                        }
+
+                        retries += 1;
+                        sleep(PROVE_BLOCK_FAILURE_BACKOFF).await;
                     }
                 }
             };
-
-            debug!("PIE generated for block #{}", self.current_block);
-
-            // No way to hook into `prove_block` for cancellation. The next best thing we can do is
-            // to check cancellation immediately after PIE generation.
-            if self.finish_handle.is_shutdown_requested() {
+            if finish_handle.is_shutdown_requested() {
                 break;
             }
 
             let new_block = NewBlock {
-                number: self.current_block,
+                number: block_number,
                 pie,
             };
-
-            // Since the channel is bounded, it's possible
-            tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.channel.send(new_block) => {},
+            info!("Pie generated for block #{}", block_number);
+            if channel.send(new_block).await.is_err() {
+                error!("Failed to send block #{}", block_number);
             }
+        }
+    }
 
-            self.current_block += 1;
+    async fn run(mut self) {
+        let (task_tx, task_rx) = mpsc::channel(TASK_BUFFER_SIZE);
+        let mut workers = Vec::new();
+        let task_rx = Arc::new(Mutex::new(task_rx));
+
+        for _ in 0..WORKER_COUNT {
+            let worker_task_rx = task_rx.clone();
+            let block_pie_generator = self.block_pie_generator.clone();
+            let finish_handle = self.finish_handle.clone();
+            let rpc_url = self.rpc_url.clone();
+            let channel = self.channel.clone();
+            let snos = self.snos.clone();
+
+            workers.push(task::spawn(Self::worker(
+                worker_task_rx,
+                block_pie_generator,
+                finish_handle,
+                rpc_url,
+                channel,
+                snos,
+            )));
         }
 
+        // Block Fetching Loop: Waits for valid blocks and sends them to the worker queue
+        while !self.finish_handle.is_shutdown_requested() {
+            match self.get_latest_block().await {
+                Some(latest_block) if latest_block >= self.current_block => {
+                    if task_tx.send(self.current_block).await.is_err() {
+                        break;
+                    }
+                    self.current_block += 1;
+                }
+                _ => {
+                    debug!("Block #{} is not available yet", self.current_block);
+                    sleep(BLOCK_CHECK_INTERVAL).await;
+                }
+            }
+        }
+
+        drop(task_tx);
+        futures_util::future::join_all(workers).await; // Wait for all workers
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
     }
@@ -105,8 +191,8 @@ impl<S, B> PollingBlockIngestorBuilder<S, B> {
 
 impl<S, B> BlockIngestorBuilder for PollingBlockIngestorBuilder<S, B>
 where
-    S: AsRef<[u8]> + Send + 'static,
-    B: BlockPieGenerator + Send + Sync + 'static,
+    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
+    B: BlockPieGenerator + Send + Sync + Clone + 'static,
 {
     type Ingestor = PollingBlockIngestor<S, B>;
 
@@ -138,15 +224,15 @@ where
 
 impl<S, B> BlockIngestor for PollingBlockIngestor<S, B>
 where
-    S: AsRef<[u8]> + Send + 'static,
-    B: BlockPieGenerator + Send + Sync + 'static,
+    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
+    B: BlockPieGenerator + Send + Sync + Clone + 'static,
 {
 }
 
 impl<S, B> Daemon for PollingBlockIngestor<S, B>
 where
-    S: AsRef<[u8]> + Send + 'static,
-    B: BlockPieGenerator + Send + Sync + 'static,
+    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
+    B: BlockPieGenerator + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()

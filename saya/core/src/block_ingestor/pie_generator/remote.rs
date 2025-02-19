@@ -4,7 +4,7 @@ use prover_sdk::{
     access_key::ProverAccessKey, models::SnosPieOutput, sdk::ProverSDK, snos_input::SnosPieInput,
     JobResponse, JobResult,
 };
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RemotePieGenerator {
     pub url: String,
     pub access_key: ProverAccessKey,
