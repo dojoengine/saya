@@ -3,6 +3,7 @@ use std::{io::Write, sync::Arc, time::Duration};
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, info, trace};
+use starknet::core::types::Felt;
 use tokio::{
     sync::{
         mpsc::{Receiver, Sender},
@@ -11,7 +12,6 @@ use tokio::{
     task,
 };
 use zip::{write::FileOptions, ZipWriter};
-use starknet::core::types::Felt;
 
 use crate::{
     block_ingestor::NewBlock,

@@ -111,7 +111,8 @@ impl Start {
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
         let block_ingestor_builder =
             PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen);
-        let prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
+        let prover_builder =
+            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();
