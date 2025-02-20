@@ -83,8 +83,8 @@ where
                     proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
                 };
 
-                let _ = task_tx.send(new_proof);
-                return;
+                let _ = task_tx.send(new_proof).await;
+                continue;
             }
 
             trace!("Compressing PIE for block #{}", new_block.number);
