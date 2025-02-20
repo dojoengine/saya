@@ -74,7 +74,8 @@ where
     ) where
         S: AsRef<[u8]> + Send + Sync + 'static,
         B: BlockPieGenerator + Send + Sync + 'static,
-    {
+    {   
+        
         loop {
             let block_number = if let Some(block_number) = task_rx.lock().await.recv().await {
                 block_number
