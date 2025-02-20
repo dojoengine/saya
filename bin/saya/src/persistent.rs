@@ -49,6 +49,9 @@ struct Start {
     /// Path to the compiled Starknet OS program
     #[clap(long, env)]
     snos_program: PathBuf,
+    /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
+    #[clap(long)]
+    mock_snos_from_pie: bool,
     /// Path to the compiled Cairo verifier program
     #[clap(long, env)]
     layout_bridge_program: Option<PathBuf>,
@@ -133,7 +136,7 @@ impl Start {
         let block_ingestor_builder =
             PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen);
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key),
+            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie),
             layout_bridge_prover_builder,
         );
         let da_builder = NoopDataAvailabilityBackendBuilder::new();

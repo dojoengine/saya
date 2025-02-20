@@ -2,16 +2,16 @@ use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info};
+use log::{debug, info, trace};
 use tokio::{
     sync::{
         mpsc::{Receiver, Sender},
         Mutex,
     },
     task,
-    time::sleep,
 };
 use zip::{write::FileOptions, ZipWriter};
+use starknet::core::types::Felt;
 
 use crate::{
     block_ingestor::NewBlock,
@@ -23,6 +23,7 @@ use crate::{
         Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
+    utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
@@ -35,6 +36,8 @@ pub struct AtlanticSnosProver<P> {
     statement_channel: Receiver<NewBlock>,
     proof_channel: Sender<SnosProof<P>>,
     finish_handle: FinishHandle,
+    /// Whether to extract the output and compute the program hash from the PIE or use the one from the SHARP bootloader returned by the prover service.
+    mock_snos_from_pie: bool,
 }
 
 #[derive(Debug)]
@@ -42,6 +45,7 @@ pub struct AtlanticSnosProverBuilder<P> {
     api_key: String,
     statement_channel: Option<Receiver<NewBlock>>,
     proof_channel: Option<Sender<SnosProof<P>>>,
+    mock_snos_from_pie: bool,
 }
 
 impl<P> AtlanticSnosProver<P>
@@ -53,6 +57,7 @@ where
         task_tx: Sender<SnosProof<P>>,
         client: AtlanticClient,
         finish_handle: FinishHandle,
+        mock_snos_from_pie: bool,
     ) where
         P: AtlanticProof,
     {
@@ -62,11 +67,32 @@ where
             } else {
                 break;
             };
-            if new_block.number % 2 == 0 {
-                sleep(Duration::from_secs(10)).await;
+
+            // TODO: move this to a separate MockSnosProver.
+            if mock_snos_from_pie {
+                let output = bootloader_snos_output(&new_block.pie);
+                let mock_proof = stark_proof_mock(&output);
+
+                info!(
+                    "Mock proof generated from PIE for block #{}",
+                    new_block.number
+                );
+
+                let new_proof = SnosProof {
+                    block_number: new_block.number,
+                    proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
+                };
+
+                let _ = task_tx.send(new_proof).await;
+
+                continue;
             }
-            debug!("Compressing PIE for block #{}", new_block.number);
+
+            trace!("Compressing PIE for block #{}", new_block.number);
+
+            // TODO: error handling
             let compressed_pie = compress_pie(new_block.pie).await.unwrap();
+
             debug!(
                 "Compressed PIE size for block #{}: {} bytes",
                 new_block.number,
@@ -141,6 +167,7 @@ where
                 worker_task_tx,
                 self.client.clone(),
                 self.finish_handle.clone(),
+                self.mock_snos_from_pie,
             )));
         }
         futures_util::future::join_all(workers).await;
@@ -150,11 +177,12 @@ where
 }
 
 impl<P> AtlanticSnosProverBuilder<P> {
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: String, mock_snos_from_pie: bool) -> Self {
         Self {
             api_key,
             statement_channel: None,
             proof_channel: None,
+            mock_snos_from_pie,
         }
     }
 }
@@ -175,6 +203,7 @@ where
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            mock_snos_from_pie: self.mock_snos_from_pie,
         })
     }
 
@@ -236,4 +265,24 @@ pub async fn compress_pie(pie: CairoPie) -> std::result::Result<Vec<u8>, std::io
         Ok(bytes.into_inner())
     })
     .await?
+}
+
+/// Mocks a bootloaded execution of SNOS.
+fn bootloader_snos_output(pie: &CairoPie) -> Vec<Felt> {
+    let snos_program_hash =
+        compute_program_hash_from_pie(pie).expect("Failed to compute program hash from PIE");
+    debug!("SNOS program hash from PIE: {:x}", snos_program_hash);
+
+    let snos_output = extract_pie_output(pie);
+
+    let mut bootloader_output = vec![
+        // Bootloader config (not checked by piltover, set to 0)
+        Felt::ZERO,
+        // bootloader output len (not checked by piltover, set to 0)
+        Felt::ZERO,
+        snos_program_hash,
+    ];
+
+    bootloader_output.extend(snos_output);
+    bootloader_output
 }

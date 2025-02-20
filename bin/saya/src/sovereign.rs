@@ -39,6 +39,9 @@ struct Start {
     /// Path to the compiled Starknet OS program
     #[clap(long, env)]
     snos_program: PathBuf,
+    /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
+    #[clap(long)]
+    mock_snos_from_pie: bool,
     /// Atlantic prover API key
     #[clap(long, env)]
     atlantic_key: String,
@@ -108,7 +111,7 @@ impl Start {
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
         let block_ingestor_builder =
             PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen);
-        let prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key);
+        let prover_builder = AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();
