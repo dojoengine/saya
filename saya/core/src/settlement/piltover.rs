@@ -100,13 +100,12 @@ impl PiltoverSettlementBackend {
         loop {
             let last_settled_block = self.get_block_number().await.unwrap();
 
-            let mut next_to_settle = if last_settled_block == Felt::MAX {
+            let next_to_settle = if last_settled_block == Felt::MAX {
                 0
             } else {
-                last_settled_block.try_into().unwrap()
+                (<Felt as TryInto<u64>>::try_into(last_settled_block).unwrap() + 1) as u64
             };
 
-            next_to_settle += 1;
             let da = pending_blocks.remove(&next_to_settle);
 
             let Some(new_da) = da else {
