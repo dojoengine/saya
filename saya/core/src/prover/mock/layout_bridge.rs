@@ -3,7 +3,6 @@ use integrity::Felt;
 use log::{debug, info};
 use starknet_crypto::poseidon_hash_many;
 use swiftness::TransformTo;
-use swiftness_air::types::SegmentInfo;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -48,125 +47,25 @@ impl MockLayoutBridgeProver {
             );
 
             // TODO: error handling
-            let parsed_snos_proof: StarkProof = swiftness::parse(&new_snos_proof.proof)
-                .unwrap()
-                .transform_to();
+            let parsed_snos_proof: StarkProof = match swiftness::parse(&new_snos_proof.proof) {
+                Ok(proof) => proof.transform_to(),
+                Err(_) => {
+                    // If the proof is sent by a mocked SNOS, it's already in the correct format.
+                    serde_json::from_str::<StarkProof>(&new_snos_proof.proof).unwrap()
+                }
+            };
+
             let snos_output = calculate_output(&parsed_snos_proof);
 
-            // This proof is mocked but calling `calculate_output` on it correctly yieids the
-            // expected output.
-            //
-            // This spaghetti is needed because `StarkProof` does not implement `Default`.
-            let mock_proof = StarkProof {
-                config: swiftness::config::StarkConfig {
-                    traces: swiftness_air::trace::config::Config {
-                        original: default_table_commitment_config(),
-                        interaction: default_table_commitment_config(),
-                    },
-                    composition: default_table_commitment_config(),
-                    fri: swiftness_fri::config::Config {
-                        log_input_size: Default::default(),
-                        n_layers: Default::default(),
-                        inner_layers: Default::default(),
-                        fri_step_sizes: Default::default(),
-                        log_last_layer_degree_bound: Default::default(),
-                    },
-                    proof_of_work: swiftness_pow::config::Config {
-                        n_bits: Default::default(),
-                    },
-                    log_trace_domain_size: Default::default(),
-                    n_queries: Default::default(),
-                    log_n_cosets: Default::default(),
-                    n_verifier_friendly_commitment_layers: Default::default(),
-                },
-                public_input: swiftness_air::public_memory::PublicInput {
-                    log_n_steps: Default::default(),
-                    range_check_min: Default::default(),
-                    range_check_max: Default::default(),
-                    layout: Default::default(),
-                    dynamic_params: Default::default(),
-                    segments: vec![
-                        SegmentInfo {
-                            begin_addr: Default::default(),
-                            stop_ptr: Default::default(),
-                        },
-                        SegmentInfo {
-                            begin_addr: Default::default(),
-                            stop_ptr: Default::default(),
-                        },
-                        SegmentInfo {
-                            begin_addr: Felt::ZERO,
-                            stop_ptr: Felt::from(5),
-                        },
-                    ],
-                    padding_addr: Default::default(),
-                    padding_value: Default::default(),
-                    main_page: swiftness_air::types::Page(
-                        [
-                            Felt::ZERO,
-                            Felt::ZERO,
-                            self.layout_bridge_program_hash,
-                            Felt::ZERO,
-                            poseidon_hash_many(&snos_output),
-                        ]
-                        .into_iter()
-                        .map(|value| swiftness_air::types::AddrValue {
-                            address: Default::default(),
-                            value,
-                        })
-                        .collect(),
-                    ),
-                    continuous_page_headers: Default::default(),
-                },
-                unsent_commitment: swiftness::types::StarkUnsentCommitment {
-                    traces: swiftness_air::trace::UnsentCommitment {
-                        original: Default::default(),
-                        interaction: Default::default(),
-                    },
-                    composition: Default::default(),
-                    oods_values: Default::default(),
-                    fri: swiftness_fri::types::UnsentCommitment {
-                        inner_layers: Default::default(),
-                        last_layer_coefficients: Default::default(),
-                    },
-                    proof_of_work: swiftness_pow::pow::UnsentCommitment {
-                        nonce: Default::default(),
-                    },
-                },
-                witness: swiftness_stark::types::StarkWitness {
-                    traces_decommitment: swiftness_air::trace::Decommitment {
-                        original: swiftness_commitment::table::types::Decommitment {
-                            values: Default::default(),
-                        },
-                        interaction: swiftness_commitment::table::types::Decommitment {
-                            values: Default::default(),
-                        },
-                    },
-                    traces_witness: swiftness_air::trace::Witness {
-                        original: swiftness_commitment::table::types::Witness {
-                            vector: swiftness_commitment::vector::types::Witness {
-                                authentications: Default::default(),
-                            },
-                        },
-                        interaction: swiftness_commitment::table::types::Witness {
-                            vector: swiftness_commitment::vector::types::Witness {
-                                authentications: Default::default(),
-                            },
-                        },
-                    },
-                    composition_decommitment: swiftness_commitment::table::types::Decommitment {
-                        values: Default::default(),
-                    },
-                    composition_witness: swiftness_commitment::table::types::Witness {
-                        vector: swiftness_commitment::vector::types::Witness {
-                            authentications: Default::default(),
-                        },
-                    },
-                    fri_witness: swiftness_fri::types::Witness {
-                        layers: Default::default(),
-                    },
-                },
-            };
+            let bootloader_output = [
+                Felt::ZERO,
+                Felt::ZERO,
+                self.layout_bridge_program_hash,
+                Felt::ZERO,
+                poseidon_hash_many(&snos_output),
+            ];
+
+            let mock_proof = crate::utils::stark_proof_mock(&bootloader_output);
 
             let new_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
@@ -239,15 +138,5 @@ impl Daemon for MockLayoutBridgeProver {
 
     fn start(self) {
         tokio::spawn(self.run());
-    }
-}
-
-fn default_table_commitment_config() -> swiftness_commitment::table::config::Config {
-    swiftness_commitment::table::config::Config {
-        n_columns: Default::default(),
-        vector: swiftness_commitment::vector::config::Config {
-            height: Default::default(),
-            n_verifier_friendly_commitment_layers: Default::default(),
-        },
     }
 }

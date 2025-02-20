@@ -107,3 +107,13 @@ saya persistent start \
 ```
 
 By doing so, Saya will mock the layout bridge proof and call the `update_state` function of the settlement contract.
+
+In order to also mock the SNOS proof, you can use the following command:
+
+```
+saya persistent start \
+    --mock-layout-bridge-program-hash 0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0 \
+    --mock-snos-from-pie
+```
+
+This will generates the SNOS's PIE, and mock the proof from it.
