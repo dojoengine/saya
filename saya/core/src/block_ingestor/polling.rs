@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Result;
 use cairo_vm::types::layout_name::LayoutName;
 use log::{debug, error};
+use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
 use tokio::sync::mpsc::Sender;
 use url::Url;
 
@@ -36,7 +37,25 @@ where
     S: AsRef<[u8]>,
 {
     async fn run(mut self) {
+        let provider = JsonRpcClient::new(HttpTransport::new(
+            Url::parse(self.rpc_url.as_str()).unwrap(),
+        ));
+
         loop {
+            let latest_block = provider.block_number().await.unwrap();
+
+            if self.current_block > latest_block {
+                debug!(
+                    "Current block {} is greater than latest block {}",
+                    self.current_block, latest_block
+                );
+
+                tokio::select! {
+                    _ = self.finish_handle.shutdown_requested() => break,
+                    _ = tokio::time::sleep(PROVE_BLOCK_FAILURE_BACKOFF) => continue,
+                }
+            }
+
             let pie = match prove_block::prove_block(
                 self.snos.as_ref(),
                 self.current_block,
