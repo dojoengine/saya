@@ -99,7 +99,13 @@ impl PiltoverSettlementBackend {
             BTreeMap::new();
         loop {
             let last_settled_block = self.get_block_number().await.unwrap();
-            let mut next_to_settle: u64 = last_settled_block.try_into().unwrap();
+
+            let mut next_to_settle = if last_settled_block == Felt::MAX {
+                0
+            } else {
+                last_settled_block.try_into().unwrap()
+            };
+
             next_to_settle += 1;
             let da = pending_blocks.remove(&next_to_settle);
 
