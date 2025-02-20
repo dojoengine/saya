@@ -10,7 +10,7 @@ pub trait Daemon: Send {
 /// A type for background running services to detect cancellation requests made to them via
 /// [`ShutdownHandle`], and for them to signal they've ended execution, either through such a
 /// requested shutdown or voluntary exit.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FinishHandle {
     cancellation: CancellationToken,
     finish: CancellationToken,

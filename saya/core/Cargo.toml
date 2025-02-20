@@ -36,3 +36,4 @@ tokio.workspace = true
 tokio-util.workspace = true
 url.workspace = true
 zip.workspace = true
+prover-sdk.workspace = true

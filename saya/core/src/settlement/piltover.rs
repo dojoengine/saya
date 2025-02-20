@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -94,15 +95,36 @@ impl PiltoverSettlementBackend {
     }
 
     async fn run(mut self) {
+        let mut pending_blocks: BTreeMap<u64, DataAvailabilityCursor<RecursiveProof>> =
+            BTreeMap::new();
         loop {
-            let new_da = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                new_da = self.da_channel.recv() => new_da,
+            let last_settled_block = self.get_block_number().await.unwrap();
+
+            let next_to_settle = if last_settled_block == Felt::MAX {
+                0
+            } else {
+                (<Felt as TryInto<u64>>::try_into(last_settled_block).unwrap() + 1) as u64
             };
 
-            // This should be fine for now as DA backends wouldn't drop senders. This might change
-            // in the future.
-            let new_da = new_da.unwrap();
+            let da = pending_blocks.remove(&next_to_settle);
+
+            let Some(new_da) = da else {
+                let new_da = tokio::select! {
+                    _ = self.finish_handle.shutdown_requested() => break,
+                    new_da = self.da_channel.recv() => new_da,
+                };
+                let new_da = match new_da {
+                    Some(new_da) => new_da,
+                    None => {
+                        debug!("Data availability channel closed, shutting down");
+                        break;
+                    }
+                };
+
+                pending_blocks.insert(new_da.block_number, new_da.clone());
+                continue;
+            };
+
             debug!("Received new DA cursor");
 
             match self.fact_registration {

@@ -19,8 +19,10 @@ pub use atlantic::{
 
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
-
+pub mod trace;
+pub use trace::LayoutBridgeTraceGenerator;
 mod recursive;
+pub use atlantic::AtlanticClient;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
 
 pub trait ProverBuilder {
