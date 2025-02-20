@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Result;
 use integrity::{split_proof, VerifierConfiguration};
-use log::{debug, info, trace};
+use log::{debug, info};
 use starknet::{
     accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
@@ -98,32 +98,25 @@ impl PiltoverSettlementBackend {
         let mut pending_blocks: BTreeMap<u64, DataAvailabilityCursor<RecursiveProof>> =
             BTreeMap::new();
         loop {
-            let new_da = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                new_da = self.da_channel.recv() => new_da,
-            };
-            // This should be fine for now as DA backends wouldn't drop senders. This might change
-            // in the future.
-            let new_da = new_da.unwrap();
-            let block_number = new_da.block_number;
-
-            //TODO: make this more clean (chudas 19.02)
             let last_settled_block = self.get_block_number().await.unwrap();
             let mut next_to_settle: u64 = last_settled_block.try_into().unwrap();
             next_to_settle += 1;
+            let da = pending_blocks.remove(&next_to_settle);
 
-            let new_da = if block_number == next_to_settle {
-                Some(new_da)
-            } else {
-                trace!("Block #{} is not the next block, skipping", block_number);
-                pending_blocks.insert(block_number, new_da);
-                // Check if we have the next block in pending_blocks
-                pending_blocks.remove(&next_to_settle)
-            };
+            let Some(new_da) = da else {
+                let new_da = tokio::select! {
+                    _ = self.finish_handle.shutdown_requested() => break,
+                    new_da = self.da_channel.recv() => new_da,
+                };
+                let new_da = match new_da {
+                    Some(new_da) => new_da,
+                    None => {
+                        debug!("Data availability channel closed, shutting down");
+                        break;
+                    }
+                };
 
-            let new_da = if let Some(new_da) = new_da {
-                new_da
-            } else {
+                pending_blocks.insert(new_da.block_number, new_da.clone());
                 continue;
             };
 
