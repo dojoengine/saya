@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var(
             "RUST_LOG",
-            "info,saya=trace,saya_core=trace,rpc_client=info,prove_block=off",
+            "info,saya=trace,saya_core=trace,rpc_client=info,prove_block=info",
         );
     }
     env_logger::init();
