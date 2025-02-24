@@ -102,7 +102,7 @@ where
                 .submit_proof_generation(
                     compressed_pie,
                     "dynamic".to_string(),
-                    format!("block-{}", new_block.number),
+                    format!("snos_{}", new_block.number),
                 )
                 .await
                 .unwrap();

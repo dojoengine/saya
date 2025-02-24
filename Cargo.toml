@@ -30,7 +30,7 @@ futures-util = { version ="0.3.31", default-features = false }
 # Compilation fails with `E0275` without pinning `good_lp`
 good_lp = { version = "=1.8.1", default-features = false }
 hex = { version = "0.4.3", default-features = false }
-integrity = { version = "0.1.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+integrity = { version = "0.1.0", default-features = false, features = ["recursive_with_poseidon", "blake2s_248_lsb", "stone6"] }
 log = "0.4.22"
 num-traits = { version = "0.2.19", default-features = false }
 prove_block = { git = "https://github.com/cartridge-gg/snos", rev = "03f07963" }
@@ -40,12 +40,12 @@ serde_json = { version = "1.0.134", default-features = false }
 starknet = "0.13.0"
 starknet-crypto = "0.7.4"
 starknet-types-core = { version = "0.1.7", default-features = false }
-swiftness = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
-swiftness_air = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+swiftness = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "blake2s_248_lsb", "stone6"] }
+swiftness_air = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "blake2s_248_lsb", "stone6"] }
 swiftness_commitment = { version = "1.0.0", default-features = false }
 swiftness_fri = { version = "1.0.0", default-features = false }
 swiftness_pow = { version = "1.0.0", default-features = false }
-swiftness_stark = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+swiftness_stark = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "blake2s_248_lsb", "stone6"] }
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", default-features = false }

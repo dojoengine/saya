@@ -77,7 +77,7 @@ where
             let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
             //trace gen Trait executed here.
             let layout_bridge_pie = trace_generator
-                .generate_trace(layout_bridge.clone().to_vec(), input.into_bytes())
+                .generate_trace(layout_bridge.clone().to_vec(), input.into_bytes(), Some(format!("trace_layout_{}", new_snos_proof.block_number)))
                 .await
                 .unwrap();
 
@@ -86,7 +86,7 @@ where
                 .submit_proof_generation(
                     compressed_pie,
                     "recursive_with_poseidon".to_string(),
-                    format!("layout-{}", new_snos_proof.block_number),
+                    format!("layout_{}", new_snos_proof.block_number),
                 )
                 .await
                 .unwrap();

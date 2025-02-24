@@ -20,13 +20,13 @@ impl AtlanticTraceGenerator {
 }
 
 impl AtlanticTraceGenerator {
-    pub async fn generate_trace(&self, program: Vec<u8>, input: Vec<u8>) -> Result<CairoPie> {
+    pub async fn generate_trace(&self, label: &str, program: Vec<u8>, input: Vec<u8>) -> Result<CairoPie> {
         let atlantic_query_id = self
             .atlantic_client
-            .submit_trace_generation(program, input)
+            .submit_trace_generation(label, program, input)
             .await?;
         info!(
-            "Atlantic trace generation response: {:?}",
+            "Atlantic trace generation submitted with query id: {}",
             atlantic_query_id
         );
         loop {

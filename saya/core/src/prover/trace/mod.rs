@@ -19,13 +19,23 @@ pub trait LayoutBridgeTraceGenerator: Send + Sync {
         &self,
         program: Vec<u8>,
         input: Vec<u8>,
+        label: Option<String>,
     ) -> impl Future<Output = Result<CairoPie>> + Send;
 }
 
 impl LayoutBridgeTraceGenerator for TraceGenerator {
-    async fn generate_trace(&self, program: Vec<u8>, input: Vec<u8>) -> Result<CairoPie> {
+    async fn generate_trace(
+        &self,
+        program: Vec<u8>,
+        input: Vec<u8>,
+        label: Option<String>,
+    ) -> Result<CairoPie> {
         match self {
-            Self::Atlantic(inner) => inner.generate_trace(program, input).await,
+            Self::Atlantic(inner) => {
+                inner
+                    .generate_trace(label.unwrap_or_default().as_str(), program, input)
+                    .await
+            }
             Self::HttpProver(inner) => inner.generate_trace(program, input).await,
         }
     }
