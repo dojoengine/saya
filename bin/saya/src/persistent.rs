@@ -17,6 +17,7 @@ use saya_core::{
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
+    storage::SqliteDb,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -133,8 +134,9 @@ impl Start {
 
         // TODO: make impls of these providers configurable
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
+        let db = SqliteDb::new("saya.db").await?;
         let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen);
+            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen, db);
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie),
             layout_bridge_prover_builder,

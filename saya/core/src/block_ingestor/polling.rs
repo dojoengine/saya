@@ -15,7 +15,9 @@ use url::Url;
 
 use crate::{
     block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
+    prover::compress_pie,
     service::{Daemon, FinishHandle, ShutdownHandle},
+    storage::{PersistantStorage, Step},
 };
 
 use super::BlockPieGenerator;
@@ -28,28 +30,31 @@ const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
 #[derive(Debug)]
-pub struct PollingBlockIngestor<S, B> {
+pub struct PollingBlockIngestor<S, B, DB> {
     rpc_url: Url,
     snos: S,
     current_block: u64,
     channel: Sender<NewBlock>,
     finish_handle: FinishHandle,
     block_pie_generator: B,
+    db: DB,
 }
 
 #[derive(Debug)]
-pub struct PollingBlockIngestorBuilder<S, B> {
+pub struct PollingBlockIngestorBuilder<S, B, DB> {
     rpc_url: Url,
     snos: S,
     start_block: Option<u64>,
     channel: Option<Sender<NewBlock>>,
     block_pie_generator: B,
+    db: DB,
 }
 
-impl<S, B> PollingBlockIngestor<S, B>
+impl<S, B, DB> PollingBlockIngestor<S, B, DB>
 where
     S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     B: BlockPieGenerator + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     /// Fetches the latest block number from the StarkNet RPC.
     async fn get_latest_block(&self) -> Option<u64> {
@@ -71,11 +76,12 @@ where
         rpc_url: Url,
         channel: mpsc::Sender<NewBlock>,
         snos: S,
+        db: DB,
     ) where
         S: AsRef<[u8]> + Send + Sync + 'static,
         B: BlockPieGenerator + Send + Sync + 'static,
-    {   
-        
+        DB: PersistantStorage + Send + Sync + 'static,
+    {
         loop {
             let block_number = if let Some(block_number) = task_rx.lock().await.recv().await {
                 block_number
@@ -125,6 +131,11 @@ where
                 number: block_number,
                 pie,
             };
+            let pie_bytes = compress_pie(new_block.pie.clone()).await.unwrap();
+            let block_number = block_number.try_into().unwrap();
+            db.add_pie(block_number, pie_bytes, Step::Snos)
+                .await
+                .unwrap();
             info!("Pie generated for block #{}", block_number);
             if channel.send(new_block).await.is_err() {
                 error!("Failed to send block #{}", block_number);
@@ -152,6 +163,7 @@ where
                 rpc_url,
                 channel,
                 snos,
+                self.db.clone(),
             )));
         }
 
@@ -178,24 +190,26 @@ where
     }
 }
 
-impl<S, B> PollingBlockIngestorBuilder<S, B> {
-    pub fn new(rpc_url: Url, snos: S, block_pie_generator: B) -> Self {
+impl<S, B, DB> PollingBlockIngestorBuilder<S, B, DB> {
+    pub fn new(rpc_url: Url, snos: S, block_pie_generator: B, db: DB) -> Self {
         Self {
             rpc_url,
             snos,
             start_block: None,
             channel: None,
             block_pie_generator,
+            db,
         }
     }
 }
 
-impl<S, B> BlockIngestorBuilder for PollingBlockIngestorBuilder<S, B>
+impl<S, B, DB> BlockIngestorBuilder for PollingBlockIngestorBuilder<S, B, DB>
 where
     S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     B: BlockPieGenerator + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Ingestor = PollingBlockIngestor<S, B>;
+    type Ingestor = PollingBlockIngestor<S, B, DB>;
 
     fn build(self) -> Result<Self::Ingestor> {
         Ok(PollingBlockIngestor {
@@ -209,6 +223,7 @@ where
                 .ok_or_else(|| anyhow::anyhow!("`channel` not set"))?,
             finish_handle: FinishHandle::new(),
             block_pie_generator: self.block_pie_generator,
+            db: self.db,
         })
     }
 
@@ -223,17 +238,19 @@ where
     }
 }
 
-impl<S, B> BlockIngestor for PollingBlockIngestor<S, B>
+impl<S, B, DB> BlockIngestor for PollingBlockIngestor<S, B, DB>
 where
     S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     B: BlockPieGenerator + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
 }
 
-impl<S, B> Daemon for PollingBlockIngestor<S, B>
+impl<S, B, DB> Daemon for PollingBlockIngestor<S, B, DB>
 where
     S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     B: BlockPieGenerator + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
