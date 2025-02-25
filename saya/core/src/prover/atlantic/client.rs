@@ -172,14 +172,23 @@ impl AtlanticClient {
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}\n{}", response.status(), response.text().await?);
+            anyhow::bail!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            );
         }
 
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn submit_trace_generation<P, I>(&self, label: &str, program: P, input: I) -> Result<String>
+    pub async fn submit_trace_generation<P, I>(
+        &self,
+        label: &str,
+        program: P,
+        input: I,
+    ) -> Result<String>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
@@ -209,7 +218,11 @@ impl AtlanticClient {
             );
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}\n{}", response.status(), response.text().await?);
+            anyhow::bail!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            );
         }
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
@@ -232,11 +245,7 @@ impl AtlanticClient {
     }
 
     pub async fn get_proof(&self, id: &str) -> Result<String> {
-        let url = format!(
-            "{}/{}/proof.json",
-            ATLANTIC_S3_BASE,
-            id
-        );
+        let url = format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id);
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
@@ -251,11 +260,7 @@ impl AtlanticClient {
         // for the trace generation.
         // But since the response from atlantic job doesn't contain the cairo version,
         // we need to have some state to keep this information.
-        let url = format!(
-            "{}/{}/pie.cairo0.zip",
-            ATLANTIC_S3_BASE,
-            id
-        );
+        let url = format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id);
         let response = self.http_client.get(url).send().await?;
         Ok(response.bytes().await?.to_vec())
     }

@@ -163,16 +163,28 @@ where
 
                         loop {
                             match trace_generator
-                                .generate_trace(layout_bridge.clone().to_vec(), block_number_u32, &label, input.clone().into_bytes(), db.clone())
+                                .generate_trace(
+                                    layout_bridge.clone().to_vec(),
+                                    block_number_u32,
+                                    &label,
+                                    input.clone().into_bytes(),
+                                    db.clone(),
+                                )
                                 .await
                             {
                                 Ok(pie) => break pie,
                                 Err(e) => {
                                     attempts += 1;
                                     if attempts >= MAX_ATTEMPTS {
-                                        panic!("Failed to generate trace after {} attempts: {}", MAX_ATTEMPTS, e);
+                                        panic!(
+                                            "Failed to generate trace after {} attempts: {}",
+                                            MAX_ATTEMPTS, e
+                                        );
                                     }
-                                    debug!("Trace generation attempt {} failed: {}. Retrying...", attempts, e);
+                                    debug!(
+                                        "Trace generation attempt {} failed: {}. Retrying...",
+                                        attempts, e
+                                    );
                                     tokio::time::sleep(Duration::from_secs(1)).await;
                                 }
                             }

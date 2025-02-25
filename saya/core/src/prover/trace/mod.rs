@@ -43,8 +43,16 @@ where
         db: DB,
     ) -> Result<CairoPie> {
         match self {
-            Self::Atlantic(inner) => inner.generate_trace(program, block_number, label, input, db).await,
-            Self::HttpProver(inner) => inner.generate_trace(program, block_number, label, input, db).await,
+            Self::Atlantic(inner) => {
+                inner
+                    .generate_trace(program, block_number, label, input, db)
+                    .await
+            }
+            Self::HttpProver(inner) => {
+                inner
+                    .generate_trace(program, block_number, label, input, db)
+                    .await
+            }
         }
     }
 }
