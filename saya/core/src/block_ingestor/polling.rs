@@ -164,7 +164,7 @@ where
                     self.current_block += 1;
                 }
                 _ => {
-                    trace!("Block #{} is not available yet", self.current_block);
+                    // trace!("Block #{} is not available yet", self.current_block);
                     sleep(BLOCK_CHECK_INTERVAL).await;
                 }
             }
