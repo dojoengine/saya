@@ -22,6 +22,7 @@ pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
 pub mod trace;
 pub use trace::LayoutBridgeTraceGenerator;
 mod recursive;
+pub use atlantic::compress_pie;
 pub use atlantic::AtlanticClient;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
 

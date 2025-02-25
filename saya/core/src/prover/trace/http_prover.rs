@@ -3,6 +3,8 @@ use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use prover_sdk::sdk::ProverSDK;
 use prover_sdk::{access_key::ProverAccessKey, Cairo0ProverInput};
 use prover_sdk::{JobResponse, JobResult, Layout, RunResult};
+
+use crate::storage::PersistantStorage;
 #[derive(Debug, Clone)]
 pub struct HttpProverTraceGen {
     pub url: String,
@@ -10,7 +12,13 @@ pub struct HttpProverTraceGen {
 }
 
 impl HttpProverTraceGen {
-    pub async fn generate_trace(&self, program: Vec<u8>, input: Vec<u8>) -> Result<CairoPie> {
+    pub async fn generate_trace(
+        &self,
+        program: Vec<u8>,
+        _block_number: u32,
+        input: Vec<u8>,
+        _db: impl PersistantStorage,
+    ) -> Result<CairoPie> {
         let prover_url = self
             .url
             .parse()

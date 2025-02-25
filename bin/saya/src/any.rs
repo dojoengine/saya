@@ -6,32 +6,35 @@ use saya_core::{
         RecursiveProof, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
+    storage::PersistantStorage,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProver<T> {
-    Atlantic(AtlanticLayoutBridgeProver<T>),
+pub enum AnyLayoutBridgeProver<T, DB> {
+    Atlantic(AtlanticLayoutBridgeProver<T, DB>),
     Mock(MockLayoutBridgeProver),
 }
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProverBuilder<T> {
-    Atlantic(AtlanticLayoutBridgeProverBuilder<T>),
+pub enum AnyLayoutBridgeProverBuilder<T, DB> {
+    Atlantic(AtlanticLayoutBridgeProverBuilder<T, DB>),
     Mock(MockLayoutBridgeProverBuilder),
 }
 
-impl<T> Prover for AnyLayoutBridgeProver<T>
+impl<T, DB> Prover for AnyLayoutBridgeProver<T, DB>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
+    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
     type Proof = RecursiveProof;
 }
 
-impl<T> Daemon for AnyLayoutBridgeProver<T>
+impl<T, DB> Daemon for AnyLayoutBridgeProver<T, DB>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
+    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         match self {
@@ -48,11 +51,12 @@ where
     }
 }
 
-impl<T> ProverBuilder for AnyLayoutBridgeProverBuilder<T>
+impl<T, DB> ProverBuilder for AnyLayoutBridgeProverBuilder<T, DB>
 where
-    T: LayoutBridgeTraceGenerator + Send + Sync + Clone + 'static,
+    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AnyLayoutBridgeProver<T>;
+    type Prover = AnyLayoutBridgeProver<T, DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(match self {

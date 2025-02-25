@@ -12,7 +12,7 @@ use saya_core::{
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
     prover::AtlanticSnosProverBuilder,
     service::Daemon,
-    storage::InMemoryStorageBackend,
+    storage::{InMemoryStorageBackend, SqliteDb},
 };
 use url::Url;
 
@@ -109,10 +109,11 @@ impl Start {
 
         // TODO: make impls of these providers configurable
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
+        let db = SqliteDb::new("saya.db").await?;
         let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen);
+            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db.clone());
         let prover_builder =
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
+            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie, db.clone());
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();

@@ -4,7 +4,10 @@ use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::info;
 
-use crate::prover::atlantic::{AtlanticClient, AtlanticJobStatus};
+use crate::{
+    prover::atlantic::{AtlanticClient, AtlanticJobStatus},
+    storage::PersistantStorage,
+};
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 const TRACE_GENERATION_JOB_NAME: &str = "TRACE_GENERATION";
@@ -20,15 +23,37 @@ impl AtlanticTraceGenerator {
 }
 
 impl AtlanticTraceGenerator {
-    pub async fn generate_trace(&self, program: Vec<u8>, input: Vec<u8>) -> Result<CairoPie> {
-        let atlantic_query_id = self
-            .atlantic_client
-            .submit_trace_generation(program, input)
-            .await?;
+    pub async fn generate_trace(
+        &self,
+        program: Vec<u8>,
+        block_number: u32,
+        input: Vec<u8>,
+        db: impl PersistantStorage,
+    ) -> Result<CairoPie> {
+        let atlantic_query_id = match db
+            .get_query_id(block_number, crate::storage::Query::BridgeTrace)
+            .await
+        {
+            Ok(query_id) => query_id,
+            Err(_) => {
+                let atlantic_query_id = self
+                    .atlantic_client
+                    .submit_trace_generation(program, input)
+                    .await?;
+                db.add_query_id(
+                    block_number,
+                    atlantic_query_id.clone(),
+                    crate::storage::Query::BridgeTrace,
+                )
+                .await?;
+                atlantic_query_id
+            }
+        };
         info!(
             "Atlantic trace generation response: {:?}",
             atlantic_query_id
         );
+
         loop {
             tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
 

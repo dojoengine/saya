@@ -11,6 +11,7 @@ mod layout_bridge;
 pub use client::AtlanticClient;
 pub use client::AtlanticJobStatus;
 pub use layout_bridge::{AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder};
+pub use snos::compress_pie;
 const PROOF_GENERATION_JOB_NAME: &str = "PROOF_GENERATION";
 
 pub trait AtlanticProof: Sized {
