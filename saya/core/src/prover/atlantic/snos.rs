@@ -1,4 +1,4 @@
-use std::{io::Write, sync::Arc, time::Duration};
+use std::{io::Write, path::Path, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
@@ -81,6 +81,21 @@ where
                 let new_proof = SnosProof {
                     block_number: new_block.number,
                     proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
+                };
+
+                let _ = task_tx.send(new_proof).await;
+                continue;
+            }
+
+            // check if in ENV variable for SNOS_{BLOCK_NUMBER} is set, then load the proof from there.
+            let snos_proof_path = std::env::var(format!("SNOS_{}_PROOF", new_block.number));
+            if let Ok(path) = snos_proof_path {
+                trace!("Loading snos proof from {}", path);
+                let proof = std::fs::read_to_string(&path).unwrap();
+                let parsed_proof: P = P::parse(proof).unwrap();
+                let new_proof = SnosProof {
+                    block_number: new_block.number,
+                    proof: parsed_proof,
                 };
 
                 let _ = task_tx.send(new_proof).await;

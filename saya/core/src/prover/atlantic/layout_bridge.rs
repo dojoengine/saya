@@ -1,7 +1,8 @@
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{borrow::Cow, path::Path, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use log::{debug, info};
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
+use log::{debug, info, trace};
 use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::{
@@ -75,61 +76,76 @@ where
             // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
             // TODO: patch `swiftness` and fix this
             let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-            //trace gen Trait executed here.
-            let layout_bridge_pie = trace_generator
-                .generate_trace(layout_bridge.clone().to_vec(), input.into_bytes(), Some(format!("trace_layout_{}", new_snos_proof.block_number)))
-                .await
-                .unwrap();
 
-            let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
-            let atlantic_query_id = client
-                .submit_proof_generation(
-                    compressed_pie,
-                    "recursive_with_poseidon".to_string(),
-                    format!("layout_{}", new_snos_proof.block_number),
-                )
-                .await
-                .unwrap();
+            // check if env variable LAYOUT_PIE_{BLOCK_NUMBER} is set, then load the pie from there.
+            let layout_pie_path = std::env::var(format!("LAYOUT_{}_PIE", new_snos_proof.block_number));
+            let layout_pie = if let Ok(path) = layout_pie_path {
+                trace!("Loading layout pie from {}", path);
+                let pie = CairoPie::read_zip_file(&Path::new(&path)).unwrap();
+                pie
+            } else {
+                trace_generator
+                    .generate_trace(layout_bridge.clone().to_vec(), input.into_bytes(), Some(format!("trace_layout_{}", new_snos_proof.block_number)))
+                    .await
+                    .unwrap()
+            };
 
-            info!(
-                "Atlantic layout bridge proof generation submitted for block #{}: {}",
-                new_snos_proof.block_number, atlantic_query_id
-            );
+            // Check if LAYOUT_PROOF_{BLOCK_NUMBER} is set, then load the proof from there.
+            let layout_proof_path = std::env::var(format!("LAYOUT_{}_PROOF", new_snos_proof.block_number));
+            let layout_proof = if let Ok(path) = layout_proof_path {
+                trace!("Loading layout proof from {}", path);
+                let proof = std::fs::read_to_string(&path).unwrap();
+                proof
+            } else {
+                let compressed_pie = compress_pie(layout_pie).await.unwrap();
+                let atlantic_query_id = client
+                    .submit_proof_generation(
+                        compressed_pie,
+                        "recursive_with_poseidon".to_string(),
+                        format!("layout_{}", new_snos_proof.block_number),
+                    )
+                    .await
+                    .unwrap();
 
-            // Wait for bridge layout proof to be done
-            loop {
-                // TODO: sleep with graceful shutdown
-                tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+                info!(
+                    "Atlantic layout bridge proof generation submitted for block #{}: {}",
+                    new_snos_proof.block_number, atlantic_query_id
+                );
 
-                // TODO: error handling
-                if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
-                    if let Some(proof_generation_job) = jobs
-                        .iter()
-                        .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                    {
-                        match proof_generation_job.status {
-                            AtlanticJobStatus::Completed => break,
-                            AtlanticJobStatus::Failed => {
-                                // TODO: error handling
-                                panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                // Wait for bridge layout proof to be done
+                loop {
+                    // TODO: sleep with graceful shutdown
+                    tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+
+                    // TODO: error handling
+                    if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
+                        if let Some(proof_generation_job) = jobs
+                            .iter()
+                            .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
+                        {
+                            match proof_generation_job.status {
+                                AtlanticJobStatus::Completed => break,
+                                AtlanticJobStatus::Failed => {
+                                    // TODO: error handling
+                                    panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                                }
+                                AtlanticJobStatus::InProgress => {}
                             }
-                            AtlanticJobStatus::InProgress => {}
                         }
                     }
                 }
-            }
 
-            debug!(
-                "Atlantic layout bridge proof generation finished for query: {}",
-                atlantic_query_id
-            );
+                debug!(
+                    "Atlantic layout bridge proof generation finished for query: {}",
+                    atlantic_query_id
+                );
 
-            // TODO: error handling
-            let verifier_proof = client.get_proof(&atlantic_query_id).await.unwrap();
+                client.get_proof(&atlantic_query_id).await.unwrap()
+            };
 
             // TODO: error handling
             let verifier_proof: StarkProof =
-                swiftness::parse(verifier_proof).unwrap().transform_to();
+                swiftness::parse(layout_proof).unwrap().transform_to();
 
             info!("Proof generated for block #{}", new_snos_proof.block_number);
 
