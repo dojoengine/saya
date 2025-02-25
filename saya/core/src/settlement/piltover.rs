@@ -26,13 +26,17 @@ use crate::{
     prover::RecursiveProof,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
+    storage::PersistantStorage,
     utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
 };
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
-pub struct PiltoverSettlementBackend {
+pub struct PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     provider: Arc<JsonRpcClient<HttpTransport>>,
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
     fact_registration: FactRegistrationConfig,
@@ -40,10 +44,14 @@ pub struct PiltoverSettlementBackend {
     da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
+    db: DB,
 }
 
 #[derive(Debug)]
-pub struct PiltoverSettlementBackendBuilder {
+pub struct PiltoverSettlementBackendBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     rpc_url: Url,
     integrity_address: Option<Felt>,
     skip_fact_registration: bool,
@@ -52,6 +60,7 @@ pub struct PiltoverSettlementBackendBuilder {
     account_private_key: Felt,
     da_channel: Option<Receiver<DataAvailabilityCursor<RecursiveProof>>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
+    db: DB,
 }
 
 #[derive(Debug, Decode)]
@@ -77,7 +86,10 @@ enum FactRegistrationConfig {
     Skipped,
 }
 
-impl PiltoverSettlementBackend {
+impl<DB> PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     async fn get_state(&self) -> Result<AppchainState> {
         let raw_result = self
             .provider
@@ -271,6 +283,10 @@ impl PiltoverSettlementBackend {
                 block_number: new_da.block_number,
                 transaction_hash: transaction.transaction_hash,
             };
+            self.db
+                .remove_block(new_da.block_number.try_into().unwrap())
+                .await
+                .unwrap();
 
             // Since the channel is bounded, it's possible
             tokio::select! {
@@ -284,12 +300,16 @@ impl PiltoverSettlementBackend {
     }
 }
 
-impl PiltoverSettlementBackendBuilder {
+impl<DB> PiltoverSettlementBackendBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     pub fn new(
         rpc_url: Url,
         piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
+        db: DB,
     ) -> Self {
         Self {
             rpc_url,
@@ -300,6 +320,7 @@ impl PiltoverSettlementBackendBuilder {
             account_private_key,
             da_channel: None,
             cursor_channel: None,
+            db,
         }
     }
 
@@ -314,8 +335,11 @@ impl PiltoverSettlementBackendBuilder {
     }
 }
 
-impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
-    type Backend = PiltoverSettlementBackend;
+impl<DB> SettlementBackendBuilder for PiltoverSettlementBackendBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
+    type Backend = PiltoverSettlementBackend<DB>;
 
     async fn build(self) -> Result<Self::Backend> {
         let provider = Arc::new(JsonRpcClient::new(HttpTransport::new(self.rpc_url)));
@@ -349,6 +373,7 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
                 .cursor_channel
                 .ok_or_else(|| anyhow::anyhow!("`cursor_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            db: self.db,
         })
     }
 
@@ -363,14 +388,20 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
     }
 }
 
-impl SettlementBackend for PiltoverSettlementBackend {
+impl<DB> SettlementBackend for PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     async fn get_block_number(&self) -> Result<Felt> {
         let appchain_state = self.get_state().await?;
         Ok(appchain_state.block_number)
     }
 }
 
-impl Daemon for PiltoverSettlementBackend {
+impl<DB> Daemon for PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     fn shutdown_handle(&self) -> crate::service::ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }

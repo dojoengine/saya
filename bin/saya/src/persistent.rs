@@ -156,6 +156,7 @@ impl Start {
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
+            db.clone(),
         );
 
         let settlement_builder = match (
