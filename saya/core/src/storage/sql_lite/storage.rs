@@ -1,5 +1,5 @@
 use super::SqliteDb;
-use crate::storage::Query;
+use crate::storage::{BlockStatus, Query};
 use crate::storage::{PersistantStorage, Step};
 use sqlx::query;
 use sqlx::Row;
@@ -60,6 +60,9 @@ impl PersistantStorage for SqliteDb {
             .fetch_one(&self.pool)
             .await?;
         let pie: Vec<u8> = row.try_get(0)?;
+        if pie.is_empty() {
+            return Err(anyhow::anyhow!("Pie not found"));
+        }
         Ok(pie)
     }
 
@@ -117,6 +120,9 @@ impl PersistantStorage for SqliteDb {
         .await?;
 
         let proof: Vec<u8> = row.try_get(0)?;
+        if proof.is_empty() {
+            return Err(anyhow::anyhow!("Proof not found"));
+        }
         Ok(proof)
     }
 
@@ -182,6 +188,9 @@ impl PersistantStorage for SqliteDb {
         .await?;
 
         let query_id: String = row.try_get(0)?;
+        if query_id.is_empty() {
+            return Err(anyhow::anyhow!("Query ID not found"));
+        }
         Ok(query_id)
     }
 
@@ -194,13 +203,14 @@ impl PersistantStorage for SqliteDb {
         Ok(())
     }
 
-    async fn get_status(&self, block_number: u32) -> Result<String, anyhow::Error> {
+    async fn get_status(&self, block_number: u32) -> Result<BlockStatus, anyhow::Error> {
         let row = query("SELECT status FROM blocks WHERE block_id = ?1")
             .bind(block_number)
             .fetch_one(&self.pool)
             .await?;
 
         let status: String = row.try_get(0)?;
+        let status = BlockStatus::from(status.as_str());
         Ok(status)
     }
     async fn initialize_block(&self, block_number: u32) -> anyhow::Result<()> {
@@ -249,7 +259,7 @@ mod tests {
         // Initialize block
         db.initialize_block(1).await.unwrap();
         let status = db.get_status(1).await.unwrap();
-        assert_eq!(status, "mined");
+        assert_eq!(status, BlockStatus::Mined);
 
         // Remove block
         db.remove_block(1).await.unwrap();
@@ -425,13 +435,13 @@ mod tests {
             .await
             .unwrap();
         let status = db.get_status(1).await.unwrap();
-        assert_eq!(status, "snos_proof_submitted");
+        assert_eq!(status, BlockStatus::SnosProofSubmitted);
 
         db.set_status(1, "bridge_proof_generated".to_string())
             .await
             .unwrap();
         let status = db.get_status(1).await.unwrap();
-        assert_eq!(status, "bridge_proof_generated");
+        assert_eq!(status, BlockStatus::BridgeProofGenerated);
         cleanup_db(&db_path).await;
     }
 

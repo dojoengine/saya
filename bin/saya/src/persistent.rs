@@ -108,6 +108,7 @@ impl Start {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
         let trace_gen: TraceGenerator = self.clone().into();
+        let db = SqliteDb::new("saya.db").await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
@@ -125,6 +126,7 @@ impl Start {
                         self.atlantic_key.clone(),
                         layout_bridge,
                         trace_gen,
+                        db.clone(),
                     ))
                 }
                 (None, None) => anyhow::bail!(
@@ -134,11 +136,10 @@ impl Start {
 
         // TODO: make impls of these providers configurable
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
-        let db = SqliteDb::new("saya.db").await?;
         let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen, db);
+            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen, db.clone());
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie),
+            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie, db.clone()),
             layout_bridge_prover_builder,
         );
         let da_builder = NoopDataAvailabilityBackendBuilder::new();

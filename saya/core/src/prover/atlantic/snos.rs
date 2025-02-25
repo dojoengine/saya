@@ -23,6 +23,7 @@ use crate::{
         Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
+    storage::PersistantStorage,
     utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
 };
 
@@ -31,26 +32,29 @@ const WORKER_COUNT: usize = 10;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
-pub struct AtlanticSnosProver<P> {
+pub struct AtlanticSnosProver<P, DB> {
     client: AtlanticClient,
     statement_channel: Receiver<NewBlock>,
     proof_channel: Sender<SnosProof<P>>,
     finish_handle: FinishHandle,
     /// Whether to extract the output and compute the program hash from the PIE or use the one from the SHARP bootloader returned by the prover service.
     mock_snos_from_pie: bool,
+    db: DB,
 }
 
 #[derive(Debug)]
-pub struct AtlanticSnosProverBuilder<P> {
+pub struct AtlanticSnosProverBuilder<P, DB> {
     api_key: String,
     statement_channel: Option<Receiver<NewBlock>>,
     proof_channel: Option<Sender<SnosProof<P>>>,
     mock_snos_from_pie: bool,
+    db: DB,
 }
 
-impl<P> AtlanticSnosProver<P>
+impl<P, DB> AtlanticSnosProver<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     async fn worker(
         task_rx: Arc<Mutex<Receiver<NewBlock>>>,
@@ -58,8 +62,10 @@ where
         client: AtlanticClient,
         finish_handle: FinishHandle,
         mock_snos_from_pie: bool,
+        db: DB,
     ) where
         P: AtlanticProof,
+        DB: PersistantStorage,
     {
         loop {
             let new_block = if let Some(new_block) = task_rx.lock().await.recv().await {
@@ -67,30 +73,71 @@ where
             } else {
                 break;
             };
+            let block_number_u32 = new_block.number.try_into().unwrap();
+            match db
+                .get_proof(block_number_u32, crate::storage::Step::Snos)
+                .await
+            {
+                Ok(proof) => {
+                    info!("Proof already generated for block #{}", new_block.number);
+                    let raw_proof = String::from_utf8(proof).unwrap();
+                    let parsed_proof: P = P::parse(raw_proof).unwrap();
+                    let new_proof = SnosProof {
+                        block_number: new_block.number,
+                        proof: parsed_proof,
+                    };
+                    let _ = task_tx.send(new_proof).await;
+                    continue;
+                }
+                Err(e) => {
+                    log::error!("Failed to get proof for block #{}: {}", new_block.number, e);
+                }
+            }
 
-            // TODO: move this to a separate MockSnosProver.
             if mock_snos_from_pie {
-                let output = bootloader_snos_output(&new_block.pie);
-                let mock_proof = stark_proof_mock(&output);
-
-                info!(
-                    "Mock proof generated from PIE for block #{}",
-                    new_block.number
-                );
-
-                let new_proof = SnosProof {
-                    block_number: new_block.number,
-                    proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
-                };
-
-                let _ = task_tx.send(new_proof).await;
+                Self::mock_proof(new_block, task_tx.clone()).await.unwrap();
                 continue;
             }
 
-            trace!("Compressing PIE for block #{}", new_block.number);
-
+            match db
+                .get_query_id(block_number_u32, crate::storage::Query::SnosProof)
+                .await
+            {
+                Ok(atlantic_query_id) => {
+                    info!(
+                        "Atlantic proof generation already submitted for block #{}: {}",
+                        new_block.number, atlantic_query_id
+                    );
+                    Self::wait_for_proof(
+                        client.clone(),
+                        atlantic_query_id.clone(),
+                        finish_handle.clone(),
+                    )
+                    .await;
+                    let new_proof = Self::get_proof(
+                        client.clone(),
+                        atlantic_query_id,
+                        db.clone(),
+                        block_number_u32,
+                    )
+                    .await;
+                    tokio::select! {
+                        _ = finish_handle.shutdown_requested() => break,
+                        _ = task_tx.send(new_proof) => {},
+                    }
+                    continue;
+                }
+                Err(e) => {
+                    log::error!(
+                        "Failed to get query id for block #{}: {}",
+                        new_block.number,
+                        e
+                    );
+                }
+            }
             // TODO: error handling
-            let compressed_pie = compress_pie(new_block.pie).await.unwrap();
+            trace!("Compressing PIE for block #{}", new_block.number);
+            let compressed_pie: Vec<u8> = compress_pie(new_block.pie).await.unwrap();
 
             debug!(
                 "Compressed PIE size for block #{}: {} bytes",
@@ -106,49 +153,38 @@ where
                 )
                 .await
                 .unwrap();
+            db.add_query_id(
+                new_block.number.try_into().unwrap(),
+                atlantic_query_id.clone(),
+                crate::storage::Query::SnosProof,
+            )
+            .await
+            .unwrap();
 
             info!(
                 "Atlantic proof generation submitted for block #{}: {}",
                 new_block.number, atlantic_query_id
             );
-            loop {
-                // TODO: sleep with graceful shutdown
-                tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
 
-                // TODO: error handling
-                if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
-                    if let Some(proof_generation_job) = jobs
-                        .iter()
-                        .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                    {
-                        match proof_generation_job.status {
-                            AtlanticJobStatus::Completed => break,
-                            AtlanticJobStatus::Failed => {
-                                // TODO: error handling
-                                panic!("Atlantic proof generation {} failed", atlantic_query_id);
-                            }
-                            AtlanticJobStatus::InProgress => {}
-                        }
-                    }
-                }
-            }
+            Self::wait_for_proof(
+                client.clone(),
+                atlantic_query_id.clone(),
+                finish_handle.clone(),
+            )
+            .await;
 
             debug!(
                 "Atlantic PIE proof generation finished for query: {}",
                 atlantic_query_id
             );
             // TODO: error handling
-            let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
-
-            // TODO: error handling
-            let parsed_proof: P = P::parse(raw_proof).unwrap();
-
-            info!("Proof generated for block #{}", new_block.number);
-
-            let new_proof = SnosProof {
-                block_number: new_block.number,
-                proof: parsed_proof,
-            };
+            let new_proof = Self::get_proof(
+                client.clone(),
+                atlantic_query_id,
+                db.clone(),
+                block_number_u32,
+            )
+            .await;
             tokio::select! {
                 _ = finish_handle.shutdown_requested() => break,
                 _ = task_tx.send(new_proof) => {},
@@ -167,30 +203,103 @@ where
                 self.client.clone(),
                 self.finish_handle.clone(),
                 self.mock_snos_from_pie,
+                self.db.clone(),
             )));
         }
         futures_util::future::join_all(workers).await;
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
     }
+
+    async fn mock_proof(new_block: NewBlock, task_tx: Sender<SnosProof<P>>) -> Result<()> {
+        let output = bootloader_snos_output(&new_block.pie);
+        let mock_proof = stark_proof_mock(&output);
+
+        info!(
+            "Mock proof generated from PIE for block #{}",
+            new_block.number
+        );
+
+        let new_proof = SnosProof {
+            block_number: new_block.number,
+            proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
+        };
+
+        let _ = task_tx.send(new_proof).await;
+        Ok(())
+    }
+
+    async fn wait_for_proof(
+        client: AtlanticClient,
+        atlantic_query_id: String,
+        finish_handle: FinishHandle,
+    ) {
+        loop {
+            // TODO: sleep with graceful shutdown
+            tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+            if finish_handle.is_shutdown_requested() {
+                break;
+            }
+            // TODO: error handling
+            if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
+                if let Some(proof_generation_job) = jobs
+                    .iter()
+                    .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
+                {
+                    match proof_generation_job.status {
+                        AtlanticJobStatus::Completed => break,
+                        AtlanticJobStatus::Failed => {
+                            // TODO: error handling
+                            panic!("Atlantic proof generation {} failed", atlantic_query_id);
+                        }
+                        AtlanticJobStatus::InProgress => {}
+                    }
+                }
+            }
+        }
+    }
+    async fn get_proof(
+        client: AtlanticClient,
+        atlantic_query_id: String,
+        db: DB,
+        block_number: u32,
+    ) -> SnosProof<P> {
+        let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
+        let proof_in_bytes = raw_proof.as_bytes().to_vec();
+        db.add_proof(block_number, proof_in_bytes, crate::storage::Step::Snos)
+            .await
+            .unwrap();
+
+        // TODO: error handling
+        let parsed_proof: P = P::parse(raw_proof).unwrap();
+
+        info!("Proof generated for block #{}", block_number);
+
+        SnosProof {
+            block_number: block_number as u64,
+            proof: parsed_proof,
+        }
+    }
 }
 
-impl<P> AtlanticSnosProverBuilder<P> {
-    pub fn new(api_key: String, mock_snos_from_pie: bool) -> Self {
+impl<P, DB> AtlanticSnosProverBuilder<P, DB> {
+    pub fn new(api_key: String, mock_snos_from_pie: bool, db: DB) -> Self {
         Self {
             api_key,
             statement_channel: None,
             proof_channel: None,
             mock_snos_from_pie,
+            db,
         }
     }
 }
 
-impl<P> ProverBuilder for AtlanticSnosProverBuilder<P>
+impl<P, DB> ProverBuilder for AtlanticSnosProverBuilder<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AtlanticSnosProver<P>;
+    type Prover = AtlanticSnosProver<P, DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(AtlanticSnosProver {
@@ -203,6 +312,7 @@ where
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             mock_snos_from_pie: self.mock_snos_from_pie,
+            db: self.db,
         })
     }
 
@@ -217,17 +327,19 @@ where
     }
 }
 
-impl<P> Prover for AtlanticSnosProver<P>
+impl<P, DB> Prover for AtlanticSnosProver<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = NewBlock;
     type Proof = SnosProof<P>;
 }
 
-impl<P> Daemon for AtlanticSnosProver<P>
+impl<P, DB> Daemon for AtlanticSnosProver<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()

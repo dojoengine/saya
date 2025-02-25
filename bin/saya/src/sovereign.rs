@@ -111,9 +111,9 @@ impl Start {
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
         let db = SqliteDb::new("saya.db").await?;
         let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db);
+            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db.clone());
         let prover_builder =
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
+            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie, db.clone());
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();

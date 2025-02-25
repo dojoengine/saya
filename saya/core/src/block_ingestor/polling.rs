@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, error, info, trace};
 use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
 use tokio::{
@@ -91,6 +92,31 @@ where
 
             if finish_handle.is_shutdown_requested() {
                 break;
+            }
+            db.initialize_block(block_number.try_into().unwrap())
+                .await
+                .unwrap();
+            match db
+                .get_pie(block_number.try_into().unwrap(), Step::Snos)
+                .await
+            {
+                Ok(pie_bytes) => match CairoPie::from_bytes(&pie_bytes) {
+                    Ok(pie) => {
+                        let new_block = NewBlock {
+                            number: block_number,
+                            pie,
+                        };
+                        log::trace!("Pie generated for block #{}", block_number);
+                        if channel.send(new_block).await.is_err() {
+                            error!("Failed to send block #{}", block_number);
+                        }
+                        continue;
+                    }
+                    Err(err) => {
+                        error!("Failed to parse pie for block #{}: {:?}", block_number, err)
+                    }
+                },
+                Err(err) => trace!("Failed to get pie for block #{}: {:?}", block_number, err),
             }
 
             let mut retries = 0;
