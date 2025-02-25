@@ -89,8 +89,9 @@ where
                     let _ = task_tx.send(new_proof).await;
                     continue;
                 }
-                Err(e) => {
-                    log::error!("Failed to get proof for block #{}: {}", new_block.number, e);
+                Err(_) => {
+                    // Not found in db, we continue.
+                    //log::error!("Failed to get proof for block #{}: {}", new_block.number, e);
                 }
             }
 
@@ -127,12 +128,13 @@ where
                     }
                     continue;
                 }
-                Err(e) => {
-                    log::error!(
-                        "Failed to get query id for block #{}: {}",
-                        new_block.number,
-                        e
-                    );
+                Err(_) => {
+                    // Not found in db, we continue.
+                    //log::error!(
+                    //    "Failed to get query id for block #{}: {}",
+                    //    new_block.number,
+                    //    e
+                    //);
                 }
             }
             // TODO: error handling

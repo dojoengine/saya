@@ -116,7 +116,10 @@ where
                         error!("Failed to parse pie for block #{}: {:?}", block_number, err)
                     }
                 },
-                Err(err) => trace!("Failed to get pie for block #{}: {:?}", block_number, err),
+                Err(_) => {
+                    // Not found in db, we continue;
+                    // trace!("Failed to get pie for block #{}: {:?}", block_number, err);
+                }
             }
 
             let mut retries = 0;
