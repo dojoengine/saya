@@ -8,7 +8,8 @@ use reqwest::{
 use serde::Deserialize;
 use url::Url;
 
-const ATLANTIC_API_BASE: &str = "https://atlantic.api.herodotus.cloud/v1";
+const ATLANTIC_API_BASE: &str = "https://staging.atlantic.api.herodotus.cloud";
+const ATLANTIC_S3_BASE: &str = "https://s3.pl-waw.scw.cloud/atlantic-k8s-experimental/queries";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
@@ -30,8 +31,14 @@ pub enum AtlanticQueryStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AtlanticQueryJob {
-    pub job_name: String,
+    pub id: String,
+    pub atlantic_query_id: String,
     pub status: AtlanticJobStatus,
+    pub job_name: String,
+    pub created_at: String,
+    pub completed_at: String,
+    // Context can be `any` for now, keep raw value for now.
+    pub context: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -40,6 +47,76 @@ pub enum AtlanticJobStatus {
     InProgress,
     Completed,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AtlanticJobSize {
+    S,
+    M,
+    L,
+}
+
+impl AtlanticJobSize {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::S => "S",
+            Self::M => "M",
+            Self::L => "L",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AtlanticCairoVersion {
+    Cairo0,
+    Cairo1,
+}
+
+impl AtlanticCairoVersion {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Cairo0 => "cairo0",
+            Self::Cairo1 => "cairo1",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AtlanticCairoVmVersion {
+    Rust,
+    Python,
+}
+
+impl AtlanticCairoVmVersion {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Python => "python",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AtlanticQueryResult {
+    TraceGeneration,
+    ProofGeneration,
+    ProofVerificationOnL1,
+    ProofVerificationOnL2,
+}
+
+impl AtlanticQueryResult {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::TraceGeneration => "TRACE_GENERATION",
+            Self::ProofGeneration => "PROOF_GENERATION",
+            Self::ProofVerificationOnL1 => "PROOF_VERIFICATION_ON_L1",
+            Self::ProofVerificationOnL2 => "PROOF_VERIFICATION_ON_L2",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -76,7 +153,7 @@ impl AtlanticClient {
         T: Into<Cow<'static, [u8]>>,
     {
         let mut url = self.api_base.clone();
-        url.path_segments_mut().unwrap().push("proof-generation");
+        url.path_segments_mut().unwrap().push("atlantic-query");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
 
         let form = Form::new()
@@ -89,28 +166,33 @@ impl AtlanticClient {
             )
             .text("layout", layout)
             .text("externalId", label)
-            .text("prover", "starkware_sharp")
-            .text("skipFactHashGeneration", "true");
+            // Let's go `M` for now since we may be at the limit for `S` jobs.
+            .text("declaredJobSize", AtlanticJobSize::M.as_str())
+            .text("result", AtlanticQueryResult::ProofGeneration.as_str());
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            anyhow::bail!("unsuccessful status code: {}\n{}", response.status(), response.text().await?);
         }
 
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn submit_trace_generation<P, I>(&self, program: P, input: I) -> Result<String>
+    pub async fn submit_trace_generation<P, I>(&self, label: &str, program: P, input: I) -> Result<String>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
     {
         let mut url = self.api_base.clone();
-        url.path_segments_mut().unwrap().push("trace-generation");
+        url.path_segments_mut().unwrap().push("atlantic-query");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
         let form = Form::new()
-            .text("cairoVersion", "0")
+            .text("cairoVersion", AtlanticCairoVersion::Cairo0.as_str())
+            .text("result", AtlanticQueryResult::TraceGeneration.as_str())
+            .text("declaredJobSize", AtlanticJobSize::M.as_str())
+            .text("cairoVm", AtlanticCairoVmVersion::Python.as_str())
+            .text("externalId", label.to_string())
             .part(
                 "programFile",
                 Part::bytes(program.into())
@@ -127,7 +209,7 @@ impl AtlanticClient {
             );
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            anyhow::bail!("unsuccessful status code: {}\n{}", response.status(), response.text().await?);
         }
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
@@ -151,7 +233,8 @@ impl AtlanticClient {
 
     pub async fn get_proof(&self, id: &str) -> Result<String> {
         let url = format!(
-            "https://atlantic-queries.s3.nl-ams.scw.cloud/sharp_queries/query_{}/proof.json",
+            "{}/{}/proof.json",
+            ATLANTIC_S3_BASE,
             id
         );
 
@@ -164,8 +247,13 @@ impl AtlanticClient {
     }
 
     pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>> {
+        // For now we hardcode the cairo version to 0, since we only use pythonVM with Cairo 0 for layout bridge
+        // for the trace generation.
+        // But since the response from atlantic job doesn't contain the cairo version,
+        // we need to have some state to keep this information.
         let url = format!(
-            "https://atlantic-queries.s3.nl-ams.scw.cloud/sharp_queries/query_{}/pie.zip",
+            "{}/{}/pie.cairo0.zip",
+            ATLANTIC_S3_BASE,
             id
         );
         let response = self.http_client.get(url).send().await?;

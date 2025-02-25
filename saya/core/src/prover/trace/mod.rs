@@ -24,6 +24,7 @@ where
         &self,
         program: Vec<u8>,
         block_number: u32,
+        label: &str,
         input: Vec<u8>,
         db: DB,
     ) -> impl Future<Output = Result<CairoPie>> + Send;
@@ -37,12 +38,13 @@ where
         &self,
         program: Vec<u8>,
         block_number: u32,
+        label: &str,
         input: Vec<u8>,
         db: DB,
     ) -> Result<CairoPie> {
         match self {
-            Self::Atlantic(inner) => inner.generate_trace(program, block_number, input, db).await,
-            Self::HttpProver(inner) => inner.generate_trace(program, block_number, input, db).await,
+            Self::Atlantic(inner) => inner.generate_trace(program, block_number, label, input, db).await,
+            Self::HttpProver(inner) => inner.generate_trace(program, block_number, label, input, db).await,
         }
     }
 }

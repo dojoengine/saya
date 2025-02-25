@@ -16,6 +16,7 @@ impl HttpProverTraceGen {
         &self,
         program: Vec<u8>,
         _block_number: u32,
+        _label: &str,
         input: Vec<u8>,
         _db: impl PersistantStorage,
     ) -> Result<CairoPie> {

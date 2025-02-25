@@ -141,7 +141,7 @@ impl PiltoverSettlementBackend {
                             integrity_job_id,
                             VerifierConfiguration {
                                 layout: short_string!("recursive_with_poseidon"),
-                                hasher: short_string!("keccak_160_lsb"),
+                                hasher: short_string!("blake2s_248_lsb"),
                                 stone_version: short_string!("stone6"),
                                 memory_verification: short_string!("relaxed"),
                             },

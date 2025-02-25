@@ -154,6 +154,7 @@ where
                     // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
                     // TODO: patch `swiftness` and fix this
                     let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
+                    let label = format!("layout-trace-{}", new_snos_proof.block_number);
 
                     // This call fails a lot on atlantic.
                     let layout_bridge_pie = {
@@ -162,7 +163,7 @@ where
 
                         loop {
                             match trace_generator
-                                .generate_trace(layout_bridge.clone().to_vec(), block_number_u32, input.clone().into_bytes(), db.clone())
+                                .generate_trace(layout_bridge.clone().to_vec(), block_number_u32, &label, input.clone().into_bytes(), db.clone())
                                 .await
                             {
                                 Ok(pie) => break pie,

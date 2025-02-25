@@ -27,6 +27,7 @@ impl AtlanticTraceGenerator {
         &self,
         program: Vec<u8>,
         block_number: u32,
+        label: &str,
         input: Vec<u8>,
         db: impl PersistantStorage,
     ) -> Result<CairoPie> {
@@ -38,7 +39,7 @@ impl AtlanticTraceGenerator {
             Err(_) => {
                 let atlantic_query_id = self
                     .atlantic_client
-                    .submit_trace_generation(program, input)
+                    .submit_trace_generation(label, program, input)
                     .await?;
                 db.add_query_id(
                     block_number,
@@ -50,7 +51,7 @@ impl AtlanticTraceGenerator {
             }
         };
         info!(
-            "Atlantic trace generation response: {:?}",
+            "Atlantic trace generation submitted with query id: {}",
             atlantic_query_id
         );
 
