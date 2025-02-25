@@ -75,11 +75,29 @@ where
             // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
             // TODO: patch `swiftness` and fix this
             let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-            //trace gen Trait executed here.
-            let layout_bridge_pie = trace_generator
-                .generate_trace(layout_bridge.clone().to_vec(), input.into_bytes())
-                .await
-                .unwrap();
+
+            // This call fails a lot.
+            let layout_bridge_pie = {
+                let mut attempts = 0;
+                const MAX_ATTEMPTS: u32 = 3;
+
+                loop {
+                    match trace_generator
+                        .generate_trace(layout_bridge.clone().to_vec(), input.clone().into_bytes())
+                        .await
+                    {
+                        Ok(pie) => break pie,
+                        Err(e) => {
+                            attempts += 1;
+                            if attempts >= MAX_ATTEMPTS {
+                                panic!("Failed to generate trace after {} attempts: {}", MAX_ATTEMPTS, e);
+                            }
+                            debug!("Trace generation attempt {} failed: {}. Retrying...", attempts, e);
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                        }
+                    }
+                }
+            };
 
             let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
             let atlantic_query_id = client
