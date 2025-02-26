@@ -231,6 +231,13 @@ impl PersistantStorage for SqliteDb {
             .await?;
         Ok(())
     }
+
+    async fn get_status_blocks(&self) -> Result<Vec<String>, anyhow::Error> {
+        let rows = query("SELECT status FROM blocks")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.iter().map(|row| row.try_get(0).unwrap()).collect())
+    }
 }
 
 #[cfg(test)]

@@ -189,6 +189,20 @@ where
         while !self.finish_handle.is_shutdown_requested() {
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
+                    let status_blocks = crate::utils::retry_with_backoff(
+                        || self.db.get_status_blocks(),
+                        "get_status_blocks",
+                        MAX_RETRIES as u32,
+                        Duration::from_secs(5),
+                    )
+                    .await
+                    .unwrap();
+
+                    if status_blocks.iter().filter(|status| status == &"snos_proof_submitted").count() > WORKER_COUNT {
+                        sleep(BLOCK_CHECK_INTERVAL).await;
+                        continue;
+                    }
+
                     if task_tx.send(self.current_block).await.is_err() {
                         break;
                     }

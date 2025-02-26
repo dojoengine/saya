@@ -123,4 +123,6 @@ pub trait PersistantStorage {
         status: String,
     ) -> impl Future<Output = Result<()>> + Send;
     fn get_status(&self, block_number: u32) -> impl Future<Output = Result<BlockStatus>> + Send;
+
+    fn get_status_blocks(&self) -> impl Future<Output = Result<Vec<String>>> + Send;
 }
