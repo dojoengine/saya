@@ -103,8 +103,9 @@ where
             .await
             .unwrap();
 
-            // If the current block number is too high compared to the first block in the DB, then we need to read the db again every few seconds.
-            while block_number > (first_db_block + 10) as u64 {
+            // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
+            // is already a good limit, since layout bridge proof is long to generate.
+            while block_number > (first_db_block + 20) as u64 {
                 //trace!(
                 //    "Block #{} is too high compared to the first block in the DB, reading the db again",
                 //    block_number
