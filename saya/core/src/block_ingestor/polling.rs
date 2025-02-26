@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
 use tokio::{
     sync::{
@@ -26,7 +26,7 @@ use super::BlockPieGenerator;
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const TASK_BUFFER_SIZE: usize = 10;
-const WORKER_COUNT: usize = 5;
+const WORKER_COUNT: usize = 2;
 const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
@@ -94,9 +94,42 @@ where
                 break;
             }
 
-            db.initialize_block(block_number.try_into().unwrap())
+            let mut first_db_block = crate::utils::retry_with_backoff(
+                || db.get_first_db_block(),
+                "get_first_db_block",
+                MAX_RETRIES as u32,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+
+            // If the current block number is too high compared to the first block in the DB, then we need to read the db again every few seconds.
+            while block_number > (first_db_block + 10) as u64 {
+                //trace!(
+                //    "Block #{} is too high compared to the first block in the DB, reading the db again",
+                //    block_number
+                //);
+
+                sleep(BLOCK_CHECK_INTERVAL).await;
+
+                first_db_block = crate::utils::retry_with_backoff(
+                    || db.get_first_db_block(),
+                    "get_first_db_block",
+                    MAX_RETRIES as u32,
+                    Duration::from_secs(5),
+                )
                 .await
                 .unwrap();
+            }
+
+            crate::utils::retry_with_backoff(
+                || db.initialize_block(block_number.try_into().unwrap()),
+                "initialize_block",
+                MAX_RETRIES as u32,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
 
             match db
                 .get_pie(block_number.try_into().unwrap(), Step::Snos)
@@ -118,9 +151,9 @@ where
                         error!("Failed to parse pie for block #{}: {:?}", block_number, err)
                     }
                 },
-                Err(_) => {
+                Err(err) => {
                     // Not found in db, we continue;
-                    // trace!("Failed to get pie for block #{}: {:?}", block_number, err);
+                    trace!("Failed to get pie for block #{}: {:?}", block_number, err);
                 }
             }
 
@@ -189,28 +222,10 @@ where
         while !self.finish_handle.is_shutdown_requested() {
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
-                    let status_blocks = crate::utils::retry_with_backoff(
-                        || self.db.get_status_blocks(),
-                        "get_status_blocks",
-                        MAX_RETRIES as u32,
-                        Duration::from_secs(5),
-                    )
-                    .await
-                    .unwrap();
-
-                    if status_blocks
-                        .iter()
-                        .filter(|status| status == &"snos_proof_submitted")
-                        .count()
-                        > WORKER_COUNT
-                    {
-                        sleep(BLOCK_CHECK_INTERVAL).await;
-                    } else {
-                        if task_tx.send(self.current_block).await.is_err() {
-                            break;
-                        }
-                        self.current_block += 1;
+                    if task_tx.send(self.current_block).await.is_err() {
+                        break;
                     }
+                    self.current_block += 1;
                 }
                 _ => {
                     // trace!("Block #{} is not available yet", self.current_block);

@@ -81,7 +81,7 @@ impl SqliteDb {
             CREATE TABLE IF NOT EXISTS pies (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               block_id INTEGER NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
-              snos_pie BLOB NULL,
+              snos_pie BLOB,
               bridge_pie BLOB
             );
             "#,

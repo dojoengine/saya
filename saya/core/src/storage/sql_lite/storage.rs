@@ -55,7 +55,7 @@ impl PersistantStorage for SqliteDb {
             Step::Bridge => "bridge_pie",
         };
 
-        let row = query(&format!("SELECT {} FROM pies WHERE id = ?1", column))
+        let row = query(&format!("SELECT {} FROM pies WHERE block_id = ?1", column))
             .bind(block_number)
             .fetch_one(&self.pool)
             .await?;
@@ -232,11 +232,12 @@ impl PersistantStorage for SqliteDb {
         Ok(())
     }
 
-    async fn get_status_blocks(&self) -> Result<Vec<String>, anyhow::Error> {
-        let rows = query("SELECT status FROM blocks")
-            .fetch_all(&self.pool)
+    async fn get_first_db_block(&self) -> Result<u32, anyhow::Error> {
+        let row = query("SELECT MIN(block_id) FROM blocks")
+            .fetch_one(&self.pool)
             .await?;
-        Ok(rows.iter().map(|row| row.try_get(0).unwrap()).collect())
+        let first_block: u32 = row.try_get(0)?;
+        Ok(first_block)
     }
 }
 
