@@ -26,7 +26,7 @@ use super::BlockPieGenerator;
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const TASK_BUFFER_SIZE: usize = 10;
-const WORKER_COUNT: usize = 1;
+const WORKER_COUNT: usize = 5;
 const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
@@ -189,11 +189,8 @@ where
         while !self.finish_handle.is_shutdown_requested() {
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
-                    // Debug.
-                    if self.current_block == 99 {
-                        if task_tx.send(self.current_block).await.is_err() {
-                            break;
-                        }
+                    if task_tx.send(self.current_block).await.is_err() {
+                        break;
                     }
                     self.current_block += 1;
                 }

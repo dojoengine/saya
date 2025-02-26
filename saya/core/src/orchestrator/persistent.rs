@@ -17,10 +17,10 @@ use crate::{
 /// Block ingestor implementations would typically always make at least one extra block ready to be
 /// sent regardless of whether the channel is full. Therefore, setting this value as `1` should be
 /// sufficient.
-const BLOCK_INGESTOR_BUFFER_SIZE: usize = 15;
+const BLOCK_INGESTOR_BUFFER_SIZE: usize = 10;
 
 /// Size of the `StarkProof` channel.
-const PROOF_BUFFER_SIZE: usize = 15;
+const PROOF_BUFFER_SIZE: usize = 10;
 
 /// Size of the `DataAvailabilityCursor` channel.
 const DA_CURSOR_BUFFER_SIZE: usize = 10;
