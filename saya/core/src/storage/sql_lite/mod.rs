@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use anyhow::Error;
 use log::trace;
@@ -29,6 +30,8 @@ impl SqliteDb {
         }
 
         let pool = SqlitePoolOptions::new()
+            .acquire_timeout(Duration::from_secs(10))
+            .max_connections(50)
             .connect(&format!("sqlite:{}", path))
             .await?;
 
