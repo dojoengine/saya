@@ -24,7 +24,7 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_COUNT: usize = 10;
+const WORKER_COUNT: usize = 15;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -205,9 +205,16 @@ where
                     */
 
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
-                    db.add_pie(block_number_u32, compressed_pie.clone(), Step::Bridge)
-                        .await
-                        .unwrap();
+
+                    crate::utils::retry_with_backoff(
+                        || db.add_pie(block_number_u32, compressed_pie.clone(), Step::Bridge),
+                        "add_pie",
+                        3,
+                        Duration::from_secs(2),
+                    )
+                    .await
+                    .unwrap();
+
                     compressed_pie
                 }
             };
@@ -220,13 +227,22 @@ where
                 )
                 .await
                 .unwrap();
-            db.add_query_id(
-                new_snos_proof.block_number.try_into().unwrap(),
-                atlantic_query_id.clone(),
-                crate::storage::Query::BridgeProof,
+
+            crate::utils::retry_with_backoff(
+                || {
+                    db.add_query_id(
+                        new_snos_proof.block_number.try_into().unwrap(),
+                        atlantic_query_id.clone(),
+                        crate::storage::Query::BridgeProof,
+                    )
+                },
+                "add_query_id",
+                3,
+                Duration::from_secs(2),
             )
             .await
             .unwrap();
+
             info!(
                 "Atlantic layout bridge proof generation submitted for block #{}: {}",
                 new_snos_proof.block_number, atlantic_query_id
@@ -321,13 +337,22 @@ where
         parsed_snos_proof: StarkProof,
     ) -> RecursiveProof {
         let verifier_proof = client.get_proof(&atlantic_query_id).await.unwrap();
-        db.add_proof(
-            block_number,
-            verifier_proof.as_bytes().to_vec(),
-            crate::storage::Step::Bridge,
+
+        crate::utils::retry_with_backoff(
+            || {
+                db.add_proof(
+                    block_number,
+                    verifier_proof.as_bytes().to_vec(),
+                    crate::storage::Step::Bridge,
+                )
+            },
+            "add_proof",
+            3,
+            Duration::from_secs(2),
         )
         .await
         .unwrap();
+
         // TODO: error handling
         let verifier_proof: StarkProof = swiftness::parse(verifier_proof).unwrap().transform_to();
 

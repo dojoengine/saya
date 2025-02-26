@@ -41,12 +41,21 @@ impl AtlanticTraceGenerator {
                     .atlantic_client
                     .submit_trace_generation(label, program, input)
                     .await?;
-                db.add_query_id(
-                    block_number,
-                    atlantic_query_id.clone(),
-                    crate::storage::Query::BridgeTrace,
+
+                crate::utils::retry_with_backoff(
+                    || {
+                        db.add_query_id(
+                            block_number,
+                            atlantic_query_id.clone(),
+                            crate::storage::Query::BridgeTrace,
+                        )
+                    },
+                    "add_query_id",
+                    3,
+                    Duration::from_secs(2),
                 )
                 .await?;
+
                 atlantic_query_id
             }
         };

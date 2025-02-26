@@ -25,8 +25,8 @@ use super::BlockPieGenerator;
 
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
-const TASK_BUFFER_SIZE: usize = 10;
-const WORKER_COUNT: usize = 5;
+const TASK_BUFFER_SIZE: usize = 15;
+const WORKER_COUNT: usize = 10;
 const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
@@ -93,9 +93,16 @@ where
             if finish_handle.is_shutdown_requested() {
                 break;
             }
-            db.initialize_block(block_number.try_into().unwrap())
-                .await
-                .unwrap();
+
+            crate::utils::retry_with_backoff(
+                || db.initialize_block(block_number.try_into().unwrap()),
+                "initialize_block",
+                3,
+                Duration::from_secs(2),
+            )
+            .await
+            .unwrap();
+
             match db
                 .get_pie(block_number.try_into().unwrap(), Step::Snos)
                 .await
@@ -162,9 +169,16 @@ where
             };
             let pie_bytes = compress_pie(new_block.pie.clone()).await.unwrap();
             let block_number = block_number.try_into().unwrap();
-            db.add_pie(block_number, pie_bytes, Step::Snos)
-                .await
-                .unwrap();
+
+            crate::utils::retry_with_backoff(
+                || db.add_pie(block_number, pie_bytes.clone(), Step::Snos),
+                "add_pie",
+                3,
+                Duration::from_secs(2),
+            )
+            .await
+            .unwrap();
+
             info!("Pie generated for block #{}", block_number);
             if channel.send(new_block).await.is_err() {
                 error!("Failed to send block #{}", block_number);

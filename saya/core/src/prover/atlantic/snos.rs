@@ -28,7 +28,7 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_COUNT: usize = 10;
+const WORKER_COUNT: usize = 15;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -155,10 +155,18 @@ where
                 )
                 .await
                 .unwrap();
-            db.add_query_id(
-                new_block.number.try_into().unwrap(),
-                atlantic_query_id.clone(),
-                crate::storage::Query::SnosProof,
+
+            crate::utils::retry_with_backoff(
+                || {
+                    db.add_query_id(
+                        new_block.number.try_into().unwrap(),
+                        atlantic_query_id.clone(),
+                        crate::storage::Query::SnosProof,
+                    )
+                },
+                "add_query_id",
+                3,
+                Duration::from_secs(2),
             )
             .await
             .unwrap();
@@ -268,9 +276,15 @@ where
     ) -> SnosProof<P> {
         let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
         let proof_in_bytes = raw_proof.as_bytes().to_vec();
-        db.add_proof(block_number, proof_in_bytes, crate::storage::Step::Snos)
-            .await
-            .unwrap();
+
+        crate::utils::retry_with_backoff(
+            || db.add_proof(block_number, proof_in_bytes.clone(), crate::storage::Step::Snos),
+            "add_proof",
+            3,
+            Duration::from_secs(2),
+        )
+        .await
+        .unwrap();
 
         // TODO: error handling
         let parsed_proof: P = P::parse(raw_proof).unwrap();

@@ -23,10 +23,10 @@ const BLOCK_INGESTOR_BUFFER_SIZE: usize = 100;
 const PROOF_BUFFER_SIZE: usize = 100;
 
 /// Size of the `DataAvailabilityCursor` channel.
-const DA_CURSOR_BUFFER_SIZE: usize = 1;
+const DA_CURSOR_BUFFER_SIZE: usize = 15;
 
 /// Size of the `SettlementCursor` channel.
-const SETTLE_CURSOR_BUFFER_SIZE: usize = 1;
+const SETTLE_CURSOR_BUFFER_SIZE: usize = 15;
 
 /// An orchestrator implementation for running a rollup in persistent mode.
 ///
