@@ -94,14 +94,9 @@ where
                 break;
             }
 
-            crate::utils::retry_with_backoff(
-                || db.initialize_block(block_number.try_into().unwrap()),
-                "initialize_block",
-                3,
-                Duration::from_secs(2),
-            )
-            .await
-            .unwrap();
+            db.initialize_block(block_number.try_into().unwrap())
+                .await
+                .unwrap();
 
             match db
                 .get_pie(block_number.try_into().unwrap(), Step::Snos)
@@ -129,36 +124,21 @@ where
                 }
             }
 
-            let mut retries = 0;
-            let pie = loop {
-                match block_pie_generator
-                    .prove_block(
+            let pie = crate::utils::retry_with_backoff(
+                || {
+                    block_pie_generator.prove_block(
                         snos.as_ref(),
                         block_number,
                         rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
                     )
-                    .await
-                {
-                    Ok(pie) => break pie,
-                    Err(err) => {
-                        error!(
-                            "Failed to prove block #{} (attempt {}/{}): {}",
-                            block_number,
-                            retries + 1,
-                            MAX_RETRIES,
-                            err
-                        );
+                },
+                "prove_block",
+                MAX_RETRIES as u32,
+                PROVE_BLOCK_FAILURE_BACKOFF,
+            )
+            .await
+            .unwrap();
 
-                        if retries >= MAX_RETRIES {
-                            error!("Exceeded max retries for block #{}", block_number);
-                            return;
-                        }
-
-                        retries += 1;
-                        sleep(PROVE_BLOCK_FAILURE_BACKOFF).await;
-                    }
-                }
-            };
             if finish_handle.is_shutdown_requested() {
                 break;
             }
@@ -170,14 +150,9 @@ where
             let pie_bytes = compress_pie(new_block.pie.clone()).await.unwrap();
             let block_number = block_number.try_into().unwrap();
 
-            crate::utils::retry_with_backoff(
-                || db.add_pie(block_number, pie_bytes.clone(), Step::Snos),
-                "add_pie",
-                3,
-                Duration::from_secs(2),
-            )
-            .await
-            .unwrap();
+            db.add_pie(block_number, pie_bytes.clone(), Step::Snos)
+                .await
+                .unwrap();
 
             info!("Pie generated for block #{}", block_number);
             if channel.send(new_block).await.is_err() {
@@ -214,8 +189,11 @@ where
         while !self.finish_handle.is_shutdown_requested() {
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
-                    if task_tx.send(self.current_block).await.is_err() {
-                        break;
+                    // Debug.
+                    if self.current_block == 99 {
+                        if task_tx.send(self.current_block).await.is_err() {
+                            break;
+                        }
                     }
                     self.current_block += 1;
                 }
