@@ -147,26 +147,25 @@ where
                 compressed_pie.len()
             );
 
-            let atlantic_query_id = client
-                .submit_proof_generation(
-                    compressed_pie,
-                    "dynamic".to_string(),
-                    format!("snos_{}", new_block.number),
-                )
-                .await
-                .unwrap();
-
-            crate::utils::retry_with_backoff(
+            let atlantic_query_id = crate::utils::retry_with_backoff(
                 || {
-                    db.add_query_id(
-                        new_block.number.try_into().unwrap(),
-                        atlantic_query_id.clone(),
-                        crate::storage::Query::SnosProof,
+                    client.submit_proof_generation(
+                        compressed_pie.clone(),
+                        "dynamic".to_string(),
+                        format!("snos_{}", new_block.number),
                     )
                 },
-                "add_query_id",
+                "submit_proof_generation",
                 3,
-                Duration::from_secs(2),
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
+
+            db.add_query_id(
+                new_block.number.try_into().unwrap(),
+                atlantic_query_id.clone(),
+                crate::storage::Query::SnosProof,
             )
             .await
             .unwrap();
@@ -268,6 +267,7 @@ where
             }
         }
     }
+
     async fn get_proof(
         client: AtlanticClient,
         atlantic_query_id: String,
@@ -277,11 +277,10 @@ where
         let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
         let proof_in_bytes = raw_proof.as_bytes().to_vec();
 
-        crate::utils::retry_with_backoff(
-            || db.add_proof(block_number, proof_in_bytes.clone(), crate::storage::Step::Snos),
-            "add_proof",
-            3,
-            Duration::from_secs(2),
+        db.add_proof(
+            block_number,
+            proof_in_bytes.clone(),
+            crate::storage::Step::Snos,
         )
         .await
         .unwrap();

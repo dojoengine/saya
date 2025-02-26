@@ -24,7 +24,7 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_COUNT: usize = 7;
+const WORKER_COUNT: usize = 10;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -206,27 +206,28 @@ where
 
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
 
-                    crate::utils::retry_with_backoff(
-                        || db.add_pie(block_number_u32, compressed_pie.clone(), Step::Bridge),
-                        "add_pie",
-                        3,
-                        Duration::from_secs(2),
-                    )
-                    .await
-                    .unwrap();
+                    db.add_pie(block_number_u32, compressed_pie.clone(), Step::Bridge)
+                        .await
+                        .unwrap();
 
                     compressed_pie
                 }
             };
 
-            let atlantic_query_id = client
-                .submit_proof_generation(
-                    compressed_pie,
-                    "recursive_with_poseidon".to_string(),
-                    format!("layout-{}", new_snos_proof.block_number),
-                )
-                .await
-                .unwrap();
+            let atlantic_query_id = crate::utils::retry_with_backoff(
+                || {
+                    client.submit_proof_generation(
+                        compressed_pie.clone(),
+                        "recursive_with_poseidon".to_string(),
+                        format!("layout-{}", new_snos_proof.block_number),
+                    )
+                },
+                "submit_proof_generation",
+                3,
+                Duration::from_secs(5),
+            )
+            .await
+            .unwrap();
 
             crate::utils::retry_with_backoff(
                 || {
