@@ -198,15 +198,19 @@ where
                     .await
                     .unwrap();
 
-                    if status_blocks.iter().filter(|status| status == &"snos_proof_submitted").count() > WORKER_COUNT {
+                    if status_blocks
+                        .iter()
+                        .filter(|status| status == &"snos_proof_submitted")
+                        .count()
+                        > WORKER_COUNT
+                    {
                         sleep(BLOCK_CHECK_INTERVAL).await;
-                        continue;
+                    } else {
+                        if task_tx.send(self.current_block).await.is_err() {
+                            break;
+                        }
+                        self.current_block += 1;
                     }
-
-                    if task_tx.send(self.current_block).await.is_err() {
-                        break;
-                    }
-                    self.current_block += 1;
                 }
                 _ => {
                     // trace!("Block #{} is not available yet", self.current_block);
