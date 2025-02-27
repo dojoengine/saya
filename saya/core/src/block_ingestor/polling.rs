@@ -26,7 +26,7 @@ use super::BlockPieGenerator;
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const TASK_BUFFER_SIZE: usize = 10;
-const WORKER_COUNT: usize = 2;
+const WORKER_COUNT: usize = 4;
 const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
@@ -105,7 +105,7 @@ where
 
             // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
             // is already a good limit, since layout bridge proof is long to generate.
-            while block_number > (first_db_block + 20) as u64 {
+            while block_number > (first_db_block + 30) as u64 {
                 //trace!(
                 //    "Block #{} is too high compared to the first block in the DB, reading the db again",
                 //    block_number
