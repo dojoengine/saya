@@ -60,7 +60,16 @@ where
     /// Fetches the latest block number from the StarkNet RPC.
     async fn get_latest_block(&self) -> Option<u64> {
         let provider = JsonRpcClient::new(HttpTransport::new(self.rpc_url.clone()));
-        match provider.block_number().await {
+
+        let block_number = crate::utils::retry_with_backoff(
+            || provider.block_number(),
+            "get_latest_block",
+            MAX_RETRIES as u32,
+            Duration::from_secs(5),
+        )
+        .await;
+
+        match block_number {
             Ok(block_number) => Some(block_number),
             Err(err) => {
                 error!("Failed to fetch latest block: {}", err);
