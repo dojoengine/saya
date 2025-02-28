@@ -249,7 +249,11 @@ impl AtlanticClient {
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            anyhow::bail!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            );
         }
 
         Ok(response.text().await?)

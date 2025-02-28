@@ -274,7 +274,14 @@ where
         db: DB,
         block_number: u32,
     ) -> SnosProof<P> {
-        let raw_proof = client.get_proof(&atlantic_query_id).await.unwrap();
+        let raw_proof = crate::utils::retry_with_backoff(
+            || client.get_proof(&atlantic_query_id),
+            "get_proof",
+            3,
+            Duration::from_secs(5),
+        )
+        .await
+        .unwrap();
         let proof_in_bytes = raw_proof.as_bytes().to_vec();
 
         db.add_proof(
