@@ -112,24 +112,27 @@ where
             .await
             .unwrap();
 
-            // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
-            // is already a good limit, since layout bridge proof is long to generate.
-            while block_number > (first_db_block + 30) as u64 {
-                //trace!(
-                //    "Block #{} is too high compared to the first block in the DB, reading the db again",
-                //    block_number
-                //);
+            // TODO: to be reworked, tmp solution. Channels should control the flow.
+            if first_db_block > 0 {
+                // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
+                // is already a good limit, since layout bridge proof is long to generate.
+                while block_number > (first_db_block + 30) as u64 {
+                    //trace!(
+                    //    "Block #{} is too high compared to the first block in the DB, reading the db again",
+                    //    block_number
+                    //);
 
-                sleep(BLOCK_CHECK_INTERVAL).await;
+                    sleep(BLOCK_CHECK_INTERVAL).await;
 
-                first_db_block = crate::utils::retry_with_backoff(
-                    || db.get_first_db_block(),
-                    "get_first_db_block",
-                    MAX_RETRIES as u32,
-                    Duration::from_secs(5),
-                )
-                .await
-                .unwrap();
+                    first_db_block = crate::utils::retry_with_backoff(
+                        || db.get_first_db_block(),
+                        "get_first_db_block",
+                        MAX_RETRIES as u32,
+                        Duration::from_secs(5),
+                    )
+                    .await
+                    .unwrap();
+                }
             }
 
             crate::utils::retry_with_backoff(
