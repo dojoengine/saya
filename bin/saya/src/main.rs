@@ -17,6 +17,8 @@ use sharding::Sharding;
 
 mod any;
 
+mod common;
+
 #[derive(Debug, Parser)]
 #[clap(about, version)]
 struct Cli {

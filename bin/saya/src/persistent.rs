@@ -22,7 +22,7 @@ use saya_core::{
 use starknet_types_core::felt::Felt;
 use url::Url;
 
-use crate::any::AnyLayoutBridgeProverBuilder;
+use crate::{any::AnyLayoutBridgeProverBuilder, common::calculate_workers_per_stage};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -80,6 +80,8 @@ struct Start {
 
     #[clap(subcommand)]
     pie_mode: PieGenerationMode,
+    #[clap(long, env, default_value_t = 60)]
+    blocks_processed_in_parallel: usize,
 }
 
 #[derive(Debug, Subcommand, Clone)]
@@ -116,6 +118,14 @@ impl Start {
         } else {
             "saya.db".to_string()
         };
+        let workers_distribution: [usize; 3] =
+            calculate_workers_per_stage(self.blocks_processed_in_parallel);
+        let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
+            workers_distribution;
+        println!(
+            "snos_worker_count: {}, layout_bridge_workers_count: {}, ingestor_worker_count: {}",
+            snos_worker_count, layout_bridge_workers_count, ingestor_worker_count
+        );
         let db = SqliteDb::new(&saya_path).await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
@@ -135,6 +145,7 @@ impl Start {
                         layout_bridge,
                         trace_gen,
                         db.clone(),
+                        layout_bridge_workers_count,
                     ))
                 }
                 (None, None) => anyhow::bail!(
@@ -143,11 +154,22 @@ impl Start {
             };
 
         // TODO: make impls of these providers configurable
+
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
-        let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.rollup_rpc, snos, pie_gen, db.clone());
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.rollup_rpc,
+            snos,
+            pie_gen,
+            db.clone(),
+            ingestor_worker_count,
+        );
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie, db.clone()),
+            AtlanticSnosProverBuilder::new(
+                self.atlantic_key,
+                self.mock_snos_from_pie,
+                db.clone(),
+                snos_worker_count,
+            ),
             layout_bridge_prover_builder,
         );
         let da_builder = NoopDataAvailabilityBackendBuilder::new();

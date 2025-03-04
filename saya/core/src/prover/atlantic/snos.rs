@@ -28,7 +28,6 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_COUNT: usize = 10;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -40,6 +39,7 @@ pub struct AtlanticSnosProver<P, DB> {
     /// Whether to extract the output and compute the program hash from the PIE or use the one from the SHARP bootloader returned by the prover service.
     mock_snos_from_pie: bool,
     db: DB,
+    worker_count: usize,
 }
 
 #[derive(Debug)]
@@ -49,6 +49,7 @@ pub struct AtlanticSnosProverBuilder<P, DB> {
     proof_channel: Option<Sender<SnosProof<P>>>,
     mock_snos_from_pie: bool,
     db: DB,
+    worker_count: usize,
 }
 
 impl<P, DB> AtlanticSnosProver<P, DB>
@@ -152,7 +153,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         "dynamic".to_string(),
-                        format!("snos_{}", new_block.number),
+                        format!("bench_snos_{}", new_block.number),
                     )
                 },
                 "submit_proof_generation",
@@ -204,7 +205,7 @@ where
     async fn run(self) {
         let mut workers = Vec::new();
         let task_rx = Arc::new(Mutex::new(self.statement_channel));
-        for _ in 0..WORKER_COUNT {
+        for _ in 0..self.worker_count {
             let worker_task_tx = self.proof_channel.clone();
             workers.push(task::spawn(Self::worker(
                 task_rx.clone(),
@@ -298,13 +299,14 @@ where
 }
 
 impl<P, DB> AtlanticSnosProverBuilder<P, DB> {
-    pub fn new(api_key: String, mock_snos_from_pie: bool, db: DB) -> Self {
+    pub fn new(api_key: String, mock_snos_from_pie: bool, db: DB, worker_count: usize) -> Self {
         Self {
             api_key,
             statement_channel: None,
             proof_channel: None,
             mock_snos_from_pie,
             db,
+            worker_count,
         }
     }
 }
@@ -328,6 +330,7 @@ where
             finish_handle: FinishHandle::new(),
             mock_snos_from_pie: self.mock_snos_from_pie,
             db: self.db,
+            worker_count: self.worker_count,
         })
     }
 

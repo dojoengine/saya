@@ -106,14 +106,17 @@ impl Start {
         let mut snos_file = std::fs::File::open(self.snos_program)?;
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
-
         // TODO: make impls of these providers configurable
         let pie_gen: SnosPieGenerator = self.pie_mode.into();
         let db = SqliteDb::new("saya.db").await?;
         let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db.clone());
-        let prover_builder =
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie, db.clone());
+            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db.clone(), 5);
+        let prover_builder = AtlanticSnosProverBuilder::new(
+            self.atlantic_key,
+            self.mock_snos_from_pie,
+            db.clone(),
+            5,
+        );
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();

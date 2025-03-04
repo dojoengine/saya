@@ -10,7 +10,7 @@ use tokio::{
         Mutex,
     },
     task,
-    time::sleep,
+    time::{sleep, Instant},
 };
 use url::Url;
 
@@ -25,8 +25,7 @@ use super::BlockPieGenerator;
 
 const PROVE_BLOCK_FAILURE_BACKOFF: Duration = Duration::from_secs(5);
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
-const TASK_BUFFER_SIZE: usize = 10;
-const WORKER_COUNT: usize = 4;
+const TASK_BUFFER_SIZE: usize = 4;
 const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
@@ -39,6 +38,7 @@ pub struct PollingBlockIngestor<S, B, DB> {
     finish_handle: FinishHandle,
     block_pie_generator: B,
     db: DB,
+    workers_count: usize,
 }
 
 #[derive(Debug)]
@@ -49,6 +49,7 @@ pub struct PollingBlockIngestorBuilder<S, B, DB> {
     channel: Option<Sender<NewBlock>>,
     block_pie_generator: B,
     db: DB,
+    workers_count: usize,
 }
 
 impl<S, B, DB> PollingBlockIngestor<S, B, DB>
@@ -103,34 +104,34 @@ where
                 break;
             }
 
-            let mut first_db_block = crate::utils::retry_with_backoff(
-                || db.get_first_db_block(),
-                "get_first_db_block",
-                MAX_RETRIES as u32,
-                Duration::from_secs(5),
-            )
-            .await
-            .unwrap();
+            // let mut first_db_block = crate::utils::retry_with_backoff(
+            //     || db.get_first_db_block(),
+            //     "get_first_db_block",
+            //     MAX_RETRIES as u32,
+            //     Duration::from_secs(5),
+            // )
+            // .await
+            // .unwrap();
 
             // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
             // is already a good limit, since layout bridge proof is long to generate.
-            while block_number > (first_db_block + 30) as u64 {
-                //trace!(
-                //    "Block #{} is too high compared to the first block in the DB, reading the db again",
-                //    block_number
-                //);
+            // while block_number > (first_db_block + 30) as u64 {
+            //     //trace!(
+            //     //    "Block #{} is too high compared to the first block in the DB, reading the db again",
+            //     //    block_number
+            //     //);
 
-                sleep(BLOCK_CHECK_INTERVAL).await;
+            //     sleep(BLOCK_CHECK_INTERVAL).await;
 
-                first_db_block = crate::utils::retry_with_backoff(
-                    || db.get_first_db_block(),
-                    "get_first_db_block",
-                    MAX_RETRIES as u32,
-                    Duration::from_secs(5),
-                )
-                .await
-                .unwrap();
-            }
+            //     first_db_block = crate::utils::retry_with_backoff(
+            //         || db.get_first_db_block(),
+            //         "get_first_db_block",
+            //         MAX_RETRIES as u32,
+            //         Duration::from_secs(5),
+            //     )
+            //     .await
+            //     .unwrap();
+            // }
 
             crate::utils::retry_with_backoff(
                 || db.initialize_block(block_number.try_into().unwrap()),
@@ -166,7 +167,7 @@ where
                     trace!("Failed to get pie for block #{}: {:?}", block_number, err);
                 }
             }
-
+            let start = Instant::now();
             let pie = crate::utils::retry_with_backoff(
                 || {
                     block_pie_generator.prove_block(
@@ -181,7 +182,8 @@ where
             )
             .await
             .unwrap();
-
+            let elapsed = start.elapsed();
+            println!("Proving block #{} took {:?}", block_number, elapsed);
             if finish_handle.is_shutdown_requested() {
                 break;
             }
@@ -209,7 +211,7 @@ where
         let mut workers = Vec::new();
         let task_rx = Arc::new(Mutex::new(task_rx));
 
-        for _ in 0..WORKER_COUNT {
+        for _ in 0..self.workers_count {
             let worker_task_rx = task_rx.clone();
             let block_pie_generator = self.block_pie_generator.clone();
             let finish_handle = self.finish_handle.clone();
@@ -252,7 +254,13 @@ where
 }
 
 impl<S, B, DB> PollingBlockIngestorBuilder<S, B, DB> {
-    pub fn new(rpc_url: Url, snos: S, block_pie_generator: B, db: DB) -> Self {
+    pub fn new(
+        rpc_url: Url,
+        snos: S,
+        block_pie_generator: B,
+        db: DB,
+        workers_count: usize,
+    ) -> Self {
         Self {
             rpc_url,
             snos,
@@ -260,6 +268,7 @@ impl<S, B, DB> PollingBlockIngestorBuilder<S, B, DB> {
             channel: None,
             block_pie_generator,
             db,
+            workers_count,
         }
     }
 }
@@ -285,6 +294,7 @@ where
             finish_handle: FinishHandle::new(),
             block_pie_generator: self.block_pie_generator,
             db: self.db,
+            workers_count: self.workers_count,
         })
     }
 

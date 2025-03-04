@@ -24,7 +24,6 @@ use crate::{
 };
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
-const WORKER_COUNT: usize = 10;
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -36,6 +35,7 @@ pub struct AtlanticLayoutBridgeProver<T, DB> {
     finish_handle: FinishHandle,
     trace_generator: T,
     db: DB,
+    workers_count: usize,
 }
 
 #[derive(Debug)]
@@ -46,6 +46,7 @@ pub struct AtlanticLayoutBridgeProverBuilder<T, DB> {
     proof_channel: Option<Sender<RecursiveProof>>,
     trace_generator: T,
     db: DB,
+    workers_count: usize,
 }
 
 impl<T, DB> AtlanticLayoutBridgeProver<T, DB>
@@ -154,7 +155,7 @@ where
                     // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
                     // TODO: patch `swiftness` and fix this
                     let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-                    let label = format!("layout-trace-{}", new_snos_proof.block_number);
+                    let label = format!("bench_layout-trace-{}", new_snos_proof.block_number);
 
                     // This call fails a lot on atlantic.
                     let layout_bridge_pie = {
@@ -219,7 +220,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         "recursive_with_poseidon".to_string(),
-                        format!("layout-{}", new_snos_proof.block_number),
+                        format!("bench_layout-{}", new_snos_proof.block_number),
                     )
                 },
                 "submit_proof_generation",
@@ -279,7 +280,7 @@ where
     async fn run(self) {
         let mut workers = Vec::new();
         let task_rx = Arc::new(Mutex::new(self.statement_channel));
-        for _ in 0..WORKER_COUNT {
+        for _ in 0..self.workers_count {
             let worker_task_rx = task_rx.clone();
             let task_tx = self.proof_channel.clone();
             let client = self.client.clone();
@@ -368,7 +369,13 @@ where
 }
 
 impl<T, DB> AtlanticLayoutBridgeProverBuilder<T, DB> {
-    pub fn new<P>(api_key: String, layout_bridge: P, trace_generator: T, db: DB) -> Self
+    pub fn new<P>(
+        api_key: String,
+        layout_bridge: P,
+        trace_generator: T,
+        db: DB,
+        workers_count: usize,
+    ) -> Self
     where
         P: Into<Cow<'static, [u8]>>,
         T: LayoutBridgeTraceGenerator<DB> + Send + Sync + 'static,
@@ -381,6 +388,7 @@ impl<T, DB> AtlanticLayoutBridgeProverBuilder<T, DB> {
             proof_channel: None,
             trace_generator,
             db,
+            workers_count,
         }
     }
 }
@@ -405,6 +413,7 @@ where
             finish_handle: FinishHandle::new(),
             trace_generator: self.trace_generator,
             db: self.db,
+            workers_count: self.workers_count,
         })
     }
 
