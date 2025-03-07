@@ -46,7 +46,9 @@ pub enum BlockStatus {
     BridgePieGenerated,
     BridgeProofSubmitted,
     BridgeProofGenerated,
+    VerifiedProof,
     Settled,
+    Failed,
 }
 impl std::fmt::Display for BlockStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -59,7 +61,9 @@ impl std::fmt::Display for BlockStatus {
             BlockStatus::BridgePieGenerated => write!(f, "bridge_pie_generated"),
             BlockStatus::BridgeProofSubmitted => write!(f, "bridge_proof_submitted"),
             BlockStatus::BridgeProofGenerated => write!(f, "bridge_proof_generated"),
+            BlockStatus::VerifiedProof => write!(f, "verified_proof"),
             BlockStatus::Settled => write!(f, "settled"),
+            BlockStatus::Failed => write!(f, "failed"),
         }
     }
 }
@@ -75,6 +79,8 @@ impl From<&str> for BlockStatus {
             "bridge_pie_generated" => BlockStatus::BridgePieGenerated,
             "bridge_proof_submitted" => BlockStatus::BridgeProofSubmitted,
             "bridge_proof_generated" => BlockStatus::BridgeProofGenerated,
+            "verified_proof" => BlockStatus::VerifiedProof,
+            "failed" => BlockStatus::Failed,
             "settled" => BlockStatus::Settled,
             _ => panic!("Invalid block status"),
         }

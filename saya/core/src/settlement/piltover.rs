@@ -135,100 +135,124 @@ where
             };
 
             debug!("Received new DA cursor");
-
-            match self.fact_registration {
-                FactRegistrationConfig::Integrity(integrity_address) => {
-                    // TODO: error handling
-                    let split_proof =
-                        split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
-                            new_da.full_payload.layout_bridge_proof.clone(),
-                        )
-                        .unwrap();
-                    let integrity_job_id = SigningKey::from_random().secret_scalar();
-                    let integrity_calls = split_proof
-                        .into_calls(
-                            integrity_job_id,
-                            VerifierConfiguration {
-                                layout: short_string!("recursive_with_poseidon"),
-                                hasher: short_string!("keccak_160_lsb"),
-                                stone_version: short_string!("stone6"),
-                                memory_verification: short_string!("relaxed"),
-                            },
-                        )
-                        .collect_calls(integrity_address);
-                    let integrity_call_chunks = split_calls(integrity_calls);
-                    debug!(
-                        "{} transactions to integrity verifier generated (job id: {:#064x})",
-                        integrity_call_chunks.len(),
-                        integrity_job_id
-                    );
-
-                    // TODO: error handling
-                    let mut nonce = self.account.get_nonce().await.unwrap();
-                    let mut total_fee = Felt::ZERO;
-
-                    let proof_start = Instant::now();
-
-                    for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
-                        let tx = self
-                            .account
-                            .execute_v3(chunk.to_owned())
-                            .nonce(nonce)
-                            .send()
-                            .await
+            match self
+                .db
+                .get_status(new_da.block_number.try_into().unwrap())
+                .await
+                .unwrap()
+            {
+                crate::storage::BlockStatus::BridgeProofGenerated => {
+                    match self.fact_registration {
+                        FactRegistrationConfig::Integrity(integrity_address) => {
+                            // TODO: error handling
+                            let split_proof = split_proof::<
+                                swiftness_air::layout::recursive_with_poseidon::Layout,
+                            >(
+                                new_da.full_payload.layout_bridge_proof.clone()
+                            )
                             .unwrap();
-                        debug!(
-                            "[{} / {}] Integrity verification transaction sent: {:#064x}",
-                            ind + 1,
-                            integrity_call_chunks.len(),
-                            tx.transaction_hash
-                        );
+                            let integrity_job_id = SigningKey::from_random().secret_scalar();
+                            let integrity_calls = split_proof
+                                .into_calls(
+                                    integrity_job_id,
+                                    VerifierConfiguration {
+                                        layout: short_string!("recursive_with_poseidon"),
+                                        hasher: short_string!("keccak_160_lsb"),
+                                        stone_version: short_string!("stone6"),
+                                        memory_verification: short_string!("relaxed"),
+                                    },
+                                )
+                                .collect_calls(integrity_address);
+                            let integrity_call_chunks = split_calls(integrity_calls);
+                            debug!(
+                                "{} transactions to integrity verifier generated (job id: {:#064x})",
+                                integrity_call_chunks.len(),
+                                integrity_job_id
+                            );
 
-                        // TODO: error handling
-                        let receipt =
-                            watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                            // TODO: error handling
+                            let mut nonce = self.account.get_nonce().await.unwrap();
+                            let mut total_fee = Felt::ZERO;
+
+                            let proof_start = Instant::now();
+
+                            for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
+                                let tx = self
+                                    .account
+                                    .execute_v3(chunk.to_owned())
+                                    .nonce(nonce)
+                                    .send()
+                                    .await
+                                    .unwrap();
+                                debug!(
+                                    "[{} / {}] Integrity verification transaction sent: {:#064x}",
+                                    ind + 1,
+                                    integrity_call_chunks.len(),
+                                    tx.transaction_hash
+                                );
+
+                                // TODO: error handling
+                                let receipt =
+                                    watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                                        .await
+                                        .unwrap();
+
+                                let fee = match &receipt.receipt {
+                                    TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::DeployAccount(receipt) => {
+                                        &receipt.actual_fee
+                                    }
+                                };
+
+                                debug!(
+                                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                                    ind + 1,
+                                    integrity_call_chunks.len(),
+                                    tx.transaction_hash
+                                );
+
+                                nonce += Felt::ONE;
+                                total_fee += fee.amount;
+                            }
+
+                            let proof_end = Instant::now();
+                            info!(
+                                "Proof successfully verified on integrity in {:.2} \
+                                seconds. Total cost: {} STRK",
+                                proof_end.duration_since(proof_start).as_secs_f32(),
+                                felt_to_bigdecimal(total_fee, 18)
+                            );
+                            self.db
+                                .set_status(
+                                    next_to_settle.try_into().unwrap(),
+                                    "verified_proof".to_string(),
+                                )
                                 .await
                                 .unwrap();
-
-                        let fee = match &receipt.receipt {
-                            TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
-                        };
-
-                        debug!(
-                            "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
-                            ind + 1,
-                            integrity_call_chunks.len(),
-                            tx.transaction_hash
-                        );
-
-                        nonce += Felt::ONE;
-                        total_fee += fee.amount;
+                        }
+                        FactRegistrationConfig::Skipped => {
+                            info!(
+                                "On-chain fact-registration skipped for block #{}",
+                                new_da.block_number
+                            );
+                        }
                     }
-
-                    let proof_end = Instant::now();
-                    info!(
-                        "Proof successfully verified on integrity in {:.2} \
-                        seconds. Total cost: {} STRK",
-                        proof_end.duration_since(proof_start).as_secs_f32(),
-                        felt_to_bigdecimal(total_fee, 18)
-                    );
-                    self.db
-                        .set_status(
-                            next_to_settle.try_into().unwrap(),
-                            "verified_proof".to_string(),
-                        )
-                        .await
-                        .unwrap();
                 }
-                FactRegistrationConfig::Skipped => {
+                crate::storage::BlockStatus::VerifiedProof => {
                     info!(
-                        "On-chain fact-registration skipped for block #{}",
+                        "Block #{} already verified, skipping verification",
                         new_da.block_number
                     );
+                }
+                _ => {
+                    info!(
+                        "Block #{} in unexpected state, skipping settlement",
+                        new_da.block_number
+                    );
+                    continue;
                 }
             }
 
