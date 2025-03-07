@@ -239,6 +239,30 @@ impl PersistantStorage for SqliteDb {
         let first_block: u32 = row.try_get(0)?;
         Ok(first_block)
     }
+    async fn add_failed_block(
+        &self,
+        block_number: u32,
+        failure_reason: String,
+    ) -> anyhow::Result<()> {
+        query("INSERT INTO failed_blocks (block_id, failure_reason) VALUES (?1, ?2)")
+            .bind(block_number)
+            .bind(failure_reason)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+    async fn get_failed_blocks(&self) -> anyhow::Result<Vec<(u32, String)>> {
+        let mut failed_blocks = Vec::new();
+        let rows = query("SELECT block_id, failure_reason FROM failed_blocks")
+            .fetch_all(&self.pool)
+            .await?;
+        for row in rows {
+            let block_id: u32 = row.try_get(0)?;
+            let failure_reason: String = row.try_get(1)?;
+            failed_blocks.push((block_id, failure_reason));
+        }
+        Ok(failed_blocks)
+    }
 }
 
 #[cfg(test)]
@@ -494,6 +518,17 @@ mod tests {
             proof_result.is_err(),
             "Expected error when getting proof for deleted block"
         );
+        cleanup_db(&db_path).await;
+    }
+    #[tokio::test]
+    async fn test_add_and_get_failed_block() {
+        let db_path = get_tmp().await;
+        let db = SqliteDb::new(&db_path).await.unwrap();
+        db.initialize_block(1).await.unwrap();
+        db.add_failed_block(1, "failed".to_string()).await.unwrap();
+        let failed_blocks = db.get_failed_blocks().await.unwrap();
+        println!("failed_blocks: {:?}", failed_blocks);
+        assert_eq!(failed_blocks, vec![(1, "failed".to_string())]);
         cleanup_db(&db_path).await;
     }
 }

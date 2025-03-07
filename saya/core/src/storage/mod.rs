@@ -125,4 +125,10 @@ pub trait PersistantStorage {
     fn get_status(&self, block_number: u32) -> impl Future<Output = Result<BlockStatus>> + Send;
 
     fn get_first_db_block(&self) -> impl Future<Output = Result<u32>> + Send;
+    fn add_failed_block(
+        &self,
+        block_number: u32,
+        failure_reason: String,
+    ) -> impl Future<Output = Result<()>> + Send;
+    fn get_failed_blocks(&self) -> impl Future<Output = Result<Vec<(u32, String)>>> + Send;
 }

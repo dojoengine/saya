@@ -10,7 +10,8 @@ impl SqliteDb {
         let proofs_table = Self::check_proof_table(pool).await?;
         let pies_table = Self::check_pies_table(pool).await?;
         let job_ids_table = Self::check_ids_table(pool).await?;
-        Ok(blocks_table && proofs_table && pies_table && job_ids_table)
+        let failed_blocks_table = Self::check_failed_blocks_table(pool).await?;
+        Ok(blocks_table && proofs_table && pies_table && job_ids_table && failed_blocks_table)
     }
 
     pub(crate) async fn check_blocks_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
@@ -104,8 +105,28 @@ impl SqliteDb {
             && has_trace_gen_query_id
             && has_bridge_proof_query_id)
     }
+
+    pub(crate) async fn check_failed_blocks_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
+        let columns = sqlx::query("PRAGMA table_info(failed_blocks);")
+            .fetch_all(pool)
+            .await?;
+        // Check if the table has the expected columns: id, block_id, and failure_reason
+        let mut has_id = false;
+        let mut has_block_id = false;
+        let mut has_failure_reason = false;
+        for column in columns {
+            let name: String = column.get("name");
+            match name.as_str() {
+                "id" => has_id = true,
+                "block_id" => has_block_id = true,
+                "failure_reason" => has_failure_reason = true,
+                _ => {}
+            }
+        }
+        Ok(has_id && has_block_id && has_failure_reason)
+    }
     pub(crate) async fn check_table_exists(pool: &Pool<Sqlite>) -> Result<bool, Error> {
-        let expected_tables = vec!["blocks", "pies", "proofs", "job_ids"];
+        let expected_tables = vec!["blocks", "pies", "proofs", "job_ids", "failed_blocks"];
         for table in expected_tables {
             let exists =
                 sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name=?")

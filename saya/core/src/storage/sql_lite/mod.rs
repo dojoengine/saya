@@ -43,6 +43,7 @@ impl SqliteDb {
             Self::create_proof_table(&pool).await?;
             Self::create_pies_table(&pool).await?;
             Self::create_job_id_table(&pool).await?;
+            Self::create_failed_blocks_table(&pool).await?;
         } else {
             trace!("Table 'blocks' with correct structure found.");
         }
@@ -64,7 +65,9 @@ impl SqliteDb {
                         'bridge_pie_generated',
                         'bridge_proof_submitted',
                         'bridge_proof_generated',
-                        'settled'
+                        'verified_proof',
+                        'settled',
+                        'failed'
                     )
                 )
             );
@@ -113,6 +116,20 @@ impl SqliteDb {
             snos_proof_query_id TEXT,
             trace_gen_query_id TEXT,
             bridge_proof_query_id TEXT
+            );
+            "#,
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+    pub async fn create_failed_blocks_table(pool: &Pool<Sqlite>) -> Result<(), Error> {
+        query(
+            r#"
+            CREATE TABLE IF NOT EXISTS failed_blocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                block_id INTEGER NOT NULL REFERENCES blocks(block_id),
+                failure_reason TEXT NOT NULL
             );
             "#,
         )
