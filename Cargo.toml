@@ -46,6 +46,7 @@ swiftness_commitment = { version = "1.0.0", default-features = false }
 swiftness_fri = { version = "1.0.0", default-features = false }
 swiftness_pow = { version = "1.0.0", default-features = false }
 swiftness_stark = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+thiserror = "2.0.12"
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", default-features = false }

@@ -16,16 +16,16 @@ use zip::{write::FileOptions, ZipWriter};
 use crate::{
     block_ingestor::NewBlock,
     prover::{
-        atlantic::{
-            client::{AtlanticClient, AtlanticJobStatus},
-            AtlanticProof, PROOF_GENERATION_JOB_NAME,
-        },
+        atlantic::{client::AtlanticClient, AtlanticProof},
+        error::ProverError,
         Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::PersistantStorage,
     utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
 };
+
+use super::client::AtlanticQueryStatus;
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
@@ -64,7 +64,8 @@ where
         finish_handle: FinishHandle,
         mock_snos_from_pie: bool,
         db: DB,
-    ) where
+    ) -> Result<(), ProverError>
+    where
         P: AtlanticProof,
         DB: PersistantStorage,
     {
@@ -74,7 +75,10 @@ where
             } else {
                 break;
             };
-            let block_number_u32 = new_block.number.try_into().unwrap();
+            let block_number_u32 = new_block.number.try_into().map_err(|_| {
+                ProverError::Prover("Block number too large to fit in u32".to_string())
+            })?;
+
             match db
                 .get_proof(block_number_u32, crate::storage::Step::Snos)
                 .await
@@ -110,12 +114,25 @@ where
                         "Atlantic proof generation already submitted for block #{}: {}",
                         new_block.number, atlantic_query_id
                     );
-                    Self::wait_for_proof(
+                    match Self::wait_for_proof(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
                     )
-                    .await;
+                    .await
+                    {
+                        Err(ProverError::Shutdown) => {
+                            break;
+                        }
+                        Err(ProverError::BlockFail(e)) => {
+                            log::error!("{}", e,);
+                            db.add_failed_block(block_number_u32, e).await.unwrap();
+                            continue;
+                        }
+                        Err(_) => {}
+                        Ok(_) => {}
+                    }
+
                     let new_proof = Self::get_proof(
                         client.clone(),
                         atlantic_query_id,
@@ -123,6 +140,7 @@ where
                         block_number_u32,
                     )
                     .await;
+
                     tokio::select! {
                         _ = finish_handle.shutdown_requested() => break,
                         _ = task_tx.send(new_proof) => {},
@@ -131,11 +149,6 @@ where
                 }
                 Err(_) => {
                     // Not found in db, we continue.
-                    //log::error!(
-                    //    "Failed to get query id for block #{}: {}",
-                    //    new_block.number,
-                    //    e
-                    //);
                 }
             }
             // TODO: error handling
@@ -160,8 +173,7 @@ where
                 3,
                 Duration::from_secs(5),
             )
-            .await
-            .unwrap();
+            .await?;
 
             db.add_query_id(
                 new_block.number.try_into().unwrap(),
@@ -170,18 +182,29 @@ where
             )
             .await
             .unwrap();
-
             info!(
                 "Atlantic proof generation submitted for block #{}: {}",
                 new_block.number, atlantic_query_id
             );
 
-            Self::wait_for_proof(
+            match Self::wait_for_proof(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
             )
-            .await;
+            .await
+            {
+                Err(ProverError::Shutdown) => {
+                    break;
+                }
+                Err(ProverError::BlockFail(e)) => {
+                    log::error!("{}", e);
+                    db.add_failed_block(block_number_u32, e).await.unwrap();
+                    continue;
+                }
+                Err(_) => {}
+                Ok(_) => {}
+            }
 
             debug!(
                 "Atlantic PIE proof generation finished for query: {}",
@@ -200,6 +223,7 @@ where
                 _ = task_tx.send(new_proof) => {},
             }
         }
+        Ok(())
     }
 
     async fn run(self) {
@@ -243,30 +267,27 @@ where
         client: AtlanticClient,
         atlantic_query_id: String,
         finish_handle: FinishHandle,
-    ) {
+    ) -> Result<(), ProverError> {
         loop {
             // TODO: sleep with graceful shutdown
             tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
             if finish_handle.is_shutdown_requested() {
-                break;
+                return Err(ProverError::Shutdown);
             }
-            // TODO: error handling
-            if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
-                if let Some(proof_generation_job) = jobs
-                    .iter()
-                    .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                {
-                    match proof_generation_job.status {
-                        AtlanticJobStatus::Completed => break,
-                        AtlanticJobStatus::Failed => {
-                            // TODO: error handling
-                            panic!("Atlantic proof generation {} failed", atlantic_query_id);
-                        }
-                        AtlanticJobStatus::InProgress => {}
+            if let Ok(jobs) = client.clone().get_atlantic_query(&atlantic_query_id).await {
+                match jobs.atlantic_query.status {
+                    AtlanticQueryStatus::Done => break,
+                    AtlanticQueryStatus::Failed => {
+                        return Err(ProverError::BlockFail(format!(
+                            "Proof generation failed for query: {}",
+                            atlantic_query_id
+                        )));
                     }
+                    _ => continue,
                 }
             }
         }
+        Ok(())
     }
 
     async fn get_proof(

@@ -131,4 +131,8 @@ pub trait PersistantStorage {
         failure_reason: String,
     ) -> impl Future<Output = Result<()>> + Send;
     fn get_failed_blocks(&self) -> impl Future<Output = Result<Vec<(u32, String)>>> + Send;
+    fn mark_failed_blocks_as_handled(
+        &self,
+        block_id: &[u32],
+    ) -> impl Future<Output = Result<()>> + Send;
 }

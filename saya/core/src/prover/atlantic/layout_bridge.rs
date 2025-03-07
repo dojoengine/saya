@@ -11,17 +11,16 @@ use tokio::sync::{
 
 use crate::{
     prover::{
-        atlantic::{
-            client::{AtlanticClient, AtlanticJobStatus},
-            snos::compress_pie,
-            PROOF_GENERATION_JOB_NAME,
-        },
+        atlantic::{client::AtlanticClient, snos::compress_pie},
+        error::ProverError,
         LayoutBridgeTraceGenerator, Prover, ProverBuilder, RecursiveProof, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
     utils::calculate_output,
 };
+
+use super::client::AtlanticQueryStatus;
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
@@ -121,12 +120,24 @@ where
                         "Proof generation already submitted for block #{}",
                         new_snos_proof.block_number
                     );
-                    Self::wait_for_proof(
+                    match Self::wait_for_proof(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
                     )
-                    .await;
+                    .await
+                    {
+                        Err(ProverError::Shutdown) => {
+                            break;
+                        }
+                        Err(ProverError::BlockFail(e)) => {
+                            log::error!("{}", e,);
+                            db.add_failed_block(block_number_u32, e).await.unwrap();
+                            continue;
+                        }
+                        Err(_) => {}
+                        Ok(_) => {}
+                    }
                     debug!(
                         "Atlantic layout bridge proof generation finished for query: {}",
                         atlantic_query_id
@@ -192,19 +203,6 @@ where
                         }
                     };
 
-                    /*
-                    //trace gen Trait executed here.
-                    let layout_bridge_pie = trace_generator
-                        .generate_trace(
-                            layout_bridge.clone().to_vec(),
-                            block_number_u32,
-                            input.into_bytes(),
-                            db.clone(),
-                        )
-                        .await
-                        .unwrap();
-                    */
-
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
 
                     db.add_pie(block_number_u32, compressed_pie.clone(), Step::Bridge)
@@ -251,12 +249,24 @@ where
             );
 
             // Wait for bridge layout proof to be done
-            Self::wait_for_proof(
+            match Self::wait_for_proof(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
             )
-            .await;
+            .await
+            {
+                Err(ProverError::Shutdown) => {
+                    break;
+                }
+                Err(ProverError::BlockFail(e)) => {
+                    log::error!("{}", e,);
+                    db.add_failed_block(block_number_u32, e).await.unwrap();
+                    continue;
+                }
+                Err(_) => {}
+                Ok(_) => {}
+            }
 
             debug!(
                 "Atlantic layout bridge proof generation finished for query: {}",
@@ -306,30 +316,27 @@ where
         client: AtlanticClient,
         atlantic_query_id: String,
         finish_handle: FinishHandle,
-    ) {
+    ) -> Result<(), ProverError> {
         loop {
             // TODO: sleep with graceful shutdown
             tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
             if finish_handle.is_shutdown_requested() {
-                break;
+                return Err(ProverError::Shutdown);
             }
-            // TODO: error handling
-            if let Ok(jobs) = client.get_query_jobs(&atlantic_query_id).await {
-                if let Some(proof_generation_job) = jobs
-                    .iter()
-                    .find(|job| job.job_name == PROOF_GENERATION_JOB_NAME)
-                {
-                    match proof_generation_job.status {
-                        AtlanticJobStatus::Completed => break,
-                        AtlanticJobStatus::Failed => {
-                            // TODO: error handling
-                            panic!("Atlantic proof generation {} failed", atlantic_query_id);
-                        }
-                        AtlanticJobStatus::InProgress => {}
+            if let Ok(jobs) = client.clone().get_atlantic_query(&atlantic_query_id).await {
+                match jobs.atlantic_query.status {
+                    AtlanticQueryStatus::Done => break,
+                    AtlanticQueryStatus::Failed => {
+                        return Err(ProverError::BlockFail(format!(
+                            "Proof generation failed for query: {}",
+                            atlantic_query_id
+                        )));
                     }
+                    _ => continue,
                 }
             }
         }
+        Ok(())
     }
     async fn get_proof(
         client: AtlanticClient,

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use anyhow::Result;
+use crate::prover::error::ProverError;
 use reqwest::{
     multipart::{Form, Part},
     Client, ClientBuilder,
@@ -41,6 +41,18 @@ pub struct AtlanticQueryJob {
     pub context: serde_json::Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlanticQueryResponse {
+    pub atlantic_query: AtlanticQuery,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlanticQuery {
+    pub id: String,
+    pub status: AtlanticQueryStatus,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AtlanticJobStatus {
@@ -52,6 +64,7 @@ pub enum AtlanticJobStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum AtlanticJobSize {
+    XS,
     S,
     M,
     L,
@@ -60,6 +73,7 @@ pub enum AtlanticJobSize {
 impl AtlanticJobSize {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::XS => "XS",
             Self::S => "S",
             Self::M => "M",
             Self::L => "L",
@@ -148,7 +162,7 @@ impl AtlanticClient {
         compressed_pie: T,
         layout: String,
         label: String,
-    ) -> Result<String>
+    ) -> Result<String, ProverError>
     where
         T: Into<Cow<'static, [u8]>>,
     {
@@ -167,16 +181,16 @@ impl AtlanticClient {
             .text("layout", layout)
             .text("externalId", label)
             // Let's go `M` for now since we may be at the limit for `S` jobs.
-            .text("declaredJobSize", AtlanticJobSize::M.as_str())
+            .text("declaredJobSize", AtlanticJobSize::S.as_str())
             .text("result", AtlanticQueryResult::ProofGeneration.as_str());
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!(
+            return Err(ProverError::Prover(format!(
                 "unsuccessful status code: {}\n{}",
                 response.status(),
                 response.text().await?
-            );
+            )));
         }
 
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
@@ -188,7 +202,7 @@ impl AtlanticClient {
         label: &str,
         program: P,
         input: I,
-    ) -> Result<String>
+    ) -> Result<String, ProverError>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
@@ -199,7 +213,7 @@ impl AtlanticClient {
         let form = Form::new()
             .text("cairoVersion", AtlanticCairoVersion::Cairo0.as_str())
             .text("result", AtlanticQueryResult::TraceGeneration.as_str())
-            .text("declaredJobSize", AtlanticJobSize::M.as_str())
+            .text("declaredJobSize", AtlanticJobSize::XS.as_str())
             .text("cairoVm", AtlanticCairoVmVersion::Python.as_str())
             .text("externalId", label.to_string())
             .part(
@@ -218,17 +232,17 @@ impl AtlanticClient {
             );
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!(
+            return Err(ProverError::Prover(format!(
                 "unsuccessful status code: {}\n{}",
                 response.status(),
                 response.text().await?
-            );
+            )));
         }
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>> {
+    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>, ProverError> {
         let mut url = self.api_base.clone();
         url.path_segments_mut()
             .unwrap()
@@ -237,25 +251,48 @@ impl AtlanticClient {
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}",
+                response.status()
+            )));
         }
 
         let response = response.json::<AtlanticQueryJobsResponse>().await?;
         Ok(response.jobs)
     }
+    pub async fn get_atlantic_query(self, id: &str) -> Result<AtlanticQueryResponse, ProverError> {
+        let mut url = self.api_base.clone();
+        url.path_segments_mut()
+            .unwrap()
+            .push("atlantic-query")
+            .push(id);
+        let response = self.http_client.get(url).send().await?;
+        if !response.status().is_success() {
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}",
+                response.status()
+            )));
+        }
+        let response = response.json::<AtlanticQueryResponse>().await?;
+        Ok(response)
+    }
 
-    pub async fn get_proof(&self, id: &str) -> Result<String> {
+    pub async fn get_proof(&self, id: &str) -> Result<String, ProverError> {
         let url = format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id);
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            )));
         }
 
         Ok(response.text().await?)
     }
 
-    pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>> {
+    pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>, ProverError> {
         // For now we hardcode the cairo version to 0, since we only use pythonVM with Cairo 0 for layout bridge
         // for the trace generation.
         // But since the response from atlantic job doesn't contain the cairo version,

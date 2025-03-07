@@ -26,6 +26,8 @@ pub use atlantic::compress_pie;
 pub use atlantic::AtlanticClient;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
 
+pub mod error;
+
 pub trait ProverBuilder {
     type Prover: Prover;
 

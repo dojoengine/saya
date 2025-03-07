@@ -104,35 +104,6 @@ where
                 break;
             }
 
-            // let mut first_db_block = crate::utils::retry_with_backoff(
-            //     || db.get_first_db_block(),
-            //     "get_first_db_block",
-            //     MAX_RETRIES as u32,
-            //     Duration::from_secs(5),
-            // )
-            // .await
-            // .unwrap();
-
-            // Limit jobs to not overkill atlantic. Having 20 blocks in the pipeline
-            // is already a good limit, since layout bridge proof is long to generate.
-            // while block_number > (first_db_block + 30) as u64 {
-            //     //trace!(
-            //     //    "Block #{} is too high compared to the first block in the DB, reading the db again",
-            //     //    block_number
-            //     //);
-
-            //     sleep(BLOCK_CHECK_INTERVAL).await;
-
-            //     first_db_block = crate::utils::retry_with_backoff(
-            //         || db.get_first_db_block(),
-            //         "get_first_db_block",
-            //         MAX_RETRIES as u32,
-            //         Duration::from_secs(5),
-            //     )
-            //     .await
-            //     .unwrap();
-            // }
-
             crate::utils::retry_with_backoff(
                 || db.initialize_block(block_number.try_into().unwrap()),
                 "initialize_block",
@@ -234,8 +205,31 @@ where
         while !self.finish_handle.is_shutdown_requested() {
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
+                    // Retrieve failed blocks with retries and handle errors gracefully
+                    if let Ok(mut failed_blocks) = crate::utils::retry_with_backoff(
+                        || self.db.get_failed_blocks(),
+                        "get_failed_blocks",
+                        MAX_RETRIES as u32,
+                        Duration::from_secs(5),
+                    )
+                    .await
+                    {
+                        // Send all failed blocks in one iteration
+                        let block_ids: Vec<u32> = failed_blocks.iter().map(|(id, _)| *id).collect();
+                        for (block_id, _) in failed_blocks.drain(..) {
+                            if task_tx.send(block_id as u64).await.is_err() {
+                                return;
+                            }
+                        }
+                        self.db
+                            .mark_failed_blocks_as_handled(&block_ids)
+                            .await
+                            .unwrap();
+                    }
+
+                    // Send current block and increment
                     if task_tx.send(self.current_block).await.is_err() {
-                        break;
+                        return;
                     }
                     self.current_block += 1;
                 }

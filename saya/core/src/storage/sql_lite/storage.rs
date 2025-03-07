@@ -244,24 +244,57 @@ impl PersistantStorage for SqliteDb {
         block_number: u32,
         failure_reason: String,
     ) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        // Remove the faulty block from blocks table
+        query("DELETE FROM blocks WHERE block_id = ?1")
+            .bind(block_number)
+            .execute(&mut *tx)
+            .await?;
+        // Initialize the block
+        query("INSERT OR IGNORE INTO blocks (block_id, status) VALUES (?1, 'mined')")
+            .bind(block_number)
+            .execute(&mut *tx)
+            .await?;
+        // Add the block to failed_blocks table
         query("INSERT INTO failed_blocks (block_id, failure_reason) VALUES (?1, ?2)")
             .bind(block_number)
             .bind(failure_reason)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+
+        tx.commit().await?;
         Ok(())
     }
     async fn get_failed_blocks(&self) -> anyhow::Result<Vec<(u32, String)>> {
         let mut failed_blocks = Vec::new();
-        let rows = query("SELECT block_id, failure_reason FROM failed_blocks")
-            .fetch_all(&self.pool)
-            .await?;
+        let rows =
+            query("SELECT block_id, failure_reason FROM failed_blocks WHERE handled = FALSE")
+                .fetch_all(&self.pool)
+                .await?;
         for row in rows {
             let block_id: u32 = row.try_get(0)?;
             let failure_reason: String = row.try_get(1)?;
             failed_blocks.push((block_id, failure_reason));
         }
         Ok(failed_blocks)
+    }
+    async fn mark_failed_blocks_as_handled(&self, block_ids: &[u32]) -> anyhow::Result<()> {
+        if block_ids.is_empty() {
+            return Ok(()); // Nothing to update
+        }
+
+        let mut query = String::from("UPDATE failed_blocks SET handled = TRUE WHERE block_id IN (");
+        query.push_str(&block_ids.iter().map(|_| "?").collect::<Vec<_>>().join(","));
+        query.push(')');
+
+        let mut sql_query = sqlx::query(&query);
+        for id in block_ids {
+            sql_query = sql_query.bind(id);
+        }
+
+        sql_query.execute(&self.pool).await?;
+        Ok(())
     }
 }
 

@@ -18,7 +18,10 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_types_core::felt::Felt;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::{
+    sync::mpsc::{Receiver, Sender},
+    time::sleep,
+};
 use url::Url;
 
 use crate::{
@@ -213,6 +216,13 @@ where
                         proof_end.duration_since(proof_start).as_secs_f32(),
                         felt_to_bigdecimal(total_fee, 18)
                     );
+                    self.db
+                        .set_status(
+                            next_to_settle.try_into().unwrap(),
+                            "verified_proof".to_string(),
+                        )
+                        .await
+                        .unwrap();
                 }
                 FactRegistrationConfig::Skipped => {
                     info!(
@@ -222,6 +232,7 @@ where
                 }
             }
 
+            sleep(Duration::from_secs(10)).await;
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
@@ -273,9 +284,16 @@ where
                 new_da.block_number, transaction.transaction_hash
             );
             self.db
-                .remove_block(new_da.block_number.try_into().unwrap())
+                .set_status(
+                    new_da.block_number.try_into().unwrap(),
+                    "settled".to_string(),
+                )
                 .await
                 .unwrap();
+            // self.db
+            //     .remove_block(new_da.block_number.try_into().unwrap())
+            //     .await
+            //     .unwrap();
             let new_cursor = SettlementCursor {
                 block_number: new_da.block_number,
                 transaction_hash: transaction.transaction_hash,

@@ -128,8 +128,9 @@ impl SqliteDb {
             r#"
             CREATE TABLE IF NOT EXISTS failed_blocks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                block_id INTEGER NOT NULL REFERENCES blocks(block_id),
-                failure_reason TEXT NOT NULL
+                block_id INTEGER NOT NULL,
+                failure_reason TEXT NOT NULL,
+                handled BOOLEAN DEFAULT FALSE
             );
             "#,
         )

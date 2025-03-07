@@ -32,6 +32,7 @@ swiftness_commitment.workspace = true
 swiftness_fri.workspace = true
 swiftness_pow.workspace = true
 swiftness_stark.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 url.workspace = true
