@@ -141,6 +141,14 @@ where
                         "Atlantic layout bridge proof generation finished for query: {}",
                         atlantic_query_id
                     );
+                    let _ = Self::get_and_save_proof(
+                        client.clone(),
+                        db.clone(),
+                        atlantic_query_id,
+                        block_number_u32,
+                        parsed_snos_proof,
+                    )
+                    .await;
                     let new_proof = BlockInfo {
                         number: new_snos_proof.block_number,
                         status: crate::storage::BlockStatus::SnosProofGenerated,
