@@ -1,5 +1,5 @@
-const SNOS_PROOF_GENERATION_TIME: u32 = 20 * 60; // 20 minutes
-const LAYOUT_BRIDGE_PROOF_GENERATION_TIME: u32 = 36 * 60; // 36 minutes
+const SNOS_PROOF_GENERATION_TIME: u32 = 15 * 60; // 20 minutes
+const LAYOUT_BRIDGE_PROOF_GENERATION_TIME: u32 = 30 * 60; // 36 minutes
 const PIE_GENERATION_TIME: u32 = 60; // 1 minute
 const NUMBER_OF_STAGES: usize = 3;
 

@@ -8,7 +8,7 @@ mod polling;
 
 pub use polling::{PollingBlockIngestor, PollingBlockIngestorBuilder};
 
-use crate::service::Daemon;
+use crate::{service::Daemon, storage::BlockStatus};
 
 pub trait BlockIngestorBuilder {
     type Ingestor: BlockIngestor;
@@ -17,7 +17,7 @@ pub trait BlockIngestorBuilder {
 
     fn start_block(self, start_block: u64) -> Self;
 
-    fn channel(self, channel: Sender<NewBlock>) -> Self;
+    fn channel(self, channel: Sender<BlockInfo>) -> Self;
 }
 
 pub trait BlockIngestor: Daemon {}
@@ -31,8 +31,8 @@ pub trait BlockPieGenerator: Send + Sync {
     ) -> impl Future<Output = Result<CairoPie>> + Send;
 }
 
-#[derive(Debug)]
-pub struct NewBlock {
+#[derive(Debug, Clone)]
+pub struct BlockInfo {
     pub number: u64,
-    pub pie: CairoPie,
+    pub status: BlockStatus,
 }

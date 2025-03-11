@@ -10,6 +10,7 @@ use tokio::sync::{
 };
 
 use crate::{
+    block_ingestor::BlockInfo,
     prover::{
         atlantic::{client::AtlanticClient, snos::compress_pie},
         error::ProverError,
@@ -30,7 +31,7 @@ pub struct AtlanticLayoutBridgeProver<T, DB> {
     client: AtlanticClient,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Receiver<SnosProof<String>>,
-    proof_channel: Sender<RecursiveProof>,
+    proof_channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
     trace_generator: T,
     db: DB,
@@ -42,7 +43,7 @@ pub struct AtlanticLayoutBridgeProverBuilder<T, DB> {
     api_key: String,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Option<Receiver<SnosProof<String>>>,
-    proof_channel: Option<Sender<RecursiveProof>>,
+    proof_channel: Option<Sender<BlockInfo>>,
     trace_generator: T,
     db: DB,
     workers_count: usize,
@@ -55,7 +56,7 @@ where
 {
     async fn worker(
         task_rx: Arc<Mutex<Receiver<SnosProof<String>>>>,
-        task_tx: Sender<RecursiveProof>,
+        task_tx: Sender<BlockInfo>,
         client: AtlanticClient,
         layout_bridge: Cow<'static, [u8]>,
         trace_generator: T,
@@ -91,15 +92,13 @@ where
                         new_snos_proof.block_number
                     );
                     let verifier_proof = String::from_utf8(proof).unwrap();
-                    let verifier_proof: StarkProof =
-                        swiftness::parse(verifier_proof).unwrap().transform_to();
+                    let _: StarkProof = swiftness::parse(verifier_proof).unwrap().transform_to(); //Sanity check if the proof is valid
 
                     info!("Proof generated for block #{}", new_snos_proof.block_number);
 
-                    let new_proof = RecursiveProof {
-                        block_number: new_snos_proof.block_number,
-                        snos_output: calculate_output(&parsed_snos_proof),
-                        layout_bridge_proof: verifier_proof,
+                    let new_proof = BlockInfo {
+                        number: new_snos_proof.block_number,
+                        status: crate::storage::BlockStatus::SnosProofGenerated,
                     };
                     task_tx.send(new_proof).await.unwrap();
                     continue;
@@ -142,14 +141,10 @@ where
                         "Atlantic layout bridge proof generation finished for query: {}",
                         atlantic_query_id
                     );
-                    let new_proof = Self::get_proof(
-                        client.clone(),
-                        db.clone(),
-                        atlantic_query_id,
-                        block_number_u32,
-                        parsed_snos_proof,
-                    )
-                    .await;
+                    let new_proof = BlockInfo {
+                        number: new_snos_proof.block_number,
+                        status: crate::storage::BlockStatus::SnosProofGenerated,
+                    };
                     task_tx.send(new_proof).await.unwrap();
                     continue;
                 }
@@ -166,7 +161,7 @@ where
                     // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
                     // TODO: patch `swiftness` and fix this
                     let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-                    let label = format!("bench_layout-trace-{}", new_snos_proof.block_number);
+                    let label = format!("bench2_layout-trace-{}", new_snos_proof.block_number);
 
                     // This call fails a lot on atlantic.
                     let layout_bridge_pie = {
@@ -218,7 +213,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         "recursive_with_poseidon".to_string(),
-                        format!("bench_layout-{}", new_snos_proof.block_number),
+                        format!("bench2_layout-{}", new_snos_proof.block_number),
                     )
                 },
                 "submit_proof_generation",
@@ -272,7 +267,7 @@ where
                 "Atlantic layout bridge proof generation finished for query: {}",
                 atlantic_query_id
             );
-            let new_proof = Self::get_proof(
+            let _ = Self::get_and_save_proof(
                 client.clone(),
                 db.clone(),
                 atlantic_query_id,
@@ -280,7 +275,10 @@ where
                 parsed_snos_proof,
             )
             .await;
-
+            let new_proof = BlockInfo {
+                number: new_snos_proof.block_number,
+                status: crate::storage::BlockStatus::SnosProofGenerated,
+            };
             tokio::select! {
                 _ = finish_handle.shutdown_requested() => break,
                 _ = task_tx.send(new_proof) => {},
@@ -338,7 +336,7 @@ where
         }
         Ok(())
     }
-    async fn get_proof(
+    async fn get_and_save_proof(
         client: AtlanticClient,
         db: DB,
         atlantic_query_id: String,
@@ -429,7 +427,7 @@ where
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<RecursiveProof>) -> Self {
+    fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
         self.proof_channel = Some(proof_channel);
         self
     }
@@ -441,7 +439,7 @@ where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
-    type Proof = RecursiveProof;
+    type Proof = BlockInfo;
 }
 
 impl<T, DB> Daemon for AtlanticLayoutBridgeProver<T, DB>

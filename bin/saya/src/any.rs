@@ -1,9 +1,9 @@
 use anyhow::Result;
 use saya_core::{
+    block_ingestor::BlockInfo,
     prover::{
         AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, LayoutBridgeTraceGenerator,
-        MockLayoutBridgeProver, MockLayoutBridgeProverBuilder, Prover, ProverBuilder,
-        RecursiveProof, SnosProof,
+        MockLayoutBridgeProver, MockLayoutBridgeProverBuilder, Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
     storage::PersistantStorage,
@@ -28,7 +28,7 @@ where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
-    type Proof = RecursiveProof;
+    type Proof = BlockInfo;
 }
 
 impl<T, DB> Daemon for AnyLayoutBridgeProver<T, DB>

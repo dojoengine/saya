@@ -5,6 +5,7 @@ use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
+    block_ingestor::BlockInfo,
     data_availability::{
         DataAvailabilityPacketContext, DataAvailabilityPayload, PersistentPacket, SovereignPacket,
     },
@@ -79,6 +80,18 @@ impl DataAvailabilityPayload for RecursiveProof {
 
     fn block_number(&self) -> u64 {
         self.block_number
+    }
+
+    fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
+        PersistentPacket
+    }
+}
+
+impl DataAvailabilityPayload for BlockInfo {
+    type Packet = PersistentPacket;
+
+    fn block_number(&self) -> u64 {
+        self.number
     }
 
     fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {

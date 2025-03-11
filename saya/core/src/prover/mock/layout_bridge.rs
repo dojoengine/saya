@@ -1,3 +1,4 @@
+use crate::block_ingestor::BlockInfo;
 use anyhow::Result;
 use integrity::Felt;
 use log::{debug, info};
@@ -17,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MockLayoutBridgeProver {
     statement_channel: Receiver<SnosProof<String>>,
-    proof_channel: Sender<RecursiveProof>,
+    proof_channel: Sender<BlockInfo>,
     layout_bridge_program_hash: Felt,
     finish_handle: FinishHandle,
 }
@@ -25,7 +26,7 @@ pub struct MockLayoutBridgeProver {
 #[derive(Debug, Default)]
 pub struct MockLayoutBridgeProverBuilder {
     statement_channel: Option<Receiver<SnosProof<String>>>,
-    proof_channel: Option<Sender<RecursiveProof>>,
+    proof_channel: Option<Sender<BlockInfo>>,
     layout_bridge_program_hash: Felt,
 }
 
@@ -77,7 +78,10 @@ impl MockLayoutBridgeProver {
                 "Mock proof generated for block #{}",
                 new_snos_proof.block_number
             );
-
+            let new_proof = BlockInfo {
+                number: new_proof.block_number,
+                status: crate::storage::BlockStatus::BridgeProofGenerated,
+            };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
                 _ = self.proof_channel.send(new_proof) => {},
@@ -120,7 +124,7 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<RecursiveProof>) -> Self {
+    fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
         self.proof_channel = Some(proof_channel);
         self
     }
@@ -128,7 +132,7 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
 
 impl Prover for MockLayoutBridgeProver {
     type Statement = SnosProof<String>;
-    type Proof = RecursiveProof;
+    type Proof = BlockInfo;
 }
 
 impl Daemon for MockLayoutBridgeProver {

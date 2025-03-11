@@ -18,15 +18,14 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_types_core::felt::Felt;
-use tokio::{
-    sync::mpsc::{Receiver, Sender},
-    time::sleep,
-};
+use swiftness::TransformTo;
+use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
 
 use crate::{
+    block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
-    prover::RecursiveProof,
+    // prover::RecursiveProof,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
     storage::PersistantStorage,
@@ -41,7 +40,7 @@ pub struct PiltoverSettlementBackend<DB> {
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
     fact_registration: FactRegistrationConfig,
     piltover_address: Felt,
-    da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
+    da_channel: Receiver<DataAvailabilityCursor<BlockInfo>>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
     db: DB,
@@ -55,7 +54,7 @@ pub struct PiltoverSettlementBackendBuilder<DB> {
     piltover_address: Felt,
     account_address: Felt,
     account_private_key: Felt,
-    da_channel: Option<Receiver<DataAvailabilityCursor<RecursiveProof>>>,
+    da_channel: Option<Receiver<DataAvailabilityCursor<BlockInfo>>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
     db: DB,
 }
@@ -104,8 +103,7 @@ where
     }
 
     async fn run(mut self) {
-        let mut pending_blocks: BTreeMap<u64, DataAvailabilityCursor<RecursiveProof>> =
-            BTreeMap::new();
+        let mut pending_blocks: BTreeMap<u64, DataAvailabilityCursor<BlockInfo>> = BTreeMap::new();
         loop {
             let last_settled_block = self.get_block_number().await.unwrap();
 
@@ -135,6 +133,17 @@ where
             };
 
             debug!("Received new DA cursor");
+            let layout_bridge_proof = self
+                .db
+                .get_proof(
+                    new_da.block_number.try_into().unwrap(),
+                    crate::storage::Step::Bridge,
+                )
+                .await
+                .unwrap();
+            let raw_proof = String::from_utf8(layout_bridge_proof).unwrap();
+            let layout_bridge_proof = swiftness::parse(raw_proof).unwrap().transform_to();
+
             match self
                 .db
                 .get_status(new_da.block_number.try_into().unwrap())
@@ -148,7 +157,7 @@ where
                             let split_proof = split_proof::<
                                 swiftness_air::layout::recursive_with_poseidon::Layout,
                             >(
-                                new_da.full_payload.layout_bridge_proof.clone()
+                                layout_bridge_proof.clone()
                             )
                             .unwrap();
                             let integrity_job_id = SigningKey::from_random().secret_scalar();
@@ -177,13 +186,16 @@ where
                             let proof_start = Instant::now();
 
                             for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
-                                let tx = self
-                                    .account
-                                    .execute_v3(chunk.to_owned())
-                                    .nonce(nonce)
-                                    .send()
-                                    .await
-                                    .unwrap();
+                                let execution =
+                                    self.account.execute_v3(chunk.to_owned()).nonce(nonce);
+                                let tx = crate::utils::retry_with_backoff(
+                                    || execution.send(),
+                                    "integrity_verification",
+                                    3,
+                                    Duration::from_secs(3),
+                                )
+                                .await
+                                .unwrap();
                                 debug!(
                                     "[{} / {}] Integrity verification transaction sent: {:#064x}",
                                     ind + 1,
@@ -255,15 +267,24 @@ where
                     continue;
                 }
             }
-
-            sleep(Duration::from_secs(10)).await;
+            let new_snos_proof = self
+                .db
+                .get_proof(
+                    new_da.block_number.try_into().unwrap(),
+                    crate::storage::Step::Snos,
+                )
+                .await
+                .unwrap();
+            let new_snos_proof = String::from_utf8(new_snos_proof).unwrap();
+            let parsed_snos_proof = swiftness::parse(&new_snos_proof).unwrap().transform_to();
+            let snos_output = calculate_output(&parsed_snos_proof);
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
-                        snos_output: new_da.full_payload.snos_output,
-                        program_output: calculate_output(&new_da.full_payload.layout_bridge_proof),
+                        snos_output,
+                        program_output: calculate_output(&layout_bridge_proof),
                         onchain_data_hash: Felt::ZERO,
                         onchain_data_size: U256::from_words(0, 0),
                     };
@@ -279,7 +300,14 @@ where
             let execution = self.account.execute_v3(vec![update_state_call]);
 
             // TODO: error handling
-            let fees = execution.estimate_fee().await.unwrap();
+            let fees = crate::utils::retry_with_backoff(
+                || execution.estimate_fee(),
+                "estimate_fee",
+                3,
+                Duration::from_secs(3),
+            )
+            .await
+            .unwrap();
             debug!(
                 "Estimated settlement transaction cost for block #{}: {} STRK",
                 new_da.block_number,
@@ -288,7 +316,14 @@ where
 
             // TODO: wait for transaction to confirm
             // TODO: error handling
-            let transaction = execution.send().await.unwrap();
+            let transaction = crate::utils::retry_with_backoff(
+                || execution.send(),
+                "settlement",
+                3,
+                Duration::from_secs(3),
+            )
+            .await
+            .unwrap();
             info!(
                 "Piltover statement transaction sent for block #{}: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
@@ -307,17 +342,11 @@ where
                 "Piltover statement transaction block #{} confirmed: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
             );
+
             self.db
-                .set_status(
-                    new_da.block_number.try_into().unwrap(),
-                    "settled".to_string(),
-                )
+                .remove_block(new_da.block_number.try_into().unwrap())
                 .await
                 .unwrap();
-            // self.db
-            //     .remove_block(new_da.block_number.try_into().unwrap())
-            //     .await
-            //     .unwrap();
             let new_cursor = SettlementCursor {
                 block_number: new_da.block_number,
                 transaction_hash: transaction.transaction_hash,
@@ -409,7 +438,7 @@ where
         })
     }
 
-    fn da_channel(mut self, da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>) -> Self {
+    fn da_channel(mut self, da_channel: Receiver<DataAvailabilityCursor<BlockInfo>>) -> Self {
         self.da_channel = Some(da_channel);
         self
     }

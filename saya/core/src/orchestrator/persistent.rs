@@ -3,11 +3,11 @@ use log::{debug, info};
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
-    block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
+    block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
     },
-    prover::{Prover, ProverBuilder, RecursiveProof},
+    prover::{Prover, ProverBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
 };
@@ -84,20 +84,19 @@ impl<I, P, PV, D, DB, S> PersistentOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = NewBlock, Proof = RecursiveProof>,
+    PV: Prover<Statement = BlockInfo, Proof = BlockInfo>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
-    DB: DataAvailabilityBackend<Payload = RecursiveProof>,
+    DB: DataAvailabilityBackend<Payload = BlockInfo>,
     S: SettlementBackendBuilder + Send,
 {
     pub async fn build(
         self,
     ) -> Result<PersistentOrchestrator<I::Ingestor, P::Prover, D::Backend, S::Backend>> {
         let (new_block_tx, new_block_rx) =
-            tokio::sync::mpsc::channel::<NewBlock>(BLOCK_INGESTOR_BUFFER_SIZE);
-        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<RecursiveProof>(PROOF_BUFFER_SIZE);
-        let (da_cursor_tx, da_cursor_rx) = tokio::sync::mpsc::channel::<
-            DataAvailabilityCursor<RecursiveProof>,
-        >(DA_CURSOR_BUFFER_SIZE);
+            tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
+        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<BlockInfo>(PROOF_BUFFER_SIZE);
+        let (da_cursor_tx, da_cursor_rx) =
+            tokio::sync::mpsc::channel::<DataAvailabilityCursor<BlockInfo>>(DA_CURSOR_BUFFER_SIZE);
         let (settle_cursor_tx, settle_cursor_rx) =
             tokio::sync::mpsc::channel::<SettlementCursor>(SETTLE_CURSOR_BUFFER_SIZE);
 

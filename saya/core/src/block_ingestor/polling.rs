@@ -10,15 +10,15 @@ use tokio::{
         Mutex,
     },
     task,
-    time::{sleep, Instant},
+    time::sleep,
 };
 use url::Url;
 
 use crate::{
-    block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
+    block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     prover::compress_pie,
     service::{Daemon, FinishHandle, ShutdownHandle},
-    storage::{PersistantStorage, Step},
+    storage::{BlockStatus, PersistantStorage, Step},
 };
 
 use super::BlockPieGenerator;
@@ -34,7 +34,7 @@ pub struct PollingBlockIngestor<S, B, DB> {
     rpc_url: Url,
     snos: S,
     current_block: u64,
-    channel: Sender<NewBlock>,
+    channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
     block_pie_generator: B,
     db: DB,
@@ -46,7 +46,7 @@ pub struct PollingBlockIngestorBuilder<S, B, DB> {
     rpc_url: Url,
     snos: S,
     start_block: Option<u64>,
-    channel: Option<Sender<NewBlock>>,
+    channel: Option<Sender<BlockInfo>>,
     block_pie_generator: B,
     db: DB,
     workers_count: usize,
@@ -85,7 +85,7 @@ where
         block_pie_generator: B,
         finish_handle: FinishHandle,
         rpc_url: Url,
-        channel: mpsc::Sender<NewBlock>,
+        channel: mpsc::Sender<BlockInfo>,
         snos: S,
         db: DB,
     ) where
@@ -118,10 +118,10 @@ where
                 .await
             {
                 Ok(pie_bytes) => match CairoPie::from_bytes(&pie_bytes) {
-                    Ok(pie) => {
-                        let new_block = NewBlock {
+                    Ok(_pie) => {
+                        let new_block = BlockInfo {
                             number: block_number,
-                            pie,
+                            status: BlockStatus::SnosPieGenerated,
                         };
                         log::trace!("Pie generated for block #{}", block_number);
                         if channel.send(new_block).await.is_err() {
@@ -138,7 +138,6 @@ where
                     trace!("Failed to get pie for block #{}: {:?}", block_number, err);
                 }
             }
-            let start = Instant::now();
             let pie = crate::utils::retry_with_backoff(
                 || {
                     block_pie_generator.prove_block(
@@ -153,17 +152,15 @@ where
             )
             .await
             .unwrap();
-            let elapsed = start.elapsed();
-            println!("Proving block #{} took {:?}", block_number, elapsed);
             if finish_handle.is_shutdown_requested() {
                 break;
             }
-
-            let new_block = NewBlock {
+            let new_block = BlockInfo {
                 number: block_number,
-                pie,
+                status: BlockStatus::SnosPieGenerated,
             };
-            let pie_bytes = compress_pie(new_block.pie.clone()).await.unwrap();
+
+            let pie_bytes = compress_pie(pie.clone()).await.unwrap();
             let block_number = block_number.try_into().unwrap();
 
             db.add_pie(block_number, pie_bytes.clone(), Step::Snos)
@@ -171,6 +168,7 @@ where
                 .unwrap();
 
             info!("Pie generated for block #{}", block_number);
+
             if channel.send(new_block).await.is_err() {
                 error!("Failed to send block #{}", block_number);
             }
@@ -225,9 +223,7 @@ where
                             .mark_failed_blocks_as_handled(&block_ids)
                             .await
                             .unwrap();
-                    }
-
-                    // Send current block and increment
+                    }                    // Send current block and increment
                     if task_tx.send(self.current_block).await.is_err() {
                         return;
                     }
@@ -297,7 +293,7 @@ where
         self
     }
 
-    fn channel(mut self, channel: Sender<NewBlock>) -> Self {
+    fn channel(mut self, channel: Sender<BlockInfo>) -> Self {
         self.channel = Some(channel);
         self
     }

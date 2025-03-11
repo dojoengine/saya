@@ -2,7 +2,7 @@ use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
+use log::{debug, info};
 use starknet::core::types::Felt;
 use tokio::{
     sync::{
@@ -14,7 +14,7 @@ use tokio::{
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
-    block_ingestor::NewBlock,
+    block_ingestor::BlockInfo,
     prover::{
         atlantic::{client::AtlanticClient, AtlanticProof},
         error::ProverError,
@@ -33,7 +33,7 @@ const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 #[derive(Debug)]
 pub struct AtlanticSnosProver<P, DB> {
     client: AtlanticClient,
-    statement_channel: Receiver<NewBlock>,
+    statement_channel: Receiver<BlockInfo>,
     proof_channel: Sender<SnosProof<P>>,
     finish_handle: FinishHandle,
     /// Whether to extract the output and compute the program hash from the PIE or use the one from the SHARP bootloader returned by the prover service.
@@ -45,7 +45,7 @@ pub struct AtlanticSnosProver<P, DB> {
 #[derive(Debug)]
 pub struct AtlanticSnosProverBuilder<P, DB> {
     api_key: String,
-    statement_channel: Option<Receiver<NewBlock>>,
+    statement_channel: Option<Receiver<BlockInfo>>,
     proof_channel: Option<Sender<SnosProof<P>>>,
     mock_snos_from_pie: bool,
     db: DB,
@@ -58,7 +58,7 @@ where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     async fn worker(
-        task_rx: Arc<Mutex<Receiver<NewBlock>>>,
+        task_rx: Arc<Mutex<Receiver<BlockInfo>>>,
         task_tx: Sender<SnosProof<P>>,
         client: AtlanticClient,
         finish_handle: FinishHandle,
@@ -101,7 +101,9 @@ where
             }
 
             if mock_snos_from_pie {
-                Self::mock_proof(new_block, task_tx.clone()).await.unwrap();
+                Self::mock_proof(new_block, task_tx.clone(), db.clone())
+                    .await
+                    .unwrap();
                 continue;
             }
 
@@ -152,8 +154,13 @@ where
                 }
             }
             // TODO: error handling
-            trace!("Compressing PIE for block #{}", new_block.number);
-            let compressed_pie: Vec<u8> = compress_pie(new_block.pie).await.unwrap();
+            // trace!("Compressing PIE for block #{}", new_block.number);
+
+            let compressed_pie: Vec<u8> = db
+                .get_pie(block_number_u32, crate::storage::Step::Snos)
+                .await
+                .unwrap();
+            // compress_pie(new_block.pie).await.unwrap();
 
             debug!(
                 "Compressed PIE size for block #{}: {} bytes",
@@ -166,7 +173,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         "dynamic".to_string(),
-                        format!("bench_snos_{}", new_block.number),
+                        format!("bench2_snos_{}", new_block.number),
                     )
                 },
                 "submit_proof_generation",
@@ -245,8 +252,16 @@ where
         self.finish_handle.finish();
     }
 
-    async fn mock_proof(new_block: NewBlock, task_tx: Sender<SnosProof<P>>) -> Result<()> {
-        let output = bootloader_snos_output(&new_block.pie);
+    async fn mock_proof(new_block: BlockInfo, task_tx: Sender<SnosProof<P>>, db: DB) -> Result<()> {
+        let pie = db
+            .get_pie(
+                new_block.number.try_into().unwrap(),
+                crate::storage::Step::Snos,
+            )
+            .await
+            .unwrap();
+        let cairo_pie = CairoPie::from_bytes(&pie).unwrap();
+        let output = bootloader_snos_output(&cairo_pie);
         let mock_proof = stark_proof_mock(&output);
 
         info!(
@@ -355,7 +370,7 @@ where
         })
     }
 
-    fn statement_channel(mut self, statement_channel: Receiver<NewBlock>) -> Self {
+    fn statement_channel(mut self, statement_channel: Receiver<BlockInfo>) -> Self {
         self.statement_channel = Some(statement_channel);
         self
     }
@@ -371,7 +386,7 @@ where
     P: AtlanticProof + Send + Sync + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = NewBlock;
+    type Statement = BlockInfo;
     type Proof = SnosProof<P>;
 }
 
