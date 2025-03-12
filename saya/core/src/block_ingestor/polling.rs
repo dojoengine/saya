@@ -223,7 +223,7 @@ where
                             .mark_failed_blocks_as_handled(&block_ids)
                             .await
                             .unwrap();
-                    }                    // Send current block and increment
+                    } // Send current block and increment
                     if task_tx.send(self.current_block).await.is_err() {
                         return;
                     }
