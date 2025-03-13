@@ -174,7 +174,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         LayoutName::dynamic,
-                        format!("bench2_snos_{}", new_block.number),
+                        format!("snos_{}", new_block.number),
                     )
                 },
                 "submit_proof_generation",

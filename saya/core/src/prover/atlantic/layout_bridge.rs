@@ -160,7 +160,7 @@ where
                     // Hacky way to wrap proof due to the lack of serialization support for the parsed type4
                     // TODO: patch `swiftness` and fix this
                     let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
-                    let label = format!("bench2_layout-trace-{}", new_snos_proof.block_number);
+                    let label = format!("layout-trace-{}", new_snos_proof.block_number);
 
                     let atlantic_query_id = match db
                         .get_query_id(block_number_u32, crate::storage::Query::BridgeTrace)
@@ -237,7 +237,7 @@ where
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         LayoutName::recursive_with_poseidon,
-                        format!("bench2_layout-{}", new_snos_proof.block_number),
+                        format!("layout-{}", new_snos_proof.block_number),
                     )
                 },
                 "submit_proof_generation",
