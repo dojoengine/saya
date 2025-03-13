@@ -110,7 +110,7 @@ where
             let next_to_settle = if last_settled_block == Felt::MAX {
                 0
             } else {
-                (<Felt as TryInto<u64>>::try_into(last_settled_block).unwrap() + 1) as u64
+                <Felt as TryInto<u64>>::try_into(last_settled_block).unwrap() + 1
             };
 
             let da = pending_blocks.remove(&next_to_settle);
