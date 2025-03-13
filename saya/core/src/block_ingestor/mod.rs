@@ -1,9 +1,7 @@
 use anyhow::Result;
-use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use std::future::Future;
+
 use tokio::sync::mpsc::Sender;
 
-pub mod pie_generator;
 mod polling;
 
 pub use polling::{PollingBlockIngestor, PollingBlockIngestorBuilder};
@@ -21,15 +19,6 @@ pub trait BlockIngestorBuilder {
 }
 
 pub trait BlockIngestor: Daemon {}
-
-pub trait BlockPieGenerator: Send + Sync {
-    fn prove_block(
-        &self,
-        snos: &[u8],
-        block_number: u64,
-        rpc_url: &str,
-    ) -> impl Future<Output = Result<CairoPie>> + Send;
-}
 
 #[derive(Debug, Clone)]
 pub struct BlockInfo {

@@ -1,6 +1,7 @@
 use std::{borrow::Cow, time::Duration};
 
 use crate::prover::error::ProverError;
+use cairo_vm::types::layout_name::LayoutName;
 use reqwest::{
     multipart::{Form, Part},
     Client, ClientBuilder,
@@ -160,7 +161,7 @@ impl AtlanticClient {
     pub async fn submit_proof_generation<T>(
         &self,
         compressed_pie: T,
-        layout: String,
+        layout: LayoutName,
         label: String,
     ) -> Result<String, ProverError>
     where
@@ -178,9 +179,8 @@ impl AtlanticClient {
                     .mime_str("application/zip")
                     .unwrap(),
             )
-            .text("layout", layout)
+            .text("layout", layout.to_str())
             .text("externalId", label)
-            // Let's go `M` for now since we may be at the limit for `S` jobs.
             .text("declaredJobSize", AtlanticJobSize::S.as_str())
             .text("result", AtlanticQueryResult::ProofGeneration.as_str());
 
@@ -293,10 +293,8 @@ impl AtlanticClient {
     }
 
     pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>, ProverError> {
-        // For now we hardcode the cairo version to 0, since we only use pythonVM with Cairo 0 for layout bridge
-        // for the trace generation.
-        // But since the response from atlantic job doesn't contain the cairo version,
-        // we need to have some state to keep this information.
+        //TODO: now query returns the actual trace link. We need to change this to the actual trace link
+        //instead of the pie link being hardcoded
         let url = format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id);
         let response = self.http_client.get(url).send().await?;
         Ok(response.bytes().await?.to_vec())

@@ -83,7 +83,7 @@ impl<I, P, PV, D, DB, S> SovereignOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = BlockInfo, Proof = SnosProof<StarkProof>>,
+    PV: Prover<Statement = BlockInfo, BlockInfo = SnosProof<StarkProof>>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
     DB: DataAvailabilityBackend<Payload = SnosProof<StarkProof>>,
     S: StorageBackend,

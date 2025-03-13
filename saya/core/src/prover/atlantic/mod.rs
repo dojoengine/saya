@@ -9,7 +9,6 @@ pub use snos::{AtlanticSnosProver, AtlanticSnosProverBuilder};
 
 mod layout_bridge;
 pub use client::AtlanticClient;
-pub use client::AtlanticJobStatus;
 pub use layout_bridge::{AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder};
 pub use snos::compress_pie;
 

@@ -1,6 +1,7 @@
 use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
+use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, info};
 use starknet::core::types::Felt;
@@ -172,7 +173,7 @@ where
                 || {
                     client.submit_proof_generation(
                         compressed_pie.clone(),
-                        "dynamic".to_string(),
+                        LayoutName::dynamic,
                         format!("bench2_snos_{}", new_block.number),
                     )
                 },
@@ -387,7 +388,7 @@ where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = BlockInfo;
-    type Proof = SnosProof<P>;
+    type BlockInfo = SnosProof<P>;
 }
 
 impl<P, DB> Daemon for AtlanticSnosProver<P, DB>

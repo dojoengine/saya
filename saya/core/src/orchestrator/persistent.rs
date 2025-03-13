@@ -84,7 +84,7 @@ impl<I, P, PV, D, DB, S> PersistentOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = BlockInfo, Proof = BlockInfo>,
+    PV: Prover<Statement = BlockInfo, BlockInfo = BlockInfo>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
     DB: DataAvailabilityBackend<Payload = BlockInfo>,
     S: SettlementBackendBuilder + Send,

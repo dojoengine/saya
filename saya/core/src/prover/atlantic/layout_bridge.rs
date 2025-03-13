@@ -1,24 +1,23 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
-use anyhow::Result;
-use log::{debug, info};
-use swiftness::TransformTo;
-use swiftness_stark::types::StarkProof;
-use tokio::sync::{
-    mpsc::{Receiver, Sender},
-    Mutex,
-};
-
 use crate::{
     block_ingestor::BlockInfo,
     prover::{
         atlantic::{client::AtlanticClient, snos::compress_pie},
         error::ProverError,
-        LayoutBridgeTraceGenerator, Prover, ProverBuilder, RecursiveProof, SnosProof,
+        Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
-    utils::calculate_output,
+};
+use anyhow::Result;
+use cairo_vm::{types::layout_name::LayoutName, vm::runners::cairo_pie::CairoPie};
+use log::{debug, info, trace};
+use swiftness::TransformTo;
+use swiftness_stark::types::StarkProof;
+use tokio::sync::{
+    mpsc::{Receiver, Sender},
+    Mutex,
 };
 
 use super::client::AtlanticQueryStatus;
@@ -27,31 +26,28 @@ const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
-pub struct AtlanticLayoutBridgeProver<T, DB> {
+pub struct AtlanticLayoutBridgeProver<DB> {
     client: AtlanticClient,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Receiver<SnosProof<String>>,
     proof_channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
-    trace_generator: T,
     db: DB,
     workers_count: usize,
 }
 
 #[derive(Debug)]
-pub struct AtlanticLayoutBridgeProverBuilder<T, DB> {
+pub struct AtlanticLayoutBridgeProverBuilder<DB> {
     api_key: String,
     layout_bridge: Cow<'static, [u8]>,
     statement_channel: Option<Receiver<SnosProof<String>>>,
     proof_channel: Option<Sender<BlockInfo>>,
-    trace_generator: T,
     db: DB,
     workers_count: usize,
 }
 
-impl<T, DB> AtlanticLayoutBridgeProver<T, DB>
+impl<DB> AtlanticLayoutBridgeProver<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     async fn worker(
@@ -59,11 +55,9 @@ where
         task_tx: Sender<BlockInfo>,
         client: AtlanticClient,
         layout_bridge: Cow<'static, [u8]>,
-        trace_generator: T,
         finish_handle: FinishHandle,
         db: DB,
     ) where
-        T: LayoutBridgeTraceGenerator<DB> + Send + Sync + 'static,
         DB: PersistantStorage + Send + Sync + 'static,
     {
         loop {
@@ -72,13 +66,6 @@ where
             } else {
                 break;
             };
-            debug!(
-                "Receive raw SNOS proof for block #{}",
-                new_snos_proof.block_number
-            );
-            let parsed_snos_proof: StarkProof = swiftness::parse(&new_snos_proof.proof)
-                .unwrap()
-                .transform_to();
 
             let block_number_u32 = new_snos_proof.block_number.try_into().unwrap();
 
@@ -87,7 +74,7 @@ where
                 .await
             {
                 Ok(proof) => {
-                    info!(
+                    trace!(
                         "Proof already generated for block #{}",
                         new_snos_proof.block_number
                     );
@@ -100,11 +87,12 @@ where
                         number: new_snos_proof.block_number,
                         status: crate::storage::BlockStatus::SnosProofGenerated,
                     };
+
                     task_tx.send(new_proof).await.unwrap();
                     continue;
                 }
                 Err(_) => {
-                    info!(
+                    trace!(
                         "Proof not generated for block #{}",
                         new_snos_proof.block_number
                     );
@@ -119,7 +107,7 @@ where
                         "Proof generation already submitted for block #{}",
                         new_snos_proof.block_number
                     );
-                    match Self::wait_for_proof(
+                    match Self::wait_for_job(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -137,27 +125,30 @@ where
                         Err(_) => {}
                         Ok(_) => {}
                     }
+
                     debug!(
                         "Atlantic layout bridge proof generation finished for query: {}",
                         atlantic_query_id
                     );
-                    let _ = Self::get_and_save_proof(
+
+                    Self::get_and_save_proof(
                         client.clone(),
                         db.clone(),
                         atlantic_query_id,
                         block_number_u32,
-                        parsed_snos_proof,
                     )
                     .await;
+
                     let new_proof = BlockInfo {
                         number: new_snos_proof.block_number,
                         status: crate::storage::BlockStatus::SnosProofGenerated,
                     };
+
                     task_tx.send(new_proof).await.unwrap();
                     continue;
                 }
                 Err(_) => {
-                    info!(
+                    trace!(
                         "Proof generation not submitted for block #{}",
                         new_snos_proof.block_number
                     );
@@ -171,40 +162,65 @@ where
                     let input = format!("{{\n\t\"proof\": {}\n}}", new_snos_proof.proof);
                     let label = format!("bench2_layout-trace-{}", new_snos_proof.block_number);
 
-                    // This call fails a lot on atlantic.
-                    let layout_bridge_pie = {
-                        let mut attempts = 0;
-                        const MAX_ATTEMPTS: u32 = 3;
+                    let atlantic_query_id = match db
+                        .get_query_id(block_number_u32, crate::storage::Query::BridgeTrace)
+                        .await
+                    {
+                        Ok(query_id) => query_id,
+                        Err(_) => {
+                            let atlantic_query_id = crate::utils::retry_with_backoff(
+                                || {
+                                    client.submit_trace_generation(
+                                        &label,
+                                        layout_bridge.clone().to_vec(),
+                                        input.clone().into_bytes(),
+                                    )
+                                },
+                                "trace_gen",
+                                3,
+                                Duration::from_secs(5),
+                            )
+                            .await
+                            .unwrap();
 
-                        loop {
-                            match trace_generator
-                                .generate_trace(
-                                    layout_bridge.clone().to_vec(),
-                                    block_number_u32,
-                                    &label,
-                                    input.clone().into_bytes(),
-                                    db.clone(),
-                                )
-                                .await
-                            {
-                                Ok(pie) => break pie,
-                                Err(e) => {
-                                    attempts += 1;
-                                    if attempts >= MAX_ATTEMPTS {
-                                        panic!(
-                                            "Failed to generate trace after {} attempts: {}",
-                                            MAX_ATTEMPTS, e
-                                        );
-                                    }
-                                    debug!(
-                                        "Trace generation attempt {} failed: {}. Retrying...",
-                                        attempts, e
-                                    );
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                }
-                            }
+                            db.add_query_id(
+                                block_number_u32,
+                                atlantic_query_id.clone(),
+                                crate::storage::Query::BridgeTrace,
+                            )
+                            .await
+                            .unwrap();
+
+                            atlantic_query_id
                         }
                     };
+
+                    info!(
+                        "Atlantic trace generation submitted with query id: {}",
+                        atlantic_query_id
+                    );
+
+                    match Self::wait_for_job(
+                        client.clone(),
+                        atlantic_query_id.clone(),
+                        finish_handle.clone(),
+                    )
+                    .await
+                    {
+                        Err(ProverError::Shutdown) => {
+                            break;
+                        }
+                        Err(ProverError::BlockFail(e)) => {
+                            log::error!("{}", e,);
+                            db.add_failed_block(block_number_u32, e).await.unwrap();
+                            continue;
+                        }
+                        Err(_) => {}
+                        Ok(_) => {}
+                    };
+
+                    let pie_bytes = client.get_trace(&atlantic_query_id).await.unwrap();
+                    let layout_bridge_pie = CairoPie::from_bytes(&pie_bytes).unwrap();
 
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
 
@@ -220,7 +236,7 @@ where
                 || {
                     client.submit_proof_generation(
                         compressed_pie.clone(),
-                        "recursive_with_poseidon".to_string(),
+                        LayoutName::recursive_with_poseidon,
                         format!("bench2_layout-{}", new_snos_proof.block_number),
                     )
                 },
@@ -231,17 +247,10 @@ where
             .await
             .unwrap();
 
-            crate::utils::retry_with_backoff(
-                || {
-                    db.add_query_id(
-                        new_snos_proof.block_number.try_into().unwrap(),
-                        atlantic_query_id.clone(),
-                        crate::storage::Query::BridgeProof,
-                    )
-                },
-                "add_query_id",
-                3,
-                Duration::from_secs(2),
+            db.add_query_id(
+                new_snos_proof.block_number.try_into().unwrap(),
+                atlantic_query_id.clone(),
+                crate::storage::Query::BridgeProof,
             )
             .await
             .unwrap();
@@ -252,7 +261,7 @@ where
             );
 
             // Wait for bridge layout proof to be done
-            match Self::wait_for_proof(
+            match Self::wait_for_job(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
@@ -271,18 +280,17 @@ where
                 Ok(_) => {}
             }
 
+            Self::get_and_save_proof(
+                client.clone(),
+                db.clone(),
+                atlantic_query_id.clone(),
+                block_number_u32,
+            )
+            .await;
             debug!(
                 "Atlantic layout bridge proof generation finished for query: {}",
                 atlantic_query_id
             );
-            let _ = Self::get_and_save_proof(
-                client.clone(),
-                db.clone(),
-                atlantic_query_id,
-                block_number_u32,
-                parsed_snos_proof,
-            )
-            .await;
             let new_proof = BlockInfo {
                 number: new_snos_proof.block_number,
                 status: crate::storage::BlockStatus::SnosProofGenerated,
@@ -293,6 +301,7 @@ where
             }
         }
     }
+
     async fn run(self) {
         let mut workers = Vec::new();
         let task_rx = Arc::new(Mutex::new(self.statement_channel));
@@ -301,14 +310,12 @@ where
             let task_tx = self.proof_channel.clone();
             let client = self.client.clone();
             let layout_bridge = self.layout_bridge.clone();
-            let trace_generator = self.trace_generator.clone();
             let finish_handle = self.finish_handle.clone();
             workers.push(tokio::spawn(Self::worker(
                 worker_task_rx,
                 task_tx,
                 client,
                 layout_bridge,
-                trace_generator,
                 finish_handle,
                 self.db.clone(),
             )));
@@ -318,7 +325,8 @@ where
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
     }
-    async fn wait_for_proof(
+
+    async fn wait_for_job(
         client: AtlanticClient,
         atlantic_query_id: String,
         finish_handle: FinishHandle,
@@ -344,54 +352,28 @@ where
         }
         Ok(())
     }
+
     async fn get_and_save_proof(
         client: AtlanticClient,
         db: DB,
         atlantic_query_id: String,
         block_number: u32,
-        parsed_snos_proof: StarkProof,
-    ) -> RecursiveProof {
+    ) {
         let verifier_proof = client.get_proof(&atlantic_query_id).await.unwrap();
 
-        crate::utils::retry_with_backoff(
-            || {
-                db.add_proof(
-                    block_number,
-                    verifier_proof.as_bytes().to_vec(),
-                    crate::storage::Step::Bridge,
-                )
-            },
-            "add_proof",
-            3,
-            Duration::from_secs(2),
+        db.add_proof(
+            block_number,
+            verifier_proof.as_bytes().to_vec(),
+            crate::storage::Step::Bridge,
         )
         .await
         .unwrap();
-
-        // TODO: error handling
-        let verifier_proof: StarkProof = swiftness::parse(verifier_proof).unwrap().transform_to();
-
-        info!("Proof generated for block #{}", block_number);
-
-        RecursiveProof {
-            block_number: block_number as u64,
-            snos_output: calculate_output(&parsed_snos_proof),
-            layout_bridge_proof: verifier_proof,
-        }
     }
 }
-
-impl<T, DB> AtlanticLayoutBridgeProverBuilder<T, DB> {
-    pub fn new<P>(
-        api_key: String,
-        layout_bridge: P,
-        trace_generator: T,
-        db: DB,
-        workers_count: usize,
-    ) -> Self
+impl<DB> AtlanticLayoutBridgeProverBuilder<DB> {
+    pub fn new<P>(api_key: String, layout_bridge: P, db: DB, workers_count: usize) -> Self
     where
         P: Into<Cow<'static, [u8]>>,
-        T: LayoutBridgeTraceGenerator<DB> + Send + Sync + 'static,
         DB: PersistantStorage + Send + Sync + Clone + 'static,
     {
         Self {
@@ -399,19 +381,17 @@ impl<T, DB> AtlanticLayoutBridgeProverBuilder<T, DB> {
             layout_bridge: layout_bridge.into(),
             statement_channel: None,
             proof_channel: None,
-            trace_generator,
             db,
             workers_count,
         }
     }
 }
 
-impl<T, DB> ProverBuilder for AtlanticLayoutBridgeProverBuilder<T, DB>
+impl<DB> ProverBuilder for AtlanticLayoutBridgeProverBuilder<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AtlanticLayoutBridgeProver<T, DB>;
+    type Prover = AtlanticLayoutBridgeProver<DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(AtlanticLayoutBridgeProver {
@@ -424,7 +404,6 @@ where
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
-            trace_generator: self.trace_generator,
             db: self.db,
             workers_count: self.workers_count,
         })
@@ -441,18 +420,16 @@ where
     }
 }
 
-impl<T, DB> Prover for AtlanticLayoutBridgeProver<T, DB>
+impl<DB> Prover for AtlanticLayoutBridgeProver<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Clone + Sync + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
-    type Proof = BlockInfo;
+    type BlockInfo = BlockInfo;
 }
 
-impl<T, DB> Daemon for AtlanticLayoutBridgeProver<T, DB>
+impl<DB> Daemon for AtlanticLayoutBridgeProver<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Clone + Sync + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {

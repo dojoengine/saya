@@ -2,8 +2,8 @@ use anyhow::Result;
 use saya_core::{
     block_ingestor::BlockInfo,
     prover::{
-        AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, LayoutBridgeTraceGenerator,
-        MockLayoutBridgeProver, MockLayoutBridgeProverBuilder, Prover, ProverBuilder, SnosProof,
+        AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, MockLayoutBridgeProver,
+        MockLayoutBridgeProverBuilder, Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
     storage::PersistantStorage,
@@ -11,29 +11,27 @@ use saya_core::{
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProver<T, DB> {
-    Atlantic(AtlanticLayoutBridgeProver<T, DB>),
+pub enum AnyLayoutBridgeProver<DB> {
+    Atlantic(AtlanticLayoutBridgeProver<DB>),
     Mock(MockLayoutBridgeProver),
 }
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProverBuilder<T, DB> {
-    Atlantic(AtlanticLayoutBridgeProverBuilder<T, DB>),
+pub enum AnyLayoutBridgeProverBuilder<DB> {
+    Atlantic(AtlanticLayoutBridgeProverBuilder<DB>),
     Mock(MockLayoutBridgeProverBuilder),
 }
 
-impl<T, DB> Prover for AnyLayoutBridgeProver<T, DB>
+impl<DB> Prover for AnyLayoutBridgeProver<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     type Statement = SnosProof<String>;
-    type Proof = BlockInfo;
+    type BlockInfo = BlockInfo;
 }
 
-impl<T, DB> Daemon for AnyLayoutBridgeProver<T, DB>
+impl<DB> Daemon for AnyLayoutBridgeProver<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
@@ -51,12 +49,11 @@ where
     }
 }
 
-impl<T, DB> ProverBuilder for AnyLayoutBridgeProverBuilder<T, DB>
+impl<DB> ProverBuilder for AnyLayoutBridgeProverBuilder<DB>
 where
-    T: LayoutBridgeTraceGenerator<DB> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AnyLayoutBridgeProver<T, DB>;
+    type Prover = AnyLayoutBridgeProver<DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(match self {
@@ -75,7 +72,7 @@ where
         }
     }
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::Proof>) -> Self {
+    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self {
         match self {
             Self::Atlantic(inner) => Self::Atlantic(inner.proof_channel(proof_channel)),
             Self::Mock(inner) => Self::Mock(inner.proof_channel(proof_channel)),

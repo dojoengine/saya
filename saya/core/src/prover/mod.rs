@@ -20,8 +20,6 @@ pub use atlantic::{
 
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
-pub mod trace;
-pub use trace::LayoutBridgeTraceGenerator;
 mod recursive;
 pub use atlantic::compress_pie;
 pub use atlantic::AtlanticClient;
@@ -39,12 +37,12 @@ pub trait ProverBuilder {
         block_channel: Receiver<<Self::Prover as Prover>::Statement>,
     ) -> Self;
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::Proof>) -> Self;
+    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self;
 }
 
 pub trait Prover: Daemon {
     type Statement;
-    type Proof;
+    type BlockInfo;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -18,7 +18,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MockLayoutBridgeProver {
     statement_channel: Receiver<SnosProof<String>>,
-    proof_channel: Sender<BlockInfo>,
+    block_info_channel: Sender<BlockInfo>,
     layout_bridge_program_hash: Felt,
     finish_handle: FinishHandle,
 }
@@ -26,7 +26,7 @@ pub struct MockLayoutBridgeProver {
 #[derive(Debug, Default)]
 pub struct MockLayoutBridgeProverBuilder {
     statement_channel: Option<Receiver<SnosProof<String>>>,
-    proof_channel: Option<Sender<BlockInfo>>,
+    block_info_channel: Option<Sender<BlockInfo>>,
     layout_bridge_program_hash: Felt,
 }
 
@@ -84,7 +84,7 @@ impl MockLayoutBridgeProver {
             };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.proof_channel.send(new_proof) => {},
+                _ = self.block_info_channel.send(new_proof) => {},
             }
         }
 
@@ -97,7 +97,7 @@ impl MockLayoutBridgeProverBuilder {
     pub fn new(layout_bridge_program_hash: Felt) -> Self {
         Self {
             statement_channel: None,
-            proof_channel: None,
+            block_info_channel: None,
             layout_bridge_program_hash,
         }
     }
@@ -111,8 +111,8 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
             statement_channel: self
                 .statement_channel
                 .ok_or_else(|| anyhow::anyhow!("`statement_channel` not set"))?,
-            proof_channel: self
-                .proof_channel
+            block_info_channel: self
+                .block_info_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             layout_bridge_program_hash: self.layout_bridge_program_hash,
@@ -125,14 +125,14 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
     }
 
     fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
-        self.proof_channel = Some(proof_channel);
+        self.block_info_channel = Some(proof_channel);
         self
     }
 }
 
 impl Prover for MockLayoutBridgeProver {
     type Statement = SnosProof<String>;
-    type Proof = BlockInfo;
+    type BlockInfo = BlockInfo;
 }
 
 impl Daemon for MockLayoutBridgeProver {

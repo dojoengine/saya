@@ -2,12 +2,8 @@ use std::{io::Read, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use prover_sdk::access_key::ProverAccessKey;
 use saya_core::{
-    block_ingestor::{
-        pie_generator::{local::LocalPieGenerator, remote::RemotePieGenerator, SnosPieGenerator},
-        PollingBlockIngestorBuilder,
-    },
+    block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
     prover::AtlanticSnosProverBuilder,
@@ -15,6 +11,8 @@ use saya_core::{
     storage::{InMemoryStorageBackend, SqliteDb},
 };
 use url::Url;
+
+use crate::common::calculate_workers_per_stage;
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -51,10 +49,13 @@ struct Start {
     /// Celestia RPC node auth token
     #[clap(long, env)]
     celestia_token: String,
+
     #[clap(flatten)]
     genesis: GenesisOptions,
-    #[clap(subcommand)]
-    pie_mode: PieGenerationMode,
+
+    /// Number of blocks to process in parallel
+    #[clap(long, env)]
+    blocks_processed_in_parallel: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -64,33 +65,6 @@ struct GenesisOptions {
         env = "GENESIS_FIRST_BLOCK_NUMBER"
     )]
     first_block_number: Option<u64>,
-}
-
-#[derive(Debug, Subcommand)]
-enum PieGenerationMode {
-    Local,
-    Remote {
-        /// Remote prover URL
-        #[clap(long, env)]
-        url: Url,
-        /// Remote prover API access key
-        #[clap(long, env)]
-        access_key: String,
-    },
-}
-impl From<PieGenerationMode> for SnosPieGenerator {
-    fn from(pie_mode: PieGenerationMode) -> Self {
-        match pie_mode {
-            PieGenerationMode::Local => SnosPieGenerator::Local(LocalPieGenerator),
-            PieGenerationMode::Remote { url, access_key } => {
-                SnosPieGenerator::Remote(Box::new(RemotePieGenerator {
-                    url: url.to_string(),
-                    access_key: ProverAccessKey::from_hex_string(&access_key)
-                        .expect("Invalid access key"), // You might want to handle this error better
-                }))
-            }
-        }
-    }
 }
 
 impl Sovereign {
@@ -106,16 +80,26 @@ impl Start {
         let mut snos_file = std::fs::File::open(self.snos_program)?;
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
-        // TODO: make impls of these providers configurable
-        let pie_gen: SnosPieGenerator = self.pie_mode.into();
+
         let db = SqliteDb::new("saya.db").await?;
-        let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.starknet_rpc, snos, pie_gen, db.clone(), 5);
+
+        let workers_distribution: [usize; 3] =
+            calculate_workers_per_stage(self.blocks_processed_in_parallel);
+        let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
+            workers_distribution;
+
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.starknet_rpc,
+            snos,
+            db.clone(),
+            ingestor_worker_count,
+        );
+
         let prover_builder = AtlanticSnosProverBuilder::new(
             self.atlantic_key,
             self.mock_snos_from_pie,
             db.clone(),
-            5,
+            snos_worker_count,
         );
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
