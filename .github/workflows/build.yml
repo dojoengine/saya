@@ -7,10 +7,15 @@ on:
 name: "Build"
 
 jobs:
+  build-programs:
+    uses: ./.github/workflows/build_programs.yml
+    with:
+      inherit-secrets: true
+
   build-docker:
     name: "Build Docker image"
     runs-on: "ubuntu-latest"
-    uses: ./.github/workflows/build_programs.yml
+    needs: build-programs
 
     steps:
       - name: "Checkout source code"
@@ -26,7 +31,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: layout_bridge.json
-          path: ./programs/layout_bridge.json
+          path: ./programs/snos.json
 
       - name: "Build Docker image"
         run: |
