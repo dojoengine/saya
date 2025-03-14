@@ -7,7 +7,7 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
 
-const BRIDGE_BUFFER_SIZE: usize = 1;
+const BRIDGE_BUFFER_SIZE: usize = 4;
 
 #[derive(Debug)]
 pub struct RecursiveProver<U, D> {
@@ -41,7 +41,7 @@ impl<U, D, UV, DV, I> ProverBuilder for RecursiveProverBuilder<U, D>
 where
     U: ProverBuilder<Prover = UV>,
     D: ProverBuilder<Prover = DV>,
-    UV: Prover<Proof = I>,
+    UV: Prover<BlockInfo = I>,
     DV: Prover<Statement = I>,
 {
     type Prover = RecursiveProver<U::Prover, D::Prover>;
@@ -74,7 +74,7 @@ where
         }
     }
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::Proof>) -> Self {
+    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self {
         Self {
             upstream_prover_builder: self.upstream_prover_builder,
             downstream_prover_builder: self.downstream_prover_builder.proof_channel(proof_channel),
@@ -104,16 +104,16 @@ impl RecursiveProverState {
 
 impl<U, D, I> Prover for RecursiveProver<U, D>
 where
-    U: Prover<Proof = I>,
+    U: Prover<BlockInfo = I>,
     D: Prover<Statement = I>,
 {
     type Statement = U::Statement;
-    type Proof = D::Proof;
+    type BlockInfo = D::BlockInfo;
 }
 
 impl<U, D, I> Daemon for RecursiveProver<U, D>
 where
-    U: Prover<Proof = I>,
+    U: Prover<BlockInfo = I>,
     D: Prover<Statement = I>,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {

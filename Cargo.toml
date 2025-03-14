@@ -20,6 +20,7 @@ anyhow = { version = "1.0.95", default-features = false }
 bigdecimal = { version = "0.3.1", default-features = false }
 # `cairo-vm` fork used by `prove_block` from `snos`
 cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", default-features = false }
+prover-sdk ={ git = "https://github.com/cartridge-gg/http-prover.git",rev = "02aebf2"}
 celestia-rpc = { version = "0.8.0", default-features = false }
 celestia-types = { version = "0.9.0", default-features = false }
 ciborium = { version = "0.2.2", default-features = false }
@@ -30,7 +31,7 @@ futures-util = { version ="0.3.31", default-features = false }
 good_lp = { version = "=1.8.1", default-features = false }
 hex = { version = "0.4.3", default-features = false }
 integrity = { version = "0.1.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
-log = "0.4.22"
+log = {version = "0.4.22"}
 num-traits = { version = "0.2.19", default-features = false }
 prove_block = { git = "https://github.com/cartridge-gg/snos", rev = "03f07963" }
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
@@ -45,7 +46,9 @@ swiftness_commitment = { version = "1.0.0", default-features = false }
 swiftness_fri = { version = "1.0.0", default-features = false }
 swiftness_pow = { version = "1.0.0", default-features = false }
 swiftness_stark = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+thiserror = "2.0.12"
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", default-features = false }
 zip = { version = "2.2.2", default-features = false, features = ["deflate"] }
+sqlx = { version = "0.8.2", features = [ "chrono", "macros", "regexp", "runtime-async-std", "runtime-tokio", "sqlite", "uuid" ] }

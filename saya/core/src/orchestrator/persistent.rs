@@ -3,11 +3,11 @@ use log::{debug, info};
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
-    block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
+    block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
     },
-    prover::{Prover, ProverBuilder, RecursiveProof},
+    prover::{Prover, ProverBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
 };
@@ -17,16 +17,16 @@ use crate::{
 /// Block ingestor implementations would typically always make at least one extra block ready to be
 /// sent regardless of whether the channel is full. Therefore, setting this value as `1` should be
 /// sufficient.
-const BLOCK_INGESTOR_BUFFER_SIZE: usize = 1;
+const BLOCK_INGESTOR_BUFFER_SIZE: usize = 4;
 
 /// Size of the `StarkProof` channel.
-const PROOF_BUFFER_SIZE: usize = 1;
+const PROOF_BUFFER_SIZE: usize = 4;
 
 /// Size of the `DataAvailabilityCursor` channel.
-const DA_CURSOR_BUFFER_SIZE: usize = 1;
+const DA_CURSOR_BUFFER_SIZE: usize = 4;
 
 /// Size of the `SettlementCursor` channel.
-const SETTLE_CURSOR_BUFFER_SIZE: usize = 1;
+const SETTLE_CURSOR_BUFFER_SIZE: usize = 4;
 
 /// An orchestrator implementation for running a rollup in persistent mode.
 ///
@@ -84,20 +84,19 @@ impl<I, P, PV, D, DB, S> PersistentOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = NewBlock, Proof = RecursiveProof>,
+    PV: Prover<Statement = BlockInfo, BlockInfo = BlockInfo>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
-    DB: DataAvailabilityBackend<Payload = RecursiveProof>,
+    DB: DataAvailabilityBackend<Payload = BlockInfo>,
     S: SettlementBackendBuilder + Send,
 {
     pub async fn build(
         self,
     ) -> Result<PersistentOrchestrator<I::Ingestor, P::Prover, D::Backend, S::Backend>> {
         let (new_block_tx, new_block_rx) =
-            tokio::sync::mpsc::channel::<NewBlock>(BLOCK_INGESTOR_BUFFER_SIZE);
-        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<RecursiveProof>(PROOF_BUFFER_SIZE);
-        let (da_cursor_tx, da_cursor_rx) = tokio::sync::mpsc::channel::<
-            DataAvailabilityCursor<RecursiveProof>,
-        >(DA_CURSOR_BUFFER_SIZE);
+            tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
+        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<BlockInfo>(PROOF_BUFFER_SIZE);
+        let (da_cursor_tx, da_cursor_rx) =
+            tokio::sync::mpsc::channel::<DataAvailabilityCursor<BlockInfo>>(DA_CURSOR_BUFFER_SIZE);
         let (settle_cursor_tx, settle_cursor_rx) =
             tokio::sync::mpsc::channel::<SettlementCursor>(SETTLE_CURSOR_BUFFER_SIZE);
 

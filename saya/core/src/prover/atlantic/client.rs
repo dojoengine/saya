@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use anyhow::Result;
+use crate::prover::error::ProverError;
 use reqwest::{
     multipart::{Form, Part},
     Client, ClientBuilder,
@@ -8,10 +8,11 @@ use reqwest::{
 use serde::Deserialize;
 use url::Url;
 
-const ATLANTIC_API_BASE: &str = "https://atlantic.api.herodotus.cloud/v1";
+const ATLANTIC_API_BASE: &str = "https://staging.atlantic.api.herodotus.cloud";
+const ATLANTIC_S3_BASE: &str = "https://s3.pl-waw.scw.cloud/atlantic-k8s-experimental/queries";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AtlanticClient {
     http_client: Client,
     api_base: Url,
@@ -30,8 +31,26 @@ pub enum AtlanticQueryStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AtlanticQueryJob {
-    pub job_name: String,
+    pub id: String,
+    pub atlantic_query_id: String,
     pub status: AtlanticJobStatus,
+    pub job_name: String,
+    pub created_at: String,
+    pub completed_at: String,
+    // Context can be `any` for now, keep raw value for now.
+    pub context: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlanticQueryResponse {
+    pub atlantic_query: AtlanticQuery,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtlanticQuery {
+    pub id: String,
+    pub status: AtlanticQueryStatus,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -40,6 +59,111 @@ pub enum AtlanticJobStatus {
     InProgress,
     Completed,
     Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AtlanticJobSize {
+    XS,
+    S,
+    M,
+    L,
+}
+
+impl AtlanticJobSize {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::XS => "XS",
+            Self::S => "S",
+            Self::M => "M",
+            Self::L => "L",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AtlanticCairoVersion {
+    Cairo0,
+    Cairo1,
+}
+
+impl AtlanticCairoVersion {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Cairo0 => "cairo0",
+            Self::Cairo1 => "cairo1",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AtlanticCairoVmVersion {
+    Rust,
+    Python,
+}
+
+impl AtlanticCairoVmVersion {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Rust => "rust",
+            Self::Python => "python",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum AtlanticQueryResult {
+    TraceGeneration,
+    ProofGeneration,
+    ProofVerificationOnL1,
+    ProofVerificationOnL2,
+}
+
+impl AtlanticQueryResult {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::TraceGeneration => "TRACE_GENERATION",
+            Self::ProofGeneration => "PROOF_GENERATION",
+            Self::ProofVerificationOnL1 => "PROOF_VERIFICATION_ON_L1",
+            Self::ProofVerificationOnL2 => "PROOF_VERIFICATION_ON_L2",
+        }
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[allow(non_camel_case_types)]
+pub enum Layout {
+    plain,
+    small,
+    dex,
+    recursive,
+    starknet,
+    starknet_with_keccak,
+    recursive_large_output,
+    recursive_with_poseidon,
+    all_solidity,
+    all_cairo,
+    dynamic,
+}
+
+impl Layout {
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Layout::plain => "plain",
+            Layout::small => "small",
+            Layout::dex => "dex",
+            Layout::recursive => "recursive",
+            Layout::starknet => "starknet",
+            Layout::starknet_with_keccak => "starknet_with_keccak",
+            Layout::recursive_large_output => "recursive_large_output",
+            Layout::recursive_with_poseidon => "recursive_with_poseidon",
+            Layout::all_solidity => "all_solidity",
+            Layout::all_cairo => "all_cairo",
+            Layout::dynamic => "dynamic",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,12 +190,17 @@ impl AtlanticClient {
         }
     }
 
-    pub async fn submit_proof_generation<T>(&self, compressed_pie: T) -> Result<String>
+    pub async fn submit_proof_generation<T>(
+        &self,
+        compressed_pie: T,
+        layout: Layout,
+        label: String,
+    ) -> Result<String, ProverError>
     where
         T: Into<Cow<'static, [u8]>>,
     {
         let mut url = self.api_base.clone();
-        url.path_segments_mut().unwrap().push("proof-generation");
+        url.path_segments_mut().unwrap().push("atlantic-query");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
 
         let form = Form::new()
@@ -82,35 +211,43 @@ impl AtlanticClient {
                     .mime_str("application/zip")
                     .unwrap(),
             )
-            .text("layout", "dynamic")
-            .text("prover", "starkware_sharp")
-            .text("skipFactHashGeneration", "true");
+            .text("layout", layout.to_str())
+            .text("externalId", label)
+            .text("declaredJobSize", AtlanticJobSize::S.as_str())
+            .text("result", AtlanticQueryResult::ProofGeneration.as_str());
 
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            )));
         }
 
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn submit_l2_atlantic_query<P, I>(&self, program: P, input: I) -> Result<String>
+    pub async fn submit_trace_generation<P, I>(
+        &self,
+        label: &str,
+        program: P,
+        input: I,
+    ) -> Result<String, ProverError>
     where
         P: Into<Cow<'static, [u8]>>,
         I: Into<Cow<'static, [u8]>>,
     {
         let mut url = self.api_base.clone();
-        url.path_segments_mut()
-            .unwrap()
-            .push("l2")
-            .push("atlantic-query");
+        url.path_segments_mut().unwrap().push("atlantic-query");
         url.query_pairs_mut().append_pair("apiKey", &self.api_key);
-
         let form = Form::new()
-            .text("cairoVersion", "0")
-            .text("mockFactHash", "false")
-            .text("skipFactHashGeneration", "true")
+            .text("cairoVersion", AtlanticCairoVersion::Cairo0.as_str())
+            .text("result", AtlanticQueryResult::TraceGeneration.as_str())
+            .text("declaredJobSize", AtlanticJobSize::XS.as_str())
+            .text("cairoVm", AtlanticCairoVmVersion::Python.as_str())
+            .text("externalId", label.to_string())
             .part(
                 "programFile",
                 Part::bytes(program.into())
@@ -124,19 +261,20 @@ impl AtlanticClient {
                     .file_name("input.json")
                     .mime_str("application/json")
                     .unwrap(),
-            )
-            .text("prover", "starkware_sharp");
-
+            );
         let response = self.http_client.post(url).multipart(form).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            )));
         }
-
         let response = response.json::<AtlanticProofGenerationResponse>().await?;
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>> {
+    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>, ProverError> {
         let mut url = self.api_base.clone();
         url.path_segments_mut()
             .unwrap()
@@ -145,24 +283,52 @@ impl AtlanticClient {
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}",
+                response.status()
+            )));
         }
 
         let response = response.json::<AtlanticQueryJobsResponse>().await?;
         Ok(response.jobs)
     }
+    pub async fn get_atlantic_query(self, id: &str) -> Result<AtlanticQueryResponse, ProverError> {
+        let mut url = self.api_base.clone();
+        url.path_segments_mut()
+            .unwrap()
+            .push("atlantic-query")
+            .push(id);
+        let response = self.http_client.get(url).send().await?;
+        if !response.status().is_success() {
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}",
+                response.status()
+            )));
+        }
+        let response = response.json::<AtlanticQueryResponse>().await?;
+        Ok(response)
+    }
 
-    pub async fn get_proof(&self, id: &str) -> Result<String> {
-        let url = format!(
-            "https://atlantic-queries.s3.nl-ams.scw.cloud/sharp_queries/query_{}/proof.json",
-            id
-        );
+    pub async fn get_proof(&self, id: &str) -> Result<String, ProverError> {
+        let url = format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id);
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
-            anyhow::bail!("unsuccessful status code: {}", response.status());
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            )));
         }
 
         Ok(response.text().await?)
+    }
+
+    pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>, ProverError> {
+        //TODO: now query returns the actual trace link. We need to change this to the actual trace link
+        //instead of the pie link being hardcoded
+        let url = format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id);
+        let response = self.http_client.get(url).send().await?;
+        Ok(response.bytes().await?.to_vec())
     }
 }

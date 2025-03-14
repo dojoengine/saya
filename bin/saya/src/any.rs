@@ -1,31 +1,39 @@
 use anyhow::Result;
 use saya_core::{
+    block_ingestor::BlockInfo,
     prover::{
         AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, MockLayoutBridgeProver,
-        MockLayoutBridgeProverBuilder, Prover, ProverBuilder, RecursiveProof, SnosProof,
+        MockLayoutBridgeProverBuilder, Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
+    storage::PersistantStorage,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProver {
-    Atlantic(AtlanticLayoutBridgeProver),
+pub enum AnyLayoutBridgeProver<DB> {
+    Atlantic(AtlanticLayoutBridgeProver<DB>),
     Mock(MockLayoutBridgeProver),
 }
 
 #[derive(Debug)]
-pub enum AnyLayoutBridgeProverBuilder {
-    Atlantic(AtlanticLayoutBridgeProverBuilder),
+pub enum AnyLayoutBridgeProverBuilder<DB> {
+    Atlantic(AtlanticLayoutBridgeProverBuilder<DB>),
     Mock(MockLayoutBridgeProverBuilder),
 }
 
-impl Prover for AnyLayoutBridgeProver {
+impl<DB> Prover for AnyLayoutBridgeProver<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
     type Statement = SnosProof<String>;
-    type Proof = RecursiveProof;
+    type BlockInfo = BlockInfo;
 }
 
-impl Daemon for AnyLayoutBridgeProver {
+impl<DB> Daemon for AnyLayoutBridgeProver<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
     fn shutdown_handle(&self) -> ShutdownHandle {
         match self {
             Self::Atlantic(inner) => inner.shutdown_handle(),
@@ -41,8 +49,11 @@ impl Daemon for AnyLayoutBridgeProver {
     }
 }
 
-impl ProverBuilder for AnyLayoutBridgeProverBuilder {
-    type Prover = AnyLayoutBridgeProver;
+impl<DB> ProverBuilder for AnyLayoutBridgeProverBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
+    type Prover = AnyLayoutBridgeProver<DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(match self {
@@ -61,7 +72,7 @@ impl ProverBuilder for AnyLayoutBridgeProverBuilder {
         }
     }
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::Proof>) -> Self {
+    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self {
         match self {
             Self::Atlantic(inner) => Self::Atlantic(inner.proof_channel(proof_channel)),
             Self::Mock(inner) => Self::Mock(inner.proof_channel(proof_channel)),

@@ -12,15 +12,18 @@ use saya_core::{
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
+    storage::SqliteDb,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
 
-use crate::any::AnyLayoutBridgeProverBuilder;
+use crate::{
+    any::AnyLayoutBridgeProverBuilder,
+    common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
+};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
-
 #[derive(Debug, Parser)]
 pub struct Persistent {
     #[clap(subcommand)]
@@ -33,7 +36,7 @@ enum Subcommands {
     Start(Start),
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 struct Start {
     /// Rollup network Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
@@ -68,6 +71,12 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
+    /// Path to the database directory
+    #[clap(long, env)]
+    db_dir: Option<PathBuf>,
+    /// Number of blocks processed in parallel evenly distributed between the stages
+    #[clap(long, env, default_value_t = 60)]
+    blocks_processed_in_parallel: usize,
 }
 
 impl Persistent {
@@ -84,6 +93,25 @@ impl Start {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
+        let saya_path = self
+            .db_dir
+            .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
+            .unwrap_or_else(|| SAYA_DB_PATH.to_string());
+
+        let workers_distribution: [usize; NUMBER_OF_STAGES] =
+            calculate_workers_per_stage(self.blocks_processed_in_parallel);
+
+        let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
+            workers_distribution;
+
+        log::info!(
+            "snos_worker_count: {}, layout_bridge_workers_count: {}, ingestor_worker_count: {}",
+            snos_worker_count,
+            layout_bridge_workers_count,
+            ingestor_worker_count
+        );
+
+        let db = SqliteDb::new(&saya_path).await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
@@ -97,10 +125,11 @@ impl Start {
                     let mut layout_bridge =
                         Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
                     layout_bridge_file.read_to_end(&mut layout_bridge)?;
-
                     AnyLayoutBridgeProverBuilder::Atlantic(AtlanticLayoutBridgeProverBuilder::new(
                         self.atlantic_key.clone(),
                         layout_bridge,
+                        db.clone(),
+                        layout_bridge_workers_count,
                     ))
                 }
                 (None, None) => anyhow::bail!(
@@ -109,9 +138,20 @@ impl Start {
             };
 
         // TODO: make impls of these providers configurable
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.rollup_rpc, snos);
+
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.rollup_rpc,
+            snos,
+            db.clone(),
+            ingestor_worker_count,
+        );
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie),
+            AtlanticSnosProverBuilder::new(
+                self.atlantic_key,
+                self.mock_snos_from_pie,
+                db.clone(),
+                snos_worker_count,
+            ),
             layout_bridge_prover_builder,
         );
         let da_builder = NoopDataAvailabilityBackendBuilder::new();
@@ -120,6 +160,7 @@ impl Start {
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
+            db.clone(),
         );
 
         let settlement_builder = match (

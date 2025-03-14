@@ -4,7 +4,9 @@ use anyhow::Result;
 use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{data_availability::DataAvailabilityCursor, prover::RecursiveProof, service::Daemon};
+use crate::{
+    block_ingestor::BlockInfo, data_availability::DataAvailabilityCursor, service::Daemon,
+};
 
 mod piltover;
 pub use piltover::{PiltoverSettlementBackend, PiltoverSettlementBackendBuilder};
@@ -14,7 +16,7 @@ pub trait SettlementBackendBuilder {
 
     fn build(self) -> impl Future<Output = Result<Self::Backend>> + Send;
 
-    fn da_channel(self, da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>) -> Self;
+    fn da_channel(self, da_channel: Receiver<DataAvailabilityCursor<BlockInfo>>) -> Self;
 
     fn cursor_channel(self, cursor_channel: Sender<SettlementCursor>) -> Self;
 }

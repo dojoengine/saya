@@ -4,7 +4,7 @@ use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::Receiver;
 
 use crate::{
-    block_ingestor::{BlockIngestor, BlockIngestorBuilder, NewBlock},
+    block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
         DataAvailabilityPointer,
@@ -83,7 +83,7 @@ impl<I, P, PV, D, DB, S> SovereignOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
     P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = NewBlock, Proof = SnosProof<StarkProof>>,
+    PV: Prover<Statement = BlockInfo, BlockInfo = SnosProof<StarkProof>>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
     DB: DataAvailabilityBackend<Payload = SnosProof<StarkProof>>,
     S: StorageBackend,
@@ -92,7 +92,7 @@ where
         self,
     ) -> Result<SovereignOrchestrator<I::Ingestor, P::Prover, D::Backend, S>> {
         let (new_block_tx, new_block_rx) =
-            tokio::sync::mpsc::channel::<NewBlock>(BLOCK_INGESTOR_BUFFER_SIZE);
+            tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
         let (proof_tx, proof_rx) =
             tokio::sync::mpsc::channel::<SnosProof<StarkProof>>(PROOF_BUFFER_SIZE);
         let (cursor_tx, cursor_rx) = tokio::sync::mpsc::channel::<

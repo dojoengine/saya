@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -17,40 +18,44 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_types_core::felt::Felt;
+use swiftness::TransformTo;
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
 
 use crate::{
+    block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
-    prover::RecursiveProof,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
+    storage::PersistantStorage,
     utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
 };
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
 #[derive(Debug)]
-pub struct PiltoverSettlementBackend {
+pub struct PiltoverSettlementBackend<DB> {
     provider: Arc<JsonRpcClient<HttpTransport>>,
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
     fact_registration: FactRegistrationConfig,
     piltover_address: Felt,
-    da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>,
+    da_channel: Receiver<DataAvailabilityCursor<BlockInfo>>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
+    db: DB,
 }
 
 #[derive(Debug)]
-pub struct PiltoverSettlementBackendBuilder {
+pub struct PiltoverSettlementBackendBuilder<DB> {
     rpc_url: Url,
     integrity_address: Option<Felt>,
     skip_fact_registration: bool,
     piltover_address: Felt,
     account_address: Felt,
     account_private_key: Felt,
-    da_channel: Option<Receiver<DataAvailabilityCursor<RecursiveProof>>>,
+    da_channel: Option<Receiver<DataAvailabilityCursor<BlockInfo>>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
+    db: DB,
 }
 
 #[derive(Debug, Decode)]
@@ -76,7 +81,10 @@ enum FactRegistrationConfig {
     Skipped,
 }
 
-impl PiltoverSettlementBackend {
+impl<DB> PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     async fn get_state(&self) -> Result<AppchainState> {
         let raw_result = self
             .provider
@@ -94,113 +102,191 @@ impl PiltoverSettlementBackend {
     }
 
     async fn run(mut self) {
+        let mut pending_blocks: BTreeMap<u64, DataAvailabilityCursor<BlockInfo>> = BTreeMap::new();
         loop {
-            let new_da = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                new_da = self.da_channel.recv() => new_da,
+            let last_settled_block = self.get_block_number().await.unwrap();
+
+            let next_to_settle = if last_settled_block == Felt::MAX {
+                0
+            } else {
+                <Felt as TryInto<u64>>::try_into(last_settled_block).unwrap() + 1
             };
 
-            // This should be fine for now as DA backends wouldn't drop senders. This might change
-            // in the future.
-            let new_da = new_da.unwrap();
+            let da = pending_blocks.remove(&next_to_settle);
+
+            let Some(new_da) = da else {
+                let new_da = tokio::select! {
+                    _ = self.finish_handle.shutdown_requested() => break,
+                    new_da = self.da_channel.recv() => new_da,
+                };
+                let new_da = match new_da {
+                    Some(new_da) => new_da,
+                    None => {
+                        debug!("Data availability channel closed, shutting down");
+                        break;
+                    }
+                };
+
+                pending_blocks.insert(new_da.block_number, new_da.clone());
+                continue;
+            };
+
             debug!("Received new DA cursor");
+            let layout_bridge_proof = self
+                .db
+                .get_proof(
+                    new_da.block_number.try_into().unwrap(),
+                    crate::storage::Step::Bridge,
+                )
+                .await
+                .unwrap();
+            let raw_proof = String::from_utf8(layout_bridge_proof).unwrap();
+            let layout_bridge_proof = swiftness::parse(raw_proof).unwrap().transform_to();
 
-            match self.fact_registration {
-                FactRegistrationConfig::Integrity(integrity_address) => {
-                    // TODO: error handling
-                    let split_proof =
-                        split_proof::<swiftness_air::layout::recursive_with_poseidon::Layout>(
-                            new_da.full_payload.layout_bridge_proof.clone(),
-                        )
-                        .unwrap();
-                    let integrity_job_id = SigningKey::from_random().secret_scalar();
-                    let integrity_calls = split_proof
-                        .into_calls(
-                            integrity_job_id,
-                            VerifierConfiguration {
-                                layout: short_string!("recursive_with_poseidon"),
-                                hasher: short_string!("keccak_160_lsb"),
-                                stone_version: short_string!("stone6"),
-                                memory_verification: short_string!("relaxed"),
-                            },
-                        )
-                        .collect_calls(integrity_address);
-                    let integrity_call_chunks = split_calls(integrity_calls);
-                    debug!(
-                        "{} transactions to integrity verifier generated (job id: {:#064x})",
-                        integrity_call_chunks.len(),
-                        integrity_job_id
-                    );
-
-                    // TODO: error handling
-                    let mut nonce = self.account.get_nonce().await.unwrap();
-                    let mut total_fee = Felt::ZERO;
-
-                    let proof_start = Instant::now();
-
-                    for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
-                        let tx = self
-                            .account
-                            .execute_v3(chunk.to_owned())
-                            .nonce(nonce)
-                            .send()
-                            .await
+            match self
+                .db
+                .get_status(new_da.block_number.try_into().unwrap())
+                .await
+                .unwrap()
+            {
+                crate::storage::BlockStatus::BridgeProofGenerated => {
+                    match self.fact_registration {
+                        FactRegistrationConfig::Integrity(integrity_address) => {
+                            // TODO: error handling
+                            let split_proof = split_proof::<
+                                swiftness_air::layout::recursive_with_poseidon::Layout,
+                            >(
+                                layout_bridge_proof.clone()
+                            )
                             .unwrap();
-                        debug!(
-                            "[{} / {}] Integrity verification transaction sent: {:#064x}",
-                            ind + 1,
-                            integrity_call_chunks.len(),
-                            tx.transaction_hash
-                        );
+                            let integrity_job_id = SigningKey::from_random().secret_scalar();
+                            let integrity_calls = split_proof
+                                .into_calls(
+                                    integrity_job_id,
+                                    VerifierConfiguration {
+                                        layout: short_string!("recursive_with_poseidon"),
+                                        hasher: short_string!("keccak_160_lsb"),
+                                        stone_version: short_string!("stone6"),
+                                        memory_verification: short_string!("relaxed"),
+                                    },
+                                )
+                                .collect_calls(integrity_address);
+                            let integrity_call_chunks = split_calls(integrity_calls);
+                            debug!(
+                                "{} transactions to integrity verifier generated (job id: {:#064x})",
+                                integrity_call_chunks.len(),
+                                integrity_job_id
+                            );
 
-                        // TODO: error handling
-                        let receipt =
-                            watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                            // TODO: error handling
+                            let mut nonce = self.account.get_nonce().await.unwrap();
+                            let mut total_fee = Felt::ZERO;
+
+                            let proof_start = Instant::now();
+
+                            for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
+                                let execution =
+                                    self.account.execute_v3(chunk.to_owned()).nonce(nonce);
+                                let tx = crate::utils::retry_with_backoff(
+                                    || execution.send(),
+                                    "integrity_verification",
+                                    3,
+                                    Duration::from_secs(3),
+                                )
                                 .await
                                 .unwrap();
+                                debug!(
+                                    "[{} / {}] Integrity verification transaction sent: {:#064x}",
+                                    ind + 1,
+                                    integrity_call_chunks.len(),
+                                    tx.transaction_hash
+                                );
 
-                        let fee = match &receipt.receipt {
-                            TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
-                            TransactionReceipt::DeployAccount(receipt) => &receipt.actual_fee,
-                        };
+                                // TODO: error handling
+                                let receipt =
+                                    watch_tx(&self.provider, tx.transaction_hash, POLLING_INTERVAL)
+                                        .await
+                                        .unwrap();
 
-                        debug!(
-                            "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
-                            ind + 1,
-                            integrity_call_chunks.len(),
-                            tx.transaction_hash
-                        );
+                                let fee = match &receipt.receipt {
+                                    TransactionReceipt::Invoke(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::L1Handler(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::Declare(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::Deploy(receipt) => &receipt.actual_fee,
+                                    TransactionReceipt::DeployAccount(receipt) => {
+                                        &receipt.actual_fee
+                                    }
+                                };
 
-                        nonce += Felt::ONE;
-                        total_fee += fee.amount;
+                                debug!(
+                                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                                    ind + 1,
+                                    integrity_call_chunks.len(),
+                                    tx.transaction_hash
+                                );
+
+                                nonce += Felt::ONE;
+                                total_fee += fee.amount;
+                            }
+
+                            let proof_end = Instant::now();
+                            info!(
+                                "Proof successfully verified on integrity in {:.2} \
+                                seconds. Total cost: {} STRK",
+                                proof_end.duration_since(proof_start).as_secs_f32(),
+                                felt_to_bigdecimal(total_fee, 18)
+                            );
+                            self.db
+                                .set_status(
+                                    next_to_settle.try_into().unwrap(),
+                                    "verified_proof".to_string(),
+                                )
+                                .await
+                                .unwrap();
+                        }
+                        FactRegistrationConfig::Skipped => {
+                            info!(
+                                "On-chain fact-registration skipped for block #{}",
+                                new_da.block_number
+                            );
+                        }
                     }
-
-                    let proof_end = Instant::now();
-                    info!(
-                        "Proof successfully verified on integrity in {:.2} \
-                        seconds. Total cost: {} STRK",
-                        proof_end.duration_since(proof_start).as_secs_f32(),
-                        felt_to_bigdecimal(total_fee, 18)
-                    );
                 }
-                FactRegistrationConfig::Skipped => {
+                crate::storage::BlockStatus::VerifiedProof => {
                     info!(
-                        "On-chain fact-registration skipped for block #{}",
+                        "Block #{} already verified, skipping verification",
                         new_da.block_number
                     );
                 }
+                _ => {
+                    info!(
+                        "Block #{} in unexpected state, skipping settlement",
+                        new_da.block_number
+                    );
+                    continue;
+                }
             }
+
+            let new_snos_proof = self
+                .db
+                .get_proof(
+                    new_da.block_number.try_into().unwrap(),
+                    crate::storage::Step::Snos,
+                )
+                .await
+                .unwrap();
+
+            let new_snos_proof = String::from_utf8(new_snos_proof).unwrap();
+            let parsed_snos_proof = swiftness::parse(&new_snos_proof).unwrap().transform_to();
+            let snos_output = calculate_output(&parsed_snos_proof);
 
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
-                        snos_output: new_da.full_payload.snos_output,
-                        program_output: calculate_output(&new_da.full_payload.layout_bridge_proof),
+                        snos_output,
+                        program_output: calculate_output(&layout_bridge_proof),
                         onchain_data_hash: Felt::ZERO,
                         onchain_data_size: U256::from_words(0, 0),
                     };
@@ -216,7 +302,14 @@ impl PiltoverSettlementBackend {
             let execution = self.account.execute_v3(vec![update_state_call]);
 
             // TODO: error handling
-            let fees = execution.estimate_fee().await.unwrap();
+            let fees = crate::utils::retry_with_backoff(
+                || execution.estimate_fee(),
+                "estimate_fee",
+                3,
+                Duration::from_secs(3),
+            )
+            .await
+            .unwrap();
             debug!(
                 "Estimated settlement transaction cost for block #{}: {} STRK",
                 new_da.block_number,
@@ -225,7 +318,14 @@ impl PiltoverSettlementBackend {
 
             // TODO: wait for transaction to confirm
             // TODO: error handling
-            let transaction = execution.send().await.unwrap();
+            let transaction = crate::utils::retry_with_backoff(
+                || execution.send(),
+                "settlement",
+                3,
+                Duration::from_secs(3),
+            )
+            .await
+            .unwrap();
             info!(
                 "Piltover statement transaction sent for block #{}: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
@@ -240,11 +340,16 @@ impl PiltoverSettlementBackend {
             )
             .await
             .unwrap();
+
             info!(
                 "Piltover statement transaction block #{} confirmed: {:#064x}",
                 new_da.block_number, transaction.transaction_hash
             );
 
+            self.db
+                .remove_block(new_da.block_number.try_into().unwrap())
+                .await
+                .unwrap();
             let new_cursor = SettlementCursor {
                 block_number: new_da.block_number,
                 transaction_hash: transaction.transaction_hash,
@@ -262,12 +367,13 @@ impl PiltoverSettlementBackend {
     }
 }
 
-impl PiltoverSettlementBackendBuilder {
+impl<DB> PiltoverSettlementBackendBuilder<DB> {
     pub fn new(
         rpc_url: Url,
         piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
+        db: DB,
     ) -> Self {
         Self {
             rpc_url,
@@ -278,6 +384,7 @@ impl PiltoverSettlementBackendBuilder {
             account_private_key,
             da_channel: None,
             cursor_channel: None,
+            db,
         }
     }
 
@@ -292,8 +399,11 @@ impl PiltoverSettlementBackendBuilder {
     }
 }
 
-impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
-    type Backend = PiltoverSettlementBackend;
+impl<DB> SettlementBackendBuilder for PiltoverSettlementBackendBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
+    type Backend = PiltoverSettlementBackend<DB>;
 
     async fn build(self) -> Result<Self::Backend> {
         let provider = Arc::new(JsonRpcClient::new(HttpTransport::new(self.rpc_url)));
@@ -327,10 +437,11 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
                 .cursor_channel
                 .ok_or_else(|| anyhow::anyhow!("`cursor_channel` not set"))?,
             finish_handle: FinishHandle::new(),
+            db: self.db,
         })
     }
 
-    fn da_channel(mut self, da_channel: Receiver<DataAvailabilityCursor<RecursiveProof>>) -> Self {
+    fn da_channel(mut self, da_channel: Receiver<DataAvailabilityCursor<BlockInfo>>) -> Self {
         self.da_channel = Some(da_channel);
         self
     }
@@ -341,14 +452,20 @@ impl SettlementBackendBuilder for PiltoverSettlementBackendBuilder {
     }
 }
 
-impl SettlementBackend for PiltoverSettlementBackend {
+impl<DB> SettlementBackend for PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     async fn get_block_number(&self) -> Result<Felt> {
         let appchain_state = self.get_state().await?;
         Ok(appchain_state.block_number)
     }
 }
 
-impl Daemon for PiltoverSettlementBackend {
+impl<DB> Daemon for PiltoverSettlementBackend<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
     fn shutdown_handle(&self) -> crate::service::ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }

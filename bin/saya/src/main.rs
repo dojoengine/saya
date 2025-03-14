@@ -17,6 +17,8 @@ use sharding::Sharding;
 
 mod any;
 
+mod common;
+
 #[derive(Debug, Parser)]
 #[clap(about, version)]
 struct Cli {
@@ -31,7 +33,7 @@ enum Subcommands {
     /// layer".
     Sovereign(Sovereign),
     /// Run and manage Saaya in persistent L3 mode where proofs are settled in a "base layer"
-    /// netowrk.
+    /// network.
     Persistent(Persistent),
     Sharding(Sharding),
 }
@@ -43,7 +45,7 @@ async fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var(
             "RUST_LOG",
-            "info,saya=debug,saya_core=debug,rpc_client=info",
+            "info,saya=trace,saya_core=trace,rpc_client=info,prove_block=info",
         );
     }
     env_logger::init();

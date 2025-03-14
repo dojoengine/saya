@@ -5,6 +5,7 @@ use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
+    block_ingestor::BlockInfo,
     data_availability::{
         DataAvailabilityPacketContext, DataAvailabilityPayload, PersistentPacket, SovereignPacket,
     },
@@ -19,9 +20,12 @@ pub use atlantic::{
 
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
-
 mod recursive;
+pub use atlantic::compress_pie;
+pub use atlantic::AtlanticClient;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
+
+pub mod error;
 
 pub trait ProverBuilder {
     type Prover: Prover;
@@ -33,12 +37,12 @@ pub trait ProverBuilder {
         block_channel: Receiver<<Self::Prover as Prover>::Statement>,
     ) -> Self;
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::Proof>) -> Self;
+    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self;
 }
 
 pub trait Prover: Daemon {
     type Statement;
-    type Proof;
+    type BlockInfo;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +78,18 @@ impl DataAvailabilityPayload for RecursiveProof {
 
     fn block_number(&self) -> u64 {
         self.block_number
+    }
+
+    fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
+        PersistentPacket
+    }
+}
+
+impl DataAvailabilityPayload for BlockInfo {
+    type Packet = PersistentPacket;
+
+    fn block_number(&self) -> u64 {
+        self.number
     }
 
     fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {

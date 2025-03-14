@@ -8,9 +8,11 @@ use saya_core::{
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
     prover::AtlanticSnosProverBuilder,
     service::Daemon,
-    storage::InMemoryStorageBackend,
+    storage::{InMemoryStorageBackend, SqliteDb},
 };
 use url::Url;
+
+use crate::common::{calculate_workers_per_stage, SAYA_DB_PATH};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -47,8 +49,15 @@ struct Start {
     /// Celestia RPC node auth token
     #[clap(long, env)]
     celestia_token: String,
+    /// Genesis options
     #[clap(flatten)]
     genesis: GenesisOptions,
+    /// Number of blocks to process in parallel
+    #[clap(long, env)]
+    blocks_processed_in_parallel: usize,
+    /// Path to the database directory
+    #[clap(long, env)]
+    db_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -74,10 +83,30 @@ impl Start {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
-        // TODO: make impls of these providers configurable
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(self.starknet_rpc, snos);
-        let prover_builder =
-            AtlanticSnosProverBuilder::new(self.atlantic_key, self.mock_snos_from_pie);
+        let saya_path = self
+            .db_dir
+            .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
+            .unwrap_or_else(|| SAYA_DB_PATH.to_string());
+        let db = SqliteDb::new(&saya_path).await?;
+
+        let workers_distribution: [usize; 3] =
+            calculate_workers_per_stage(self.blocks_processed_in_parallel);
+        let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
+            workers_distribution;
+
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.starknet_rpc,
+            snos,
+            db.clone(),
+            ingestor_worker_count,
+        );
+
+        let prover_builder = AtlanticSnosProverBuilder::new(
+            self.atlantic_key,
+            self.mock_snos_from_pie,
+            db.clone(),
+            snos_worker_count,
+        );
         let da_builder =
             CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
         let storage = InMemoryStorageBackend::new();
