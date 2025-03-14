@@ -8,9 +8,18 @@ name: "Build"
 
 jobs:
   build-programs:
-    uses: ./.github/workflows/build_programs.yml
-    with:
-      inherit-secrets: true
+    name: "Build programs"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Build programs"
+        uses: ./.github/workflows/build_programs.yml
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}.json
+          path: ./programs/${{ matrix.name }}.json
 
   build-docker:
     name: "Build Docker image"
