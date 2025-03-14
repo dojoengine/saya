@@ -3,7 +3,10 @@ use std::{borrow::Cow, sync::Arc, time::Duration};
 use crate::{
     block_ingestor::BlockInfo,
     prover::{
-        atlantic::{client::AtlanticClient, snos::compress_pie},
+        atlantic::{
+            client::{AtlanticClient, Layout},
+            snos::compress_pie,
+        },
         error::ProverError,
         Prover, ProverBuilder, SnosProof,
     },
@@ -11,7 +14,7 @@ use crate::{
     storage::{PersistantStorage, Step},
 };
 use anyhow::Result;
-use cairo_vm::{types::layout_name::LayoutName, vm::runners::cairo_pie::CairoPie};
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, info, trace};
 use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
@@ -236,7 +239,7 @@ where
                 || {
                     client.submit_proof_generation(
                         compressed_pie.clone(),
-                        LayoutName::recursive_with_poseidon,
+                        Layout::recursive_with_poseidon,
                         format!("layout-{}", new_snos_proof.block_number),
                     )
                 },

@@ -1,7 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
 use crate::prover::error::ProverError;
-use cairo_vm::types::layout_name::LayoutName;
 use reqwest::{
     multipart::{Form, Part},
     Client, ClientBuilder,
@@ -133,6 +132,39 @@ impl AtlanticQueryResult {
         }
     }
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[allow(non_camel_case_types)]
+pub enum Layout {
+    plain,
+    small,
+    dex,
+    recursive,
+    starknet,
+    starknet_with_keccak,
+    recursive_large_output,
+    recursive_with_poseidon,
+    all_solidity,
+    all_cairo,
+    dynamic,
+}
+
+impl Layout {
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Layout::plain => "plain",
+            Layout::small => "small",
+            Layout::dex => "dex",
+            Layout::recursive => "recursive",
+            Layout::starknet => "starknet",
+            Layout::starknet_with_keccak => "starknet_with_keccak",
+            Layout::recursive_large_output => "recursive_large_output",
+            Layout::recursive_with_poseidon => "recursive_with_poseidon",
+            Layout::all_solidity => "all_solidity",
+            Layout::all_cairo => "all_cairo",
+            Layout::dynamic => "dynamic",
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -161,7 +193,7 @@ impl AtlanticClient {
     pub async fn submit_proof_generation<T>(
         &self,
         compressed_pie: T,
-        layout: LayoutName,
+        layout: Layout,
         label: String,
     ) -> Result<String, ProverError>
     where

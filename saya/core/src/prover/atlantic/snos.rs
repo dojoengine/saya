@@ -1,7 +1,6 @@
 use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use cairo_vm::types::layout_name::LayoutName;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, info};
 use starknet::core::types::Felt;
@@ -17,7 +16,10 @@ use zip::{write::FileOptions, ZipWriter};
 use crate::{
     block_ingestor::BlockInfo,
     prover::{
-        atlantic::{client::AtlanticClient, AtlanticProof},
+        atlantic::{
+            client::{AtlanticClient, Layout},
+            AtlanticProof,
+        },
         error::ProverError,
         Prover, ProverBuilder, SnosProof,
     },
@@ -171,7 +173,7 @@ where
                 || {
                     client.submit_proof_generation(
                         compressed_pie.clone(),
-                        LayoutName::dynamic,
+                        Layout::dynamic,
                         format!("snos_{}", new_block.number),
                     )
                 },
