@@ -40,6 +40,7 @@ impl PersistantStorage for SqliteDb {
                     .await?;
             }
         }
+
         query("UPDATE blocks SET status = ? WHERE block_id = ?;")
             .bind(new_status)
             .bind(block_number)
@@ -59,6 +60,7 @@ impl PersistantStorage for SqliteDb {
             .bind(block_number)
             .fetch_one(&self.pool)
             .await?;
+
         let pie: Vec<u8> = row.try_get(0)?;
         if pie.is_empty() {
             return Err(anyhow::anyhow!("Pie not found"));
@@ -76,6 +78,7 @@ impl PersistantStorage for SqliteDb {
             Step::Bridge => "bridge_proof_generated",
             Step::Snos => "snos_proof_generated",
         };
+
         let mut tx = self.pool.begin().await?;
         // Ensure a row exists in proofs before updating
         query("INSERT OR IGNORE INTO proofs (block_id, snos_proof, bridge_proof) VALUES (?, NULL, NULL);")
@@ -96,6 +99,7 @@ impl PersistantStorage for SqliteDb {
         .bind(block_number)
         .execute(&mut *tx)
         .await?;
+
         query("UPDATE blocks SET status = ? WHERE block_id = ?;")
             .bind(new_status)
             .bind(block_number)
@@ -151,6 +155,7 @@ impl PersistantStorage for SqliteDb {
             Query::BridgeTrace => "trace_gen_query_id",
             Query::SnosProof => "snos_proof_query_id",
         };
+
         query(&format!(
             "UPDATE job_ids SET {} = ? WHERE block_id = ?",
             column
@@ -159,6 +164,7 @@ impl PersistantStorage for SqliteDb {
         .bind(block_number)
         .execute(&mut *tx)
         .await?;
+
         query("UPDATE blocks SET status = ? WHERE block_id = ?;")
             .bind(new_status)
             .bind(block_number)
@@ -239,6 +245,7 @@ impl PersistantStorage for SqliteDb {
         let first_block: u32 = row.try_get(0)?;
         Ok(first_block)
     }
+
     async fn add_failed_block(
         &self,
         block_number: u32,
@@ -266,6 +273,7 @@ impl PersistantStorage for SqliteDb {
         tx.commit().await?;
         Ok(())
     }
+
     async fn get_failed_blocks(&self) -> anyhow::Result<Vec<(u32, String)>> {
         let mut failed_blocks = Vec::new();
         let rows =
@@ -279,6 +287,7 @@ impl PersistantStorage for SqliteDb {
         }
         Ok(failed_blocks)
     }
+
     async fn mark_failed_blocks_as_handled(&self, block_ids: &[u32]) -> anyhow::Result<()> {
         if block_ids.is_empty() {
             return Ok(()); // Nothing to update
@@ -315,6 +324,7 @@ mod tests {
             std::fs::remove_file(path).unwrap();
         }
     }
+
     #[tokio::test]
     async fn test_initialize_and_remove_block() {
         let db_path = get_tmp().await;
@@ -553,6 +563,7 @@ mod tests {
         );
         cleanup_db(&db_path).await;
     }
+
     #[tokio::test]
     async fn test_add_and_get_failed_block() {
         let db_path = get_tmp().await;

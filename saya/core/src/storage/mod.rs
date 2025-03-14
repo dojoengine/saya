@@ -50,6 +50,7 @@ pub enum BlockStatus {
     Settled,
     Failed,
 }
+
 impl std::fmt::Display for BlockStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -89,54 +90,66 @@ impl From<&str> for BlockStatus {
 
 pub trait PersistantStorage {
     fn initialize_block(&self, block_number: u32) -> impl Future<Output = Result<()>> + Send;
+
     fn remove_block(&self, block_number: u32) -> impl Future<Output = Result<()>> + Send;
+
     fn add_pie(
         &self,
         block_number: u32,
         pie: Vec<u8>,
         step: Step,
     ) -> impl Future<Output = Result<()>> + Send;
+
     fn get_pie(
         &self,
         block_number: u32,
         step: Step,
     ) -> impl Future<Output = Result<Vec<u8>>> + Send;
+
     fn add_proof(
         &self,
         block_number: u32,
         proof: Vec<u8>,
         step: Step,
     ) -> impl Future<Output = Result<()>> + Send;
+
     fn get_proof(
         &self,
         block_number: u32,
         step: Step,
     ) -> impl Future<Output = Result<Vec<u8>>> + Send;
+
     fn add_query_id(
         &self,
         block_number: u32,
         query_id: String,
         query_type: Query,
     ) -> impl Future<Output = Result<()>> + Send;
+
     fn get_query_id(
         &self,
         block_number: u32,
         query_type: Query,
     ) -> impl Future<Output = Result<String>> + Send;
+
     fn set_status(
         &self,
         block_number: u32,
         status: String,
     ) -> impl Future<Output = Result<()>> + Send;
+
     fn get_status(&self, block_number: u32) -> impl Future<Output = Result<BlockStatus>> + Send;
 
     fn get_first_db_block(&self) -> impl Future<Output = Result<u32>> + Send;
+
     fn add_failed_block(
         &self,
         block_number: u32,
         failure_reason: String,
     ) -> impl Future<Output = Result<()>> + Send;
+
     fn get_failed_blocks(&self) -> impl Future<Output = Result<Vec<(u32, String)>>> + Send;
+
     fn mark_failed_blocks_as_handled(
         &self,
         block_id: &[u32],

@@ -1,10 +1,12 @@
+pub const SAYA_DB_PATH: &str = "saya.db";
+
 // All time values are in seconds
 const SNOS_PROOF_GENERATION_TIME: u32 = 15 * 60;
 const LAYOUT_BRIDGE_PROOF_GENERATION_TIME: u32 = 30 * 60;
 const PIE_GENERATION_TIME: u32 = 60;
 
 // Number of stages in the process
-const NUMBER_OF_STAGES: usize = 3;
+pub const NUMBER_OF_STAGES: usize = 3;
 
 /// Calculates the number of workers required for each stage of the pipeline.
 ///

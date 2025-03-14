@@ -4,7 +4,7 @@ use sqlx::{Pool, Row, Sqlite};
 use super::SqliteDb;
 
 impl SqliteDb {
-    // Function to check if the blocks table has the correct columns
+    /// Function to check if tables has the correct columns
     pub(crate) async fn check_columns(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let blocks_table = Self::check_blocks_table(pool).await?;
         let proofs_table = Self::check_proof_table(pool).await?;
@@ -14,6 +14,7 @@ impl SqliteDb {
         Ok(blocks_table && proofs_table && pies_table && job_ids_table && failed_blocks_table)
     }
 
+    /// Function to check if the blocks table has the correct columns
     pub(crate) async fn check_blocks_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let columns = sqlx::query("PRAGMA table_info(blocks);")
             .fetch_all(pool)
@@ -32,6 +33,8 @@ impl SqliteDb {
         }
         Ok(has_id && has_status)
     }
+
+    /// Function to check if the proofs table has the correct columns
     pub(crate) async fn check_proof_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let columns = sqlx::query("PRAGMA table_info(proofs);")
             .fetch_all(pool)
@@ -54,6 +57,8 @@ impl SqliteDb {
         }
         Ok(has_id && has_block_id && has_snos_proof && has_bridge_proof)
     }
+
+    /// Function to check if the pies table has the correct columns
     pub(crate) async fn check_pies_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let columns = sqlx::query("PRAGMA table_info(pies);")
             .fetch_all(pool)
@@ -77,6 +82,7 @@ impl SqliteDb {
         Ok(has_id && has_block_id && has_snos_pie && has_bridge_pie)
     }
 
+    /// Function to check if the job_ids table has the correct columns
     pub(crate) async fn check_ids_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let columns = sqlx::query("PRAGMA table_info(job_ids);")
             .fetch_all(pool)
@@ -106,6 +112,7 @@ impl SqliteDb {
             && has_bridge_proof_query_id)
     }
 
+    /// Function to check if the failed_blocks table has the correct columns
     pub(crate) async fn check_failed_blocks_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let columns = sqlx::query("PRAGMA table_info(failed_blocks);")
             .fetch_all(pool)
@@ -125,7 +132,9 @@ impl SqliteDb {
         }
         Ok(has_id && has_block_id && has_failure_reason)
     }
-    pub(crate) async fn check_table_exists(pool: &Pool<Sqlite>) -> Result<bool, Error> {
+
+    /// Function to check if the tables exist
+    pub(crate) async fn check_tables_exist(pool: &Pool<Sqlite>) -> Result<bool, Error> {
         let expected_tables = vec!["blocks", "pies", "proofs", "job_ids", "failed_blocks"];
         for table in expected_tables {
             let exists =

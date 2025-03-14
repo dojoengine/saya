@@ -17,11 +17,13 @@ use saya_core::{
 use starknet_types_core::felt::Felt;
 use url::Url;
 
-use crate::{any::AnyLayoutBridgeProverBuilder, common::calculate_workers_per_stage};
+use crate::{
+    any::AnyLayoutBridgeProverBuilder,
+    common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
+};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
-
 #[derive(Debug, Parser)]
 pub struct Persistent {
     #[clap(subcommand)]
@@ -87,17 +89,16 @@ impl Persistent {
 
 impl Start {
     pub async fn run(self) -> Result<()> {
-        let mut snos_file = std::fs::File::open(self.snos_program.clone())?;
+        let mut snos_file = std::fs::File::open(self.snos_program)?;
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
-        let saya_path = if let Some(db_dir) = self.db_dir {
-            format!("{}/saya.db", db_dir.display())
-        } else {
-            "saya.db".to_string()
-        };
+        let saya_path = self
+            .db_dir
+            .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
+            .unwrap_or_else(|| SAYA_DB_PATH.to_string());
 
-        let workers_distribution: [usize; 3] =
+        let workers_distribution: [usize; NUMBER_OF_STAGES] =
             calculate_workers_per_stage(self.blocks_processed_in_parallel);
 
         let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =

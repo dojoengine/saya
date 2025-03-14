@@ -155,13 +155,11 @@ where
                 }
             }
             // TODO: error handling
-            // trace!("Compressing PIE for block #{}", new_block.number);
 
             let compressed_pie: Vec<u8> = db
                 .get_pie(block_number_u32, crate::storage::Step::Snos)
                 .await
                 .unwrap();
-            // compress_pie(new_block.pie).await.unwrap();
 
             debug!(
                 "Compressed PIE size for block #{}: {} bytes",
@@ -190,6 +188,7 @@ where
             )
             .await
             .unwrap();
+
             info!(
                 "Atlantic proof generation submitted for block #{}: {}",
                 new_block.number, atlantic_query_id

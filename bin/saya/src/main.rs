@@ -33,7 +33,7 @@ enum Subcommands {
     /// layer".
     Sovereign(Sovereign),
     /// Run and manage Saaya in persistent L3 mode where proofs are settled in a "base layer"
-    /// netowrk.
+    /// network.
     Persistent(Persistent),
     Sharding(Sharding),
 }

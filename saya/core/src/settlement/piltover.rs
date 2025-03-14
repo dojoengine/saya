@@ -25,7 +25,6 @@ use url::Url;
 use crate::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
-    // prover::RecursiveProof,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
     storage::PersistantStorage,
@@ -267,6 +266,7 @@ where
                     continue;
                 }
             }
+
             let new_snos_proof = self
                 .db
                 .get_proof(
@@ -275,9 +275,11 @@ where
                 )
                 .await
                 .unwrap();
+
             let new_snos_proof = String::from_utf8(new_snos_proof).unwrap();
             let parsed_snos_proof = swiftness::parse(&new_snos_proof).unwrap().transform_to();
             let snos_output = calculate_output(&parsed_snos_proof);
+
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
@@ -338,6 +340,7 @@ where
             )
             .await
             .unwrap();
+
             info!(
                 "Piltover statement transaction block #{} confirmed: {:#064x}",
                 new_da.block_number, transaction.transaction_hash

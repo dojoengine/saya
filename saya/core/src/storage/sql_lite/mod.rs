@@ -35,10 +35,10 @@ impl SqliteDb {
             .connect(&format!("sqlite:{}", path))
             .await?;
 
-        let table_exists = Self::check_table_exists(&pool).await?;
+        let table_exists = Self::check_tables_exist(&pool).await?;
 
         if !table_exists || !Self::check_columns(&pool).await? {
-            trace!("Creating or updating the 'blocks' table...");
+            trace!("Creating or updating tables...");
             Self::create_block_table(&pool).await?;
             Self::create_proof_table(&pool).await?;
             Self::create_pies_table(&pool).await?;
@@ -123,6 +123,7 @@ impl SqliteDb {
         .await?;
         Ok(())
     }
+
     pub async fn create_failed_blocks_table(pool: &Pool<Sqlite>) -> Result<(), Error> {
         query(
             r#"

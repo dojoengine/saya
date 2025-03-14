@@ -12,7 +12,7 @@ use saya_core::{
 };
 use url::Url;
 
-use crate::common::calculate_workers_per_stage;
+use crate::common::{calculate_workers_per_stage, SAYA_DB_PATH};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -49,13 +49,15 @@ struct Start {
     /// Celestia RPC node auth token
     #[clap(long, env)]
     celestia_token: String,
-
+    /// Genesis options
     #[clap(flatten)]
     genesis: GenesisOptions,
-
     /// Number of blocks to process in parallel
     #[clap(long, env)]
     blocks_processed_in_parallel: usize,
+    /// Path to the database directory
+    #[clap(long, env)]
+    db_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Parser)]
@@ -81,7 +83,11 @@ impl Start {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
-        let db = SqliteDb::new("saya.db").await?;
+        let saya_path = self
+            .db_dir
+            .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
+            .unwrap_or_else(|| SAYA_DB_PATH.to_string());
+        let db = SqliteDb::new(&saya_path).await?;
 
         let workers_distribution: [usize; 3] =
             calculate_workers_per_stage(self.blocks_processed_in_parallel);

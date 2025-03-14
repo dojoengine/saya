@@ -287,14 +287,17 @@ where
                 block_number_u32,
             )
             .await;
+
             debug!(
                 "Atlantic layout bridge proof generation finished for query: {}",
                 atlantic_query_id
             );
+
             let new_proof = BlockInfo {
                 number: new_snos_proof.block_number,
                 status: crate::storage::BlockStatus::SnosProofGenerated,
             };
+
             tokio::select! {
                 _ = finish_handle.shutdown_requested() => break,
                 _ = task_tx.send(new_proof) => {},

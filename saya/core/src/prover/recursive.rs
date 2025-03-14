@@ -7,7 +7,7 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
 
-const BRIDGE_BUFFER_SIZE: usize = 1;
+const BRIDGE_BUFFER_SIZE: usize = 4;
 
 #[derive(Debug)]
 pub struct RecursiveProver<U, D> {
