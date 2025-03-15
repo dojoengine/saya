@@ -9,7 +9,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_VERSION: 1.85.0
   REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
@@ -76,7 +75,7 @@ jobs:
         name: Rust Toolchain Setup
         with:
           targets: ${{ matrix.job.target }}
-          toolchain: ${{ env.RUST_VERSION }}
+          toolchain: "nightly"
 
       - uses: Swatinem/rust-cache@v2
         with:
