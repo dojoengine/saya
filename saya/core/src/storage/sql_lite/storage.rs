@@ -309,27 +309,13 @@ impl PersistantStorage for SqliteDb {
 
 #[cfg(test)]
 mod tests {
+    use crate::storage::sql_lite::IN_MEMORY_DB;
+
     use super::*;
-    use std::path::Path;
-    use std::time::{SystemTime, UNIX_EPOCH};
-    async fn get_tmp() -> String {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards")
-            .as_micros();
-        format!("tmp-{}.db", now)
-    }
-    async fn cleanup_db(path: &str) {
-        if Path::new(path).exists() {
-            std::fs::remove_file(path).unwrap();
-        }
-    }
 
     #[tokio::test]
     async fn test_initialize_and_remove_block() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         // Initialize block
         db.initialize_block(1).await.unwrap();
@@ -343,14 +329,11 @@ mod tests {
             result.is_err(),
             "Block should be removed, but status was found"
         );
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_add_and_get_pie_for_multiple_blocks() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         // Initialize multiple blocks
         db.initialize_block(1).await.unwrap();
@@ -367,14 +350,11 @@ mod tests {
 
         assert_eq!(result1, pie1);
         assert_eq!(result2, pie2);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_add_pie_does_not_overwrite_other_pie() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(":memory:").await.unwrap();
 
         db.initialize_block(1).await.unwrap();
         let snos_pie = vec![1, 2, 3];
@@ -390,14 +370,11 @@ mod tests {
 
         assert_eq!(result_snos, snos_pie);
         assert_eq!(result_bridge, bridge_pie);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_add_and_get_proof_for_multiple_blocks() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         db.initialize_block(1).await.unwrap();
         db.initialize_block(2).await.unwrap();
@@ -413,42 +390,33 @@ mod tests {
 
         assert_eq!(result1, proof1);
         assert_eq!(result2, proof2);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_get_pie_returns_error_for_missing_block() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         let result = db.get_pie(99, Step::Snos).await;
         assert!(
             result.is_err(),
             "Expected error when getting pie for non-existent block"
         );
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_get_proof_returns_error_for_missing_block() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         let result = db.get_proof(99, Step::Snos).await;
         assert!(
             result.is_err(),
             "Expected error when getting proof for non-existent block"
         );
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_add_and_get_query_id_for_multiple_blocks() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         db.initialize_block(1).await.unwrap();
         db.initialize_block(2).await.unwrap();
@@ -468,15 +436,11 @@ mod tests {
 
         assert_eq!(result_1, query_id_1);
         assert_eq!(result_2, query_id_2);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_query_id_does_not_overwrite_other_query_ids() {
-        let db_path = get_tmp().await;
-
-        println!("&db_path: {:?}", db_path);
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         db.initialize_block(1).await.unwrap();
 
@@ -495,14 +459,11 @@ mod tests {
 
         assert_eq!(result_snos, snos_query_id);
         assert_eq!(result_bridge, bridge_query_id);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_set_and_get_status() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         db.initialize_block(1).await.unwrap();
 
@@ -517,28 +478,22 @@ mod tests {
             .unwrap();
         let status = db.get_status(1).await.unwrap();
         assert_eq!(status, BlockStatus::BridgeProofGenerated);
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_get_status_returns_error_for_missing_block() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         let result = db.get_status(99).await;
         assert!(
             result.is_err(),
             "Expected error when getting status for non-existent block"
         );
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_remove_block_deletes_pies_and_proofs() {
-        let db_path = get_tmp().await;
-
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
 
         db.initialize_block(1).await.unwrap();
 
@@ -561,18 +516,17 @@ mod tests {
             proof_result.is_err(),
             "Expected error when getting proof for deleted block"
         );
-        cleanup_db(&db_path).await;
     }
 
     #[tokio::test]
     async fn test_add_and_get_failed_block() {
-        let db_path = get_tmp().await;
-        let db = SqliteDb::new(&db_path).await.unwrap();
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
         db.initialize_block(1).await.unwrap();
         db.add_failed_block(1, "failed".to_string()).await.unwrap();
+
         let failed_blocks = db.get_failed_blocks().await.unwrap();
-        println!("failed_blocks: {:?}", failed_blocks);
+
         assert_eq!(failed_blocks, vec![(1, "failed".to_string())]);
-        cleanup_db(&db_path).await;
     }
 }
