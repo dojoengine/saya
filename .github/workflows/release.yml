@@ -153,7 +153,7 @@ jobs:
         if: github.event_name == 'workflow_call'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.name }}.json
+          name: artifacts-${{ matrix.name }}.json
           path: ./programs/${{ matrix.name }}.json
 
   create-draft-release:
@@ -195,13 +195,13 @@ jobs:
       - name: Download snos program
         uses: actions/download-artifact@v4
         with:
-          pattern: snos.json
+          name: artifacts-snos.json
           path: ./programs/snos.json
 
       - name: Download layout_bridge program
         uses: actions/download-artifact@v4
         with:
-          pattern: layout_bridge.json
+          name: artifacts-layout_bridge.json
           path: ./programs/layout_bridge.json
 
       - name: Set up Docker Buildx
