@@ -1,14 +1,14 @@
 # Consider compiling the cairo programs before building the image to embed them.
 
+# Stage 1
 FROM rust:alpine AS build
 
 RUN apk add --update alpine-sdk linux-headers libressl-dev tini
+RUN mkdir /programs
+COPY ./programs/. /programs/
 
 WORKDIR /src
 COPY ./rust-toolchain.toml /src/
-
-RUN mkdir /programs
-COPY ./programs /programs/
 
 # Cache Docker layer for nightly toolchain installation
 RUN cargo --version
@@ -24,13 +24,12 @@ RUN --mount=type=cache,target=/src/target \
     mkdir ./build && \
     cp ./target/release/saya ./build/
 
+# Stage 2
 FROM alpine
 
 LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 
 COPY --from=build /sbin/tini /tini
-ENTRYPOINT ["/tini", "--"]
-
 COPY --from=build /src/build/saya /usr/bin/
 RUN mkdir /programs
 COPY --from=build /programs /programs
@@ -38,4 +37,5 @@ COPY --from=build /programs /programs
 ENV SNOS_PROGRAM=/programs/snos.json
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
 
+ENTRYPOINT ["/tini", "--"]
 CMD [ "saya" ]
