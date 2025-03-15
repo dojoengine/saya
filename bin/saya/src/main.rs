@@ -32,7 +32,7 @@ enum Subcommands {
     /// Run and manage Saya in sovereign mode where the network settles interally without a "base
     /// layer".
     Sovereign(Sovereign),
-    /// Run and manage Saaya in persistent L3 mode where proofs are settled in a "base layer"
+    /// Run and manage Saya in persistent L3 mode where proofs are settled in a "base layer"
     /// network.
     Persistent(Persistent),
     Sharding(Sharding),
