@@ -40,6 +40,10 @@ jobs:
         with:
           toolchain: "nightly"
           components: "clippy"
+      
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: "Run Clippy"
         run: |

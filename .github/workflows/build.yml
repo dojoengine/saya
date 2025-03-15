@@ -1,0 +1,30 @@
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+name: "Build"
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+
+      - name: "Setup nightly toolchain"
+        uses: "actions-rs/toolchain@v1"
+        with:
+          toolchain: "nightly"
+
+      - name: "Use Rust cache"
+        uses: "Swatinem/rust-cache@v2"
+        with:
+          cache-on-failure: true
+
+      - name: "Cargo build"
+        run: |
+          cargo build --workspace --all-features

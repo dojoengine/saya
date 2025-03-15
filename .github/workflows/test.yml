@@ -1,0 +1,32 @@
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+
+name: "Test"
+
+jobs:
+  # In the future, move with unix,macos,windows tests for better
+  # distribution.
+  generic-test:
+    name: "Test"
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Checkout source code"
+        uses: "actions/checkout@v4"
+
+      - name: "Setup nightly toolchain"
+        uses: "actions-rs/toolchain@v1"
+        with:
+          toolchain: "nightly"
+
+      - name: "Use Rust cache"
+        uses: "Swatinem/rust-cache@v2"
+        with:
+          cache-on-failure: true
+
+      - name: "Cargo test"
+        run: |
+          cargo test --workspace --all-features

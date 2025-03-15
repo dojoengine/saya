@@ -11,6 +11,9 @@ use sqlx::Sqlite;
 
 mod storage;
 mod utils;
+
+const IN_MEMORY_DB: &str = ":memory:";
+
 #[derive(Clone)]
 pub struct SqliteDb {
     pub(crate) pool: Pool<Sqlite>,
@@ -19,7 +22,7 @@ pub struct SqliteDb {
 impl SqliteDb {
     pub async fn new(path: &str) -> Result<Self, Error> {
         // Check if there is a database file at the path
-        if !Path::new(path).try_exists()? {
+        if path != IN_MEMORY_DB && !Path::new(path).try_exists()? {
             trace!(
                 "Database file not found. A new one will be created at: {}",
                 path
