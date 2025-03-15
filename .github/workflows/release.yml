@@ -182,17 +182,15 @@ jobs:
           path: artifacts/linux
           merge-multiple: true
 
-      - name: Download snos program
+      - name: Download programs
         uses: actions/download-artifact@v4
         with:
-          name: artifacts-snos.json
-          path: ./programs/snos.json
+          pattern: artifacts-*.json
+          path: artifacts
+          merge-multiple: true
 
-      - name: Download layout_bridge program
-        uses: actions/download-artifact@v4
-        with:
-          name: artifacts-layout_bridge.json
-          path: ./programs/layout_bridge.json
+      - name: List downloaded files
+        run: ls -R programs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
