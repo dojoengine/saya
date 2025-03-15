@@ -163,6 +163,7 @@ jobs:
   build-programs:
     name: "Build and hash ${{ matrix.name }}"
     runs-on: "${{ matrix.runner }}"
+    needs: prepare
 
     strategy:
       matrix:
