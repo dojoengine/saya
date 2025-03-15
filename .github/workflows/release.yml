@@ -165,7 +165,7 @@ jobs:
           echo "version=v$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
       - name: Display structure of downloaded files
         run: ls -R artifacts
-      - run: gh release create ${{ steps.version_info.outputs.version }} ./artifacts/*.gz --generate-notes --draft
+      - run: gh release create ${{ steps.version_info.outputs.version }} ./artifacts/* --generate-notes --draft
 
   docker-build-and-push:
     runs-on: ubuntu-20.04-4-cores
@@ -189,8 +189,10 @@ jobs:
           path: artifacts
           merge-multiple: true
 
-      - name: List downloaded files
-        run: ls -R programs
+      - name: Rename and list downloaded files
+        run: |
+          mv artifacts programs
+          ls -R programs
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
