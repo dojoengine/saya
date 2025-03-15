@@ -23,12 +23,8 @@ jobs:
       - name: Get version
         id: release_info
         run: |
-          if [[ "${{ github.event.inputs.preview || 'false' }}" == "true" ]]; then
-            echo "tag_name=preview--$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          else
-            cargo install cargo-get
-            echo "tag_name=v$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
-          fi
+          cargo install cargo-get
+          echo "tag_name=v$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
 
   release:
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
@@ -149,7 +145,6 @@ jobs:
     env:
       GITHUB_USER: ${{ github.repository_owner }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    if: ${{ !startsWith(needs.prepare.outputs.tag_name, 'preview') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
