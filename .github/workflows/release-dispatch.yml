@@ -34,7 +34,7 @@ jobs:
           cargo install cargo-get
           echo "version=$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
 
-      - uses: peter-evans/create-pull-request@v5
+      - uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.CREATE_PR_TOKEN }}
           title: "release(prepare): v${{ steps.version_info.outputs.version }}"

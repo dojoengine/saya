@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions-rs/toolchain@v1
         name: Rust Toolchain Setup
         with:
           targets: ${{ matrix.job.target }}
@@ -76,21 +76,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-
-      - name: Apple M1 setup
-        if: ${{ matrix.job.target == 'aarch64-apple-darwin' }}
-        run: |
-          echo "SDKROOT=$(xcrun -sdk macosx --show-sdk-path)" >> $GITHUB_ENV
-          echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)" >> $GITHUB_ENV
-
-      - name: Linux ARM setup
-        if: ${{ matrix.job.target == 'aarch64-unknown-linux-gnu' }}
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
-          # We build jemalloc with 64KB pagesize so that it works for all linux/arm64 pagesize variants
-          # See: https://github.com/jemalloc/jemalloc/issues/467
-          echo "JEMALLOC_SYS_WITH_LG_PAGE=16" >> $GITHUB_ENV
 
       - name: Build binaries
         run: cargo build --release --bins --target ${{ matrix.job.target }}
@@ -101,36 +86,20 @@ jobs:
           VERSION_NAME: ${{ needs.prepare.outputs.tag_name }}
         run: |
           if [ "$PLATFORM_NAME" == "linux" ]; then
-            tar -czvf "dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release katana sozo torii dojo-language-server
-            echo "file_name=dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            tar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release saya
+            echo "file_name=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           elif [ "$PLATFORM_NAME" == "darwin" ]; then
             # We need to use gtar here otherwise the archive is corrupt.
             # See: https://github.com/actions/virtual-environments/issues/2619
-            gtar -czvf "dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release katana sozo torii dojo-language-server
-            echo "file_name=dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            gtar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release saya
+            echo "file_name=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           else
             cd ./target/${TARGET}/release
-            7z a -tzip "dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" katana.exe sozo.exe torii.exe dojo-language-server.exe
-            mv "dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" ../../../
-            echo "file_name=dojo_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            7z a -tzip "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" saya.exe
+            mv "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" ../../../
+            echo "file_name=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.zip" >> $GITHUB_OUTPUT
           fi
         shell: bash
-
-      # We move binaries so they match $TARGETPLATFORM in the Docker build
-      - name: Move Binaries
-        if: ${{ env.PLATFORM_NAME == 'linux' }}
-        run: |
-          mkdir -p $PLATFORM_NAME/$ARCH
-          mv target/$TARGET/release/saya $PLATFORM_NAME/$ARCH
-        shell: bash
-
-      # Upload these for use with the Docker build later
-      - name: Upload docker binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: binaries-${{ matrix.job.target }}
-          path: ${{ env.PLATFORM_NAME }}
-          retention-days: 1
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -138,27 +107,6 @@ jobs:
           name: artifacts-${{ matrix.job.target }}
           path: ${{ steps.artifacts.outputs.file_name }}
           retention-days: 1
-
-  create-draft-release:
-    runs-on: ubuntu-20.04-4-cores
-    needs: [prepare, release]
-    env:
-      GITHUB_USER: ${{ github.repository_owner }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: artifacts-*
-          path: artifacts
-          merge-multiple: true
-      - id: version_info
-        run: |
-          cargo install cargo-get
-          echo "version=v$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
-      - run: gh release create ${{ steps.version_info.outputs.version }} ./artifacts/*.gz --generate-notes --draft
 
   build-programs:
     name: "Build and hash ${{ matrix.name }}"
@@ -189,6 +137,27 @@ jobs:
         with:
           name: ${{ matrix.name }}.json
           path: ./programs/${{ matrix.name }}.json
+
+  create-draft-release:
+    runs-on: ubuntu-20.04-4-cores
+    needs: [prepare, release, build-programs]
+    env:
+      GITHUB_USER: ${{ github.repository_owner }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: artifacts
+          merge-multiple: true
+      - id: version_info
+        run: |
+          cargo install cargo-get
+          echo "version=v$(cargo get workspace.package.version)" >> $GITHUB_OUTPUT
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+      - run: gh release create ${{ steps.version_info.outputs.version }} ./artifacts/*.gz --generate-notes --draft
 
   docker-build-and-push:
     runs-on: ubuntu-20.04-4-cores
