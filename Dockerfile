@@ -11,7 +11,6 @@ COPY ./rust-toolchain.toml /src/
 RUN cargo --version
 
 COPY . /src/
-COPY programs /programs
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
@@ -30,9 +29,7 @@ COPY --from=build /sbin/tini /tini
 ENTRYPOINT ["/tini", "--"]
 
 COPY --from=build /src/build/saya /usr/bin/
-RUN mkdir /programs
-COPY --from=build /programs/layout_bridge.json /programs/
-COPY --from=build /programs/snos.json /programs/
+COPY programs /programs/
 
 ENV SNOS_PROGRAM=/programs/snos.json
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json

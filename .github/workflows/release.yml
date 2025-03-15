@@ -174,13 +174,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download binaries
-        uses: actions/download-artifact@v4
-        with:
-          pattern: binaries-*
-          path: artifacts/linux
-          merge-multiple: true
-
       - name: Download programs
         uses: actions/download-artifact@v4
         with:
