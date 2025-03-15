@@ -67,18 +67,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@master
         name: Rust Toolchain Setup
         with:
-          target: ${{ matrix.job.target }}
+          targets: ${{ matrix.job.target }}
           toolchain: "nightly"
 
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
 
+      - name: Apple M1 setup
+        if: ${{ matrix.job.target == 'aarch64-apple-darwin' }}
+        run: |
+          echo "SDKROOT=$(xcrun -sdk macosx --show-sdk-path)" >> $GITHUB_ENV
+          echo "MACOSX_DEPLOYMENT_TARGET=$(xcrun -sdk macosx --show-sdk-platform-version)" >> $GITHUB_ENV
+
+      - name: Linux ARM setup
+        if: ${{ matrix.job.target == 'aarch64-unknown-linux-gnu' }}
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
+          # We build jemalloc with 64KB pagesize so that it works for all linux/arm64 pagesize variants
+          # See: https://github.com/jemalloc/jemalloc/issues/467
+          echo "JEMALLOC_SYS_WITH_LG_PAGE=16" >> $GITHUB_ENV
+
       - name: Build binaries
-        run: cargo build --release --bins --target ${{ matrix.job.target }}
+        run: |
+          cargo --version
+          cargo +nightly --version
+          cargo +nightly build --release --workspace --all-features --target ${{ matrix.job.target }}
 
       - name: Archive binaries
         id: artifacts
