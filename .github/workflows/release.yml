@@ -109,6 +109,14 @@ jobs:
           fi
         shell: bash
 
+      # We move binaries so they match $TARGETPLATFORM in the Docker build
+      - name: Move Binaries
+        if: ${{ env.PLATFORM_NAME == 'linux' }}
+        run: |
+          mkdir -p $PLATFORM_NAME/$ARCH
+          mv target/$TARGET/release/saya $PLATFORM_NAME/$ARCH
+        shell: bash
+
       - name: Upload docker binaries
         uses: actions/upload-artifact@v4
         with:
@@ -199,6 +207,7 @@ jobs:
         run: |
           mv artifacts programs
           ls -R programs
+          ls -R binaries
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
