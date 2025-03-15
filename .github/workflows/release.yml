@@ -71,7 +71,8 @@ jobs:
         name: Rust Toolchain Setup
         with:
           targets: ${{ matrix.job.target }}
-          toolchain: "nightly"
+          toolchain: "nightly-2024-12-16"
+          override: true
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -95,8 +96,7 @@ jobs:
       - name: Build binaries
         run: |
           cargo --version
-          cargo +nightly --version
-          cargo +nightly build --release --workspace --all-features --target ${{ matrix.job.target }}
+          cargo build --release --workspace --all-features --target ${{ matrix.job.target }}
 
       - name: Archive binaries
         id: artifacts
