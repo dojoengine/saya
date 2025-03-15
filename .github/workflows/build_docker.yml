@@ -71,5 +71,5 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.tag_name }}
+          tags: ghcr.io/${{ github.repository }}:debug
           platforms: linux/amd64,linux/arm64
