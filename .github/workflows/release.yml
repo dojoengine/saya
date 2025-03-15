@@ -70,7 +70,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         name: Rust Toolchain Setup
         with:
-          targets: ${{ matrix.job.target }}
+          target: ${{ matrix.job.target }}
           toolchain: "nightly"
 
       - uses: Swatinem/rust-cache@v2
