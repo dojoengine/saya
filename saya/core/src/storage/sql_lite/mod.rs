@@ -14,7 +14,6 @@ mod utils;
 
 const IN_MEMORY_DB: &str = ":memory:";
 
-
 #[derive(Clone)]
 pub struct SqliteDb {
     pub(crate) pool: Pool<Sqlite>,
