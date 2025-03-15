@@ -18,9 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: "Setup toolchain"
+        uses: "actions-rs/toolchain@v1"
+        with:
+          toolchain: "nightly"
+
       - run: |
           VERSION=${{ inputs.version }}
           VERSION=${VERSION#v}
+          cargo install cargo-release
           cargo release version $VERSION --execute --no-confirm && cargo release replace --execute --no-confirm
 
       - id: version_info
