@@ -32,7 +32,8 @@ COPY --from=build /sbin/tini /tini
 ENTRYPOINT ["/tini", "--"]
 
 COPY --from=build /src/build/saya /usr/bin/
-COPY --from=build /programs /programs/
+RUN mkdir /programs
+COPY --from=build /programs /programs
 
 ENV SNOS_PROGRAM=/programs/snos.json
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json

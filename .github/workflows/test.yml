@@ -4,7 +4,7 @@ on:
       - "main"
   pull_request:
 
-name: "Test"
+name: "test"
 
 jobs:
   # In the future, move with unix,macos,windows tests for better
