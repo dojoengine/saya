@@ -1,0 +1,13 @@
+FROM ubuntu:24.04
+
+RUN apt-get update && apt install -y tini
+
+ENTRYPOINT ["/tini", "--"]
+
+ARG TARGETPLATFORM
+
+LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
+
+COPY --from=binaries --chmod=755 $TARGETPLATFORM/saya /usr/local/bin/
+
+CMD [ "saya" ]

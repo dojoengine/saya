@@ -4,7 +4,7 @@ on:
       - "main"
   workflow_dispatch:
 
-name: "Build and hash programs"
+name: "build and hash programs"
 
 jobs:
   build:
