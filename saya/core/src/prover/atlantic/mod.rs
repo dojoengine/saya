@@ -37,7 +37,8 @@ impl AtlanticProof for String {
 /// The sizes are XS, S, M, L. We skip XS as the limit for number of steps is not know at the moment (17.03.2025).
 pub fn calculate_job_size(pie: CairoPie) -> AtlanticJobSize {
     match pie.execution_resources.n_steps {
-        0..=12_999_999 => AtlanticJobSize::S,
+        0..=6_499_999 => AtlanticJobSize::XS,
+        6_500_000..=12_999_999 => AtlanticJobSize::S,
         13_000_000..=29_999_999 => AtlanticJobSize::M,
         _ => AtlanticJobSize::L,
     }
