@@ -30,6 +30,11 @@ impl AtlanticProof for String {
     }
 }
 
+/// Calculate the job size based on the number of steps in the pie.
+/// Check the [Atlantic Prover](https://docs.herodotus.cloud/atlantic/sending-query) documentation for more information.
+/// We can use bigger sizes for small pies as well, but this increases the cost.
+/// The sizes have impact on amount of recoursces dedicated to the job.
+/// The sizes are XS, S, M, L. We skip XS as the limit for number of steps is not know at the moment (17.03.2025).
 pub fn calculate_job_size(pie: CairoPie) -> AtlanticJobSize {
     match pie.execution_resources.n_steps {
         0..=12_999_999 => AtlanticJobSize::S,
