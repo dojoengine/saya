@@ -4,6 +4,7 @@ use crate::{
     block_ingestor::BlockInfo,
     prover::{
         atlantic::{
+            calculate_job_size,
             client::{AtlanticClient, Layout},
             snos::compress_pie,
         },
@@ -239,13 +240,15 @@ where
                     compressed_pie
                 }
             };
-
+            let atlantic_job_size =
+                calculate_job_size(CairoPie::from_bytes(&compressed_pie).unwrap());
             let atlantic_query_id = crate::utils::retry_with_backoff(
                 || {
                     client.submit_proof_generation(
                         compressed_pie.clone(),
                         Layout::recursive_with_poseidon,
                         format!("layout-{}", new_snos_proof.block_number),
+                        atlantic_job_size,
                     )
                 },
                 "submit_proof_generation",

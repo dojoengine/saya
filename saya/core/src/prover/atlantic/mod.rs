@@ -1,4 +1,6 @@
 use anyhow::Result;
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
+use client::AtlanticJobSize;
 use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
 
@@ -25,5 +27,13 @@ impl AtlanticProof for StarkProof {
 impl AtlanticProof for String {
     fn parse(raw_proof: String) -> Result<Self> {
         Ok(raw_proof)
+    }
+}
+
+pub fn calculate_job_size(pie: CairoPie) -> AtlanticJobSize {
+    match pie.execution_resources.n_steps {
+        0..=12_999_999 => AtlanticJobSize::S,
+        13_000_000..=29_999_999 => AtlanticJobSize::M,
+        _ => AtlanticJobSize::L,
     }
 }
