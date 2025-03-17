@@ -22,7 +22,7 @@ use tokio::sync::{
     Mutex,
 };
 
-use super::client::AtlanticQueryStatus;
+use super::client::{AtlanticQueryResponse, AtlanticQueryStatus, MetadataUrls};
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
@@ -114,7 +114,7 @@ where
             {
                 Ok(atlantic_query_id) => {
                     info!(block_number = new_snos_proof.block_number; "Proof generation already submitted for block");
-                    match Self::wait_for_job(
+                    let query_response = match Self::wait_for_job(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -129,9 +129,16 @@ where
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
-                        Err(_) => {}
-                        Ok(_) => {}
-                    }
+                        Err(e) => {
+                            log::error!(
+                                "Unreachable error: {:?} while processing query {}",
+                                e,
+                                atlantic_query_id
+                            );
+                            unreachable!("Unexpected ProverError: {:?}", e);
+                        }
+                        Ok(response) => response,
+                    };
 
                     debug!(
                         atlantic_query_id:? = atlantic_query_id;
@@ -143,6 +150,7 @@ where
                         db.clone(),
                         atlantic_query_id,
                         block_number_u32,
+                        MetadataUrls::from_vec(query_response.metadata_urls),
                     )
                     .await;
 
@@ -209,7 +217,7 @@ where
                         "Atlantic trace generation submitted",
                     );
 
-                    match Self::wait_for_job(
+                    let query_response = match Self::wait_for_job(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -224,11 +232,24 @@ where
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
-                        Err(_) => {}
-                        Ok(_) => {}
+                        Err(e) => {
+                            log::error!(
+                                "Unreachable error: {:?} while processing query {}",
+                                e,
+                                atlantic_query_id
+                            );
+                            unreachable!("Unexpected ProverError: {:?}", e);
+                        }
+                        Ok(response) => response,
                     };
 
-                    let pie_bytes = client.get_trace(&atlantic_query_id).await.unwrap();
+                    let pie_bytes = client
+                        .get_trace(
+                            &atlantic_query_id,
+                            MetadataUrls::from_vec(query_response.metadata_urls),
+                        )
+                        .await
+                        .unwrap();
                     let layout_bridge_pie = CairoPie::from_bytes(&pie_bytes).unwrap();
 
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
@@ -273,30 +294,35 @@ where
             );
 
             // Wait for bridge layout proof to be done
-            match Self::wait_for_job(
+            let query_response = match Self::wait_for_job(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
             )
             .await
             {
-                Err(ProverError::Shutdown) => {
-                    break;
-                }
+                Err(ProverError::Shutdown) => break,
                 Err(ProverError::BlockFail(e)) => {
                     log::error!(error:% = e, atlantic_query_id:% = atlantic_query_id; "Proof generation failed");
                     db.add_failed_block(block_number_u32, e).await.unwrap();
                     continue;
                 }
-                Err(_) => {}
-                Ok(_) => {}
-            }
-
+                Err(e) => {
+                    log::error!(
+                        "Unreachable error: {:?} while processing query {}",
+                        e,
+                        atlantic_query_id
+                    );
+                    unreachable!("Unexpected ProverError: {:?}", e);
+                }
+                Ok(response) => response,
+            };
             Self::get_and_save_proof(
                 client.clone(),
                 db.clone(),
                 atlantic_query_id.clone(),
                 block_number_u32,
+                MetadataUrls::from_vec(query_response.metadata_urls),
             )
             .await;
 
@@ -346,16 +372,16 @@ where
         client: AtlanticClient,
         atlantic_query_id: String,
         finish_handle: FinishHandle,
-    ) -> Result<(), ProverError> {
-        loop {
+    ) -> Result<AtlanticQueryResponse, ProverError> {
+        let response = loop {
             // TODO: sleep with graceful shutdown
             tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
             if finish_handle.is_shutdown_requested() {
                 return Err(ProverError::Shutdown);
             }
-            if let Ok(jobs) = client.clone().get_atlantic_query(&atlantic_query_id).await {
-                match jobs.atlantic_query.status {
-                    AtlanticQueryStatus::Done => break,
+            if let Ok(query) = client.clone().get_atlantic_query(&atlantic_query_id).await {
+                match query.atlantic_query.status {
+                    AtlanticQueryStatus::Done => break query,
                     AtlanticQueryStatus::Failed => {
                         return Err(ProverError::BlockFail(format!(
                             "Proof generation failed for query: {}",
@@ -365,8 +391,8 @@ where
                     _ => continue,
                 }
             }
-        }
-        Ok(())
+        };
+        Ok(response)
     }
 
     async fn get_and_save_proof(
@@ -374,8 +400,12 @@ where
         db: DB,
         atlantic_query_id: String,
         block_number: u32,
+        metadata_url: MetadataUrls,
     ) {
-        let verifier_proof = client.get_proof(&atlantic_query_id).await.unwrap();
+        let verifier_proof = client
+            .get_proof(&atlantic_query_id, metadata_url)
+            .await
+            .unwrap();
 
         db.add_proof(
             block_number,

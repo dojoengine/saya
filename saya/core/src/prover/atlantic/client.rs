@@ -45,6 +45,7 @@ pub struct AtlanticQueryJob {
 #[serde(rename_all = "camelCase")]
 pub struct AtlanticQueryResponse {
     pub atlantic_query: AtlanticQuery,
+    pub metadata_urls: Vec<String>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -176,6 +177,49 @@ struct AtlanticProofGenerationResponse {
 #[serde(rename_all = "camelCase")]
 struct AtlanticQueryJobsResponse {
     jobs: Vec<AtlanticQueryJob>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MetadataUrls {
+    //Currently we dont use metadata,input and program, but it might be worth to add them in the
+    //future to get more information about the proof/trace in case of failure
+    pub metadata: Option<String>,
+    pub pie: Option<String>,
+    pub proof: Option<String>,
+    pub input: Option<String>,
+    pub program: Option<String>,
+}
+
+impl MetadataUrls {
+    pub fn from_vec(urls: Vec<String>) -> Self {
+        let mut metadata = None;
+        let mut pie = None;
+        let mut proof = None;
+        let mut input = None;
+        let mut program = None;
+
+        for url in urls {
+            if url.contains("metadata.json") {
+                metadata = Some(url);
+            } else if url.contains("pie.cairo0.zip") {
+                pie = Some(url);
+            } else if url.contains("proof.json") {
+                proof = Some(url);
+            } else if url.contains("input.cairo0.json") {
+                input = Some(url);
+            } else if url.contains("program.cairo0.json") {
+                program = Some(url);
+            }
+        }
+
+        Self {
+            metadata,
+            pie,
+            proof,
+            input,
+            program,
+        }
+    }
 }
 
 impl AtlanticClient {
@@ -310,8 +354,14 @@ impl AtlanticClient {
         Ok(response)
     }
 
-    pub async fn get_proof(&self, id: &str) -> Result<String, ProverError> {
-        let url = format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id);
+    pub async fn get_proof(
+        &self,
+        id: &str,
+        metadata_urls: MetadataUrls,
+    ) -> Result<String, ProverError> {
+        let url = metadata_urls
+            .proof
+            .unwrap_or(format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id));
 
         let response = self.http_client.get(url).send().await?;
         if !response.status().is_success() {
@@ -325,10 +375,14 @@ impl AtlanticClient {
         Ok(response.text().await?)
     }
 
-    pub async fn get_trace(&self, id: &str) -> Result<Vec<u8>, ProverError> {
-        //TODO: now query returns the actual trace link. We need to change this to the actual trace link
-        //instead of the pie link being hardcoded
-        let url = format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id);
+    pub async fn get_trace(
+        &self,
+        id: &str,
+        metadata_urls: MetadataUrls,
+    ) -> Result<Vec<u8>, ProverError> {
+        let url = metadata_urls
+            .pie
+            .unwrap_or(format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id));
         let response = self.http_client.get(url).send().await?;
         Ok(response.bytes().await?.to_vec())
     }
