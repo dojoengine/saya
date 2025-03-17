@@ -24,12 +24,12 @@ impl SqliteDb {
         // Check if there is a database file at the path
         if path != IN_MEMORY_DB && !Path::new(path).try_exists()? {
             trace!(
-                "Database file not found. A new one will be created at: {}",
-                path
+                database_path:% = path;
+                "Database file not found. A new one will be created. ",
             );
             fs::File::create(path)?;
         } else {
-            trace!("Database file found at: {}", path);
+            trace!(database_path:% = path; "Database file found.");
         }
 
         let pool = SqlitePoolOptions::new()

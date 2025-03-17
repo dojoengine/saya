@@ -86,9 +86,9 @@ where
             });
 
             info!(
-                "Proof made availalbe on Celestia block #{}. Commitment: {}",
                 celestia_block,
-                hex::encode(commitment)
+                commitment:? = hex::encode(commitment);
+                "Proof made availalbe on Celestia block"
             );
 
             let new_cursor = DataAvailabilityCursor {

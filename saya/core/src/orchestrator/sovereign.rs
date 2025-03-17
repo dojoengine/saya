@@ -178,8 +178,7 @@ where
                     da_pointer,
                 })
                 .await;
-
-            info!("Chain advanced to block #{}", new_cursor.block_number);
+            info!(block_number = new_cursor.block_number; "Chain advanced");
         }
 
         // Request graceful shutdown for all descendant services

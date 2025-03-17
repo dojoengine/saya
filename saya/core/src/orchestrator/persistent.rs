@@ -163,8 +163,9 @@ impl PersistentOrchestratorState {
             let new_cursor = new_cursor.unwrap();
 
             info!(
-                "Chain advanced to block #{} (settled with tx: {:#064x})",
-                new_cursor.block_number, new_cursor.transaction_hash
+                block_number = new_cursor.block_number,
+                transaction_hash:% = format!("{:#064x}", new_cursor.transaction_hash);
+                "Chain advanced to new block"
             );
         }
 

@@ -173,9 +173,9 @@ where
                                 .collect_calls(integrity_address);
                             let integrity_call_chunks = split_calls(integrity_calls);
                             debug!(
-                                "{} transactions to integrity verifier generated (job id: {:#064x})",
-                                integrity_call_chunks.len(),
-                                integrity_job_id
+                                integrity_job_id:% = format!("{:#064x}",integrity_job_id);
+                                "{} transactions to integrity verifier generated",
+                                integrity_call_chunks.len()
                             );
 
                             // TODO: error handling
@@ -219,10 +219,10 @@ where
                                 };
 
                                 debug!(
-                                    "[{} / {}] Integrity verification transaction confirmed: {:#064x}",
+                                    transaction_hash:% = format!("{:#064x}", tx.transaction_hash);
+                                    "[{} / {}] Integrity verification transaction confirmed",
                                     ind + 1,
-                                    integrity_call_chunks.len(),
-                                    tx.transaction_hash
+                                    integrity_call_chunks.len()
                                 );
 
                                 nonce += Felt::ONE;
@@ -246,22 +246,22 @@ where
                         }
                         FactRegistrationConfig::Skipped => {
                             info!(
-                                "On-chain fact-registration skipped for block #{}",
-                                new_da.block_number
+                                block_number = new_da.block_number;
+                                "On-chain fact-registration skipped for block",
                             );
                         }
                     }
                 }
                 crate::storage::BlockStatus::VerifiedProof => {
                     info!(
-                        "Block #{} already verified, skipping verification",
-                        new_da.block_number
+                        block_number = new_da.block_number;
+                        "Block already verified, skipping verification",
                     );
                 }
                 _ => {
                     info!(
-                        "Block #{} in unexpected state, skipping settlement",
-                        new_da.block_number
+                        block_number = new_da.block_number;
+                        "Block in unexpected state, skipping settlement",
                     );
                     continue;
                 }
@@ -311,8 +311,8 @@ where
             .await
             .unwrap();
             debug!(
-                "Estimated settlement transaction cost for block #{}: {} STRK",
-                new_da.block_number,
+                block_number = new_da.block_number;
+                "Estimated settlement transaction cost for block: {} STRK",
                 felt_to_bigdecimal(fees.overall_fee, 18)
             );
 
@@ -327,8 +327,9 @@ where
             .await
             .unwrap();
             info!(
-                "Piltover statement transaction sent for block #{}: {:#064x}",
-                new_da.block_number, transaction.transaction_hash
+                block_number = new_da.block_number,
+                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
+                "Piltover statement transaction sent",
             );
 
             // TODO: timeout
@@ -342,8 +343,9 @@ where
             .unwrap();
 
             info!(
-                "Piltover statement transaction block #{} confirmed: {:#064x}",
-                new_da.block_number, transaction.transaction_hash
+                block_number = new_da.block_number,
+                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
+                "Piltover statement transaction confirmed",
             );
 
             self.db
