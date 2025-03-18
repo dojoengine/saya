@@ -9,7 +9,6 @@ use serde::Deserialize;
 use url::Url;
 
 const ATLANTIC_API_BASE: &str = "https://staging.atlantic.api.herodotus.cloud";
-const ATLANTIC_S3_BASE: &str = "https://s3.pl-waw.scw.cloud/atlantic-k8s-experimental/queries";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
@@ -26,19 +25,6 @@ pub enum AtlanticQueryStatus {
     Done,
     Failed,
     InProgress,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AtlanticQueryJob {
-    pub id: String,
-    pub atlantic_query_id: String,
-    pub status: AtlanticJobStatus,
-    pub job_name: String,
-    pub created_at: String,
-    pub completed_at: String,
-    // Context can be `any` for now, keep raw value for now.
-    pub context: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -173,52 +159,48 @@ struct AtlanticProofGenerationResponse {
     atlantic_query_id: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AtlanticQueryJobsResponse {
-    jobs: Vec<AtlanticQueryJob>,
-}
+impl AtlanticQueryResponse {
+    pub async fn get_proof(&self, atlantic_client: &AtlanticClient) -> Result<String, ProverError> {
+        let url = if let Some(url) = self
+            .metadata_urls
+            .iter()
+            .find(|url| url.contains("proof.json"))
+        {
+            url
+        } else {
+            return Err(ProverError::MetadataFetch(format!(
+                "No proof found for query: {}",
+                self.atlantic_query.id
+            )));
+        };
 
-#[derive(Debug, Clone)]
-pub struct MetadataUrls {
-    //Currently we dont use metadata,input and program, but it might be worth to add them in the
-    //future to get more information about the proof/trace in case of failure
-    pub metadata: Option<String>,
-    pub pie: Option<String>,
-    pub proof: Option<String>,
-    pub input: Option<String>,
-    pub program: Option<String>,
-}
-
-impl MetadataUrls {
-    pub fn from_vec(urls: Vec<String>) -> Self {
-        let mut metadata = None;
-        let mut pie = None;
-        let mut proof = None;
-        let mut input = None;
-        let mut program = None;
-
-        for url in urls {
-            if url.contains("metadata.json") {
-                metadata = Some(url);
-            } else if url.contains("pie.cairo0.zip") {
-                pie = Some(url);
-            } else if url.contains("proof.json") {
-                proof = Some(url);
-            } else if url.contains("input.cairo0.json") {
-                input = Some(url);
-            } else if url.contains("program.cairo0.json") {
-                program = Some(url);
-            }
+        let response = atlantic_client.http_client.get(url).send().await?;
+        if !response.status().is_success() {
+            return Err(ProverError::Prover(format!(
+                "unsuccessful status code: {}\n{}",
+                response.status(),
+                response.text().await?
+            )));
         }
+        Ok(response.text().await?)
+    }
 
-        Self {
-            metadata,
-            pie,
-            proof,
-            input,
-            program,
-        }
+    pub async fn get_pie(&self, atlantic_client: &AtlanticClient) -> Result<Vec<u8>, ProverError> {
+        let url = if let Some(url) = self
+            .metadata_urls
+            .iter()
+            .find(|url| url.contains("pie.cairo0.zip"))
+        {
+            url
+        } else {
+            return Err(ProverError::MetadataFetch(format!(
+                "No pie found for query: {}",
+                self.atlantic_query.id
+            )));
+        };
+
+        let response = atlantic_client.http_client.get(url).send().await?;
+        Ok(response.bytes().await?.to_vec())
     }
 }
 
@@ -319,24 +301,6 @@ impl AtlanticClient {
         Ok(response.atlantic_query_id)
     }
 
-    pub async fn get_query_jobs(&self, id: &str) -> Result<Vec<AtlanticQueryJob>, ProverError> {
-        let mut url = self.api_base.clone();
-        url.path_segments_mut()
-            .unwrap()
-            .push("atlantic-query-jobs")
-            .push(id);
-
-        let response = self.http_client.get(url).send().await?;
-        if !response.status().is_success() {
-            return Err(ProverError::Prover(format!(
-                "unsuccessful status code: {}",
-                response.status()
-            )));
-        }
-
-        let response = response.json::<AtlanticQueryJobsResponse>().await?;
-        Ok(response.jobs)
-    }
     pub async fn get_atlantic_query(self, id: &str) -> Result<AtlanticQueryResponse, ProverError> {
         let mut url = self.api_base.clone();
         url.path_segments_mut()
@@ -352,38 +316,5 @@ impl AtlanticClient {
         }
         let response = response.json::<AtlanticQueryResponse>().await?;
         Ok(response)
-    }
-
-    pub async fn get_proof(
-        &self,
-        id: &str,
-        metadata_urls: MetadataUrls,
-    ) -> Result<String, ProverError> {
-        let url = metadata_urls
-            .proof
-            .unwrap_or(format!("{}/{}/proof.json", ATLANTIC_S3_BASE, id));
-
-        let response = self.http_client.get(url).send().await?;
-        if !response.status().is_success() {
-            return Err(ProverError::Prover(format!(
-                "unsuccessful status code: {}\n{}",
-                response.status(),
-                response.text().await?
-            )));
-        }
-
-        Ok(response.text().await?)
-    }
-
-    pub async fn get_trace(
-        &self,
-        id: &str,
-        metadata_urls: MetadataUrls,
-    ) -> Result<Vec<u8>, ProverError> {
-        let url = metadata_urls
-            .pie
-            .unwrap_or(format!("{}/{}/pie.cairo0.zip", ATLANTIC_S3_BASE, id));
-        let response = self.http_client.get(url).send().await?;
-        Ok(response.bytes().await?.to_vec())
     }
 }

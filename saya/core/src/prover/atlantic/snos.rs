@@ -17,21 +17,17 @@ use crate::{
     block_ingestor::BlockInfo,
     prover::{
         atlantic::{
-            calculate_job_size,
             client::{AtlanticClient, Layout},
+            shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
             AtlanticProof,
         },
         error::ProverError,
         Prover, ProverBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
-    storage::PersistantStorage,
+    storage::{PersistantStorage, Step},
     utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
 };
-
-use super::client::{AtlanticQueryResponse, AtlanticQueryStatus, MetadataUrls};
-
-const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -123,7 +119,7 @@ where
                         atlantic_query_id:% = atlantic_query_id;
                         "Atlantic proof generation already submitted for block",
                     );
-                    let query_response = match Self::wait_for_proof(
+                    let query_response = match wait_for_query(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -149,14 +145,11 @@ where
                         Ok(response) => response,
                     };
 
-                    let new_proof = Self::get_proof(
-                        client.clone(),
-                        atlantic_query_id,
-                        db.clone(),
-                        block_number_u32,
-                        MetadataUrls::from_vec(query_response.metadata_urls),
-                    )
-                    .await;
+                    let raw_proof = query_response.get_proof(&client).await?;
+
+                    let new_proof =
+                        parse_and_store_proof(raw_proof, db.clone(), block_number_u32, Step::Snos)
+                            .await?;
 
                     tokio::select! {
                         _ = finish_handle.shutdown_requested() => break,
@@ -211,7 +204,7 @@ where
                 "Atlantic proof generation submitted for block"
             );
 
-            let query_response = match Self::wait_for_proof(
+            let query_response = match wait_for_query(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
@@ -241,16 +234,11 @@ where
                 "Atlantic PIE proof generation finished for query: {}",
                 atlantic_query_id
             );
+            let raw_proof = query_response.get_proof(&client).await?;
 
-            // TODO: error handling
-            let new_proof = Self::get_proof(
-                client.clone(),
-                atlantic_query_id,
-                db.clone(),
-                block_number_u32,
-                MetadataUrls::from_vec(query_response.metadata_urls),
-            )
-            .await;
+            let new_proof =
+                parse_and_store_proof(raw_proof, db.clone(), block_number_u32, Step::Snos).await?;
+
             tokio::select! {
                 _ = finish_handle.shutdown_requested() => break,
                 _ = task_tx.send(new_proof) => {},
@@ -302,65 +290,6 @@ where
 
         let _ = task_tx.send(new_proof).await;
         Ok(())
-    }
-
-    async fn wait_for_proof(
-        client: AtlanticClient,
-        atlantic_query_id: String,
-        finish_handle: FinishHandle,
-    ) -> Result<AtlanticQueryResponse, ProverError> {
-        let response = loop {
-            tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
-            if finish_handle.is_shutdown_requested() {
-                return Err(ProverError::Shutdown);
-            }
-            if let Ok(query) = client.clone().get_atlantic_query(&atlantic_query_id).await {
-                match query.atlantic_query.status {
-                    AtlanticQueryStatus::Done => break query,
-                    AtlanticQueryStatus::Failed => {
-                        return Err(ProverError::BlockFail(format!(
-                            "Proof generation failed for query: {}",
-                            atlantic_query_id
-                        )));
-                    }
-                    _ => continue,
-                }
-            }
-        };
-        Ok(response)
-    }
-
-    async fn get_proof(
-        client: AtlanticClient,
-        atlantic_query_id: String,
-        db: DB,
-        block_number: u32,
-        metadata_urls: MetadataUrls,
-    ) -> SnosProof<P> {
-        let raw_proof = client
-            .get_proof(&atlantic_query_id, metadata_urls)
-            .await
-            .unwrap();
-        let proof_in_bytes = raw_proof.as_bytes().to_vec();
-
-        db.add_proof(
-            block_number,
-            proof_in_bytes.clone(),
-            crate::storage::Step::Snos,
-        )
-        .await
-        .unwrap();
-
-        // TODO: error handling
-        let parsed_proof: P = P::parse(raw_proof).unwrap();
-
-        info!(block_number;
-            "SNOS proof successfully retrieved from Atlantic.");
-
-        SnosProof {
-            block_number: block_number as u64,
-            proof: parsed_proof,
-        }
     }
 }
 

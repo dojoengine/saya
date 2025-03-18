@@ -4,8 +4,8 @@ use crate::{
     block_ingestor::BlockInfo,
     prover::{
         atlantic::{
-            calculate_job_size,
             client::{AtlanticClient, Layout},
+            shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
             snos::compress_pie,
         },
         error::ProverError,
@@ -21,10 +21,6 @@ use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,
 };
-
-use super::client::{AtlanticQueryResponse, AtlanticQueryStatus, MetadataUrls};
-
-const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -59,7 +55,8 @@ where
         layout_bridge: Cow<'static, [u8]>,
         finish_handle: FinishHandle,
         db: DB,
-    ) where
+    ) -> Result<(), ProverError>
+    where
         DB: PersistantStorage + Send + Sync + 'static,
     {
         loop {
@@ -114,7 +111,7 @@ where
             {
                 Ok(atlantic_query_id) => {
                     info!(block_number = new_snos_proof.block_number; "Proof generation already submitted for block");
-                    let query_response = match Self::wait_for_job(
+                    let query_response = match wait_for_query(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -145,14 +142,15 @@ where
                         "Atlantic layout bridge proof generation finished"
                     );
 
-                    Self::get_and_save_proof(
-                        client.clone(),
+                    let raw_proof = query_response.get_proof(&client).await?;
+
+                    let _: SnosProof<String> = parse_and_store_proof(
+                        raw_proof,
                         db.clone(),
-                        atlantic_query_id,
                         block_number_u32,
-                        MetadataUrls::from_vec(query_response.metadata_urls),
+                        Step::Bridge,
                     )
-                    .await;
+                    .await?;
 
                     let new_proof = BlockInfo {
                         number: new_snos_proof.block_number,
@@ -217,7 +215,7 @@ where
                         "Atlantic trace generation submitted",
                     );
 
-                    let query_response = match Self::wait_for_job(
+                    let query_response = match wait_for_query(
                         client.clone(),
                         atlantic_query_id.clone(),
                         finish_handle.clone(),
@@ -243,13 +241,7 @@ where
                         Ok(response) => response,
                     };
 
-                    let pie_bytes = client
-                        .get_trace(
-                            &atlantic_query_id,
-                            MetadataUrls::from_vec(query_response.metadata_urls),
-                        )
-                        .await
-                        .unwrap();
+                    let pie_bytes = query_response.get_pie(&client).await?;
                     let layout_bridge_pie = CairoPie::from_bytes(&pie_bytes).unwrap();
 
                     let compressed_pie = compress_pie(layout_bridge_pie).await.unwrap();
@@ -294,7 +286,7 @@ where
             );
 
             // Wait for bridge layout proof to be done
-            let query_response = match Self::wait_for_job(
+            let query_response = match wait_for_query(
                 client.clone(),
                 atlantic_query_id.clone(),
                 finish_handle.clone(),
@@ -317,14 +309,12 @@ where
                 }
                 Ok(response) => response,
             };
-            Self::get_and_save_proof(
-                client.clone(),
-                db.clone(),
-                atlantic_query_id.clone(),
-                block_number_u32,
-                MetadataUrls::from_vec(query_response.metadata_urls),
-            )
-            .await;
+            let raw_proof = query_response.get_proof(&client).await?;
+
+            let _: SnosProof<String> =
+                parse_and_store_proof(raw_proof, db.clone(), block_number_u32, Step::Bridge)
+                    .await
+                    .unwrap();
 
             debug!(
                 block_number = new_snos_proof.block_number,
@@ -342,6 +332,7 @@ where
                 _ = task_tx.send(new_proof) => {},
             }
         }
+        Ok(())
     }
 
     async fn run(self) {
@@ -367,55 +358,8 @@ where
         debug!("Graceful shutdown finished");
         self.finish_handle.finish();
     }
-
-    async fn wait_for_job(
-        client: AtlanticClient,
-        atlantic_query_id: String,
-        finish_handle: FinishHandle,
-    ) -> Result<AtlanticQueryResponse, ProverError> {
-        let response = loop {
-            // TODO: sleep with graceful shutdown
-            tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
-            if finish_handle.is_shutdown_requested() {
-                return Err(ProverError::Shutdown);
-            }
-            if let Ok(query) = client.clone().get_atlantic_query(&atlantic_query_id).await {
-                match query.atlantic_query.status {
-                    AtlanticQueryStatus::Done => break query,
-                    AtlanticQueryStatus::Failed => {
-                        return Err(ProverError::BlockFail(format!(
-                            "Proof generation failed for query: {}",
-                            atlantic_query_id
-                        )));
-                    }
-                    _ => continue,
-                }
-            }
-        };
-        Ok(response)
-    }
-
-    async fn get_and_save_proof(
-        client: AtlanticClient,
-        db: DB,
-        atlantic_query_id: String,
-        block_number: u32,
-        metadata_url: MetadataUrls,
-    ) {
-        let verifier_proof = client
-            .get_proof(&atlantic_query_id, metadata_url)
-            .await
-            .unwrap();
-
-        db.add_proof(
-            block_number,
-            verifier_proof.as_bytes().to_vec(),
-            crate::storage::Step::Bridge,
-        )
-        .await
-        .unwrap();
-    }
 }
+
 impl<DB> AtlanticLayoutBridgeProverBuilder<DB> {
     pub fn new<P>(api_key: String, layout_bridge: P, db: DB, workers_count: usize) -> Self
     where
