@@ -1,4 +1,6 @@
 /programs/
 /target/
 .env
+.env.persistent
+.env.sovereign
 saya.db
