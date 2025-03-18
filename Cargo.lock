@@ -5864,7 +5864,7 @@ dependencies = [
 
 [[package]]
 name = "saya"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "clap",
@@ -5879,7 +5879,7 @@ dependencies = [
 
 [[package]]
 name = "saya-core"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "bigdecimal",
