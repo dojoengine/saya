@@ -99,6 +99,7 @@ where
                     );
                 }
             }
+
             match db
                 .get_query_id(block_number_u32, crate::storage::Query::BridgeProof)
                 .await
@@ -152,6 +153,7 @@ where
                     );
                 }
             }
+
             let compressed_pie = match db.get_pie(block_number_u32, Step::Bridge).await {
                 Ok(pie) => pie,
                 Err(_) => {
