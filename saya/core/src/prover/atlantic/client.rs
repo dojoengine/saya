@@ -195,6 +195,7 @@ impl AtlanticClient {
         compressed_pie: T,
         layout: Layout,
         label: String,
+        atlantic_job_size: AtlanticJobSize,
     ) -> Result<String, ProverError>
     where
         T: Into<Cow<'static, [u8]>>,
@@ -213,7 +214,7 @@ impl AtlanticClient {
             )
             .text("layout", layout.to_str())
             .text("externalId", label)
-            .text("declaredJobSize", AtlanticJobSize::S.as_str())
+            .text("declaredJobSize", atlantic_job_size.as_str())
             .text("result", AtlanticQueryResult::ProofGeneration.as_str());
 
         let response = self.http_client.post(url).multipart(form).send().await?;
