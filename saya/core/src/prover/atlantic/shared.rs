@@ -35,9 +35,11 @@ pub async fn wait_for_query(
 ) -> Result<AtlanticQueryResponse, ProverError> {
     let response = loop {
         tokio::time::sleep(PROOF_STATUS_POLL_INTERVAL).await;
+
         if finish_handle.is_shutdown_requested() {
             return Err(ProverError::Shutdown);
         }
+
         if let Ok(query) = client.clone().get_atlantic_query(&atlantic_query_id).await {
             match query.atlantic_query.status {
                 AtlanticQueryStatus::Done => break query,
