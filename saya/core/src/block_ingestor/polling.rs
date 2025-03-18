@@ -68,7 +68,7 @@ where
         match block_number {
             Ok(block_number) => Some(block_number),
             Err(err) => {
-                error!("Failed to fetch latest block: {}", err);
+                error!(error:? = err; "Failed to fetch latest block");
                 None
             }
         }
@@ -111,20 +111,21 @@ where
                             number: block_number,
                             status: BlockStatus::SnosPieGenerated,
                         };
-                        log::trace!("Pie generated for block #{}", block_number);
+                        trace!(block_number; "Pie generated");
 
                         if channel.send(new_block).await.is_err() {
-                            error!("Failed to send block #{}", block_number);
+                            error!(block_number; "Failed to send block");
                         }
                         continue;
                     }
                     Err(err) => {
-                        error!("Failed to parse pie for block #{}: {:?}", block_number, err)
+                        error!(block_number,error:% = err; "Failed to parse pie")
                     }
                 },
                 Err(err) => {
-                    // Not found in db, we continue;
-                    trace!("Failed to get pie for block #{}: {:?}", block_number, err);
+                    // Not found in db, we continue
+                    // Should we log this error, as this is kinda intended to not found pie on first iteration?
+                    trace!( block_number, error:% =err; "Pie not found in db");
                 }
             }
 
@@ -154,10 +155,10 @@ where
                 .await
                 .unwrap();
 
-            info!("Pie generated for block #{}", block_number);
+            info!(block_number; "Pie generated for block");
 
             if channel.send(new_block).await.is_err() {
-                error!("Failed to send block #{}", block_number);
+                error!(block_number; "Failed to send block");
             }
         }
     }

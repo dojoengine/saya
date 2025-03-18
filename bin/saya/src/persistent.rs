@@ -105,10 +105,8 @@ impl Start {
             workers_distribution;
 
         log::info!(
-            "snos_worker_count: {}, layout_bridge_workers_count: {}, ingestor_worker_count: {}",
-            snos_worker_count,
-            layout_bridge_workers_count,
-            ingestor_worker_count
+            snos_worker_count,layout_bridge_workers_count,ingestor_worker_count;
+            "workers distribution"
         );
 
         let db = SqliteDb::new(&saya_path).await?;

@@ -15,9 +15,7 @@ use crate::{
 };
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
-use swiftness::TransformTo;
-use swiftness_stark::types::StarkProof;
+use log::{debug, info, trace, warn};
 use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,
@@ -77,39 +75,44 @@ where
                 .await
             {
                 Ok(proof) => {
-                    trace!(
-                        "Proof already generated for block #{}",
-                        new_snos_proof.block_number
-                    );
                     let verifier_proof = String::from_utf8(proof).unwrap();
-                    let _: StarkProof = swiftness::parse(verifier_proof).unwrap().transform_to(); //Sanity check if the proof is valid
 
-                    info!("Proof generated for block #{}", new_snos_proof.block_number);
+                    // Sanity check if the proof is valid.
+                    let proof = swiftness::parse(verifier_proof);
+                    if proof.is_ok() {
+                        trace!(
+                            block_number = new_snos_proof.block_number;
+                            "Proof already generated for block"
+                        );
+                        let block_info = BlockInfo {
+                            number: new_snos_proof.block_number,
+                            status: crate::storage::BlockStatus::SnosProofGenerated,
+                        };
 
-                    let new_proof = BlockInfo {
-                        number: new_snos_proof.block_number,
-                        status: crate::storage::BlockStatus::SnosProofGenerated,
-                    };
-
-                    task_tx.send(new_proof).await.unwrap();
-                    continue;
+                        task_tx.send(block_info).await.unwrap();
+                        continue;
+                    } else {
+                        // TODO: ensure the following match on the `get_query_id` isn't conflicting with this situation.
+                        warn!(
+                            block_number = new_snos_proof.block_number;
+                            "Invalid proof found in db, not using proof from db.",
+                        );
+                    }
                 }
                 Err(_) => {
                     trace!(
-                        "Proof not generated for block #{}",
-                        new_snos_proof.block_number
+                        block_number = new_snos_proof.block_number;
+                        "Proof not found in db for block",
                     );
                 }
             }
+
             match db
                 .get_query_id(block_number_u32, crate::storage::Query::BridgeProof)
                 .await
             {
                 Ok(atlantic_query_id) => {
-                    info!(
-                        "Proof generation already submitted for block #{}",
-                        new_snos_proof.block_number
-                    );
+                    info!(block_number = new_snos_proof.block_number; "Proof generation already submitted for block");
                     match Self::wait_for_job(
                         client.clone(),
                         atlantic_query_id.clone(),
@@ -121,7 +124,7 @@ where
                             break;
                         }
                         Err(ProverError::BlockFail(e)) => {
-                            log::error!("{}", e,);
+                            log::error!(error:% = e, atlantic_query_id:% = atlantic_query_id; "Proof generation failed");
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
@@ -130,8 +133,8 @@ where
                     }
 
                     debug!(
-                        "Atlantic layout bridge proof generation finished for query: {}",
-                        atlantic_query_id
+                        atlantic_query_id:? = atlantic_query_id;
+                        "Atlantic layout bridge proof generation finished"
                     );
 
                     Self::get_and_save_proof(
@@ -152,11 +155,12 @@ where
                 }
                 Err(_) => {
                     trace!(
-                        "Proof generation not submitted for block #{}",
-                        new_snos_proof.block_number
+                        block_number = new_snos_proof.block_number;
+                        "Proof generation not submitted for block"
                     );
                 }
             }
+
             let compressed_pie = match db.get_pie(block_number_u32, Step::Bridge).await {
                 Ok(pie) => pie,
                 Err(_) => {
@@ -199,8 +203,9 @@ where
                     };
 
                     info!(
-                        "Atlantic trace generation submitted with query id: {}",
-                        atlantic_query_id
+                        block_number = new_snos_proof.block_number,
+                        atlantic_query_id:? = atlantic_query_id;
+                        "Atlantic trace generation submitted",
                     );
 
                     match Self::wait_for_job(
@@ -259,8 +264,9 @@ where
             .unwrap();
 
             info!(
-                "Atlantic layout bridge proof generation submitted for block #{}: {}",
-                new_snos_proof.block_number, atlantic_query_id
+                block_number = new_snos_proof.block_number,
+                atlantic_query_id:? = atlantic_query_id;
+                "Atlantic layout bridge proof generation submitted",
             );
 
             // Wait for bridge layout proof to be done
@@ -275,7 +281,7 @@ where
                     break;
                 }
                 Err(ProverError::BlockFail(e)) => {
-                    log::error!("{}", e,);
+                    log::error!(error:% = e, atlantic_query_id:% = atlantic_query_id; "Proof generation failed");
                     db.add_failed_block(block_number_u32, e).await.unwrap();
                     continue;
                 }
@@ -292,8 +298,9 @@ where
             .await;
 
             debug!(
-                "Atlantic layout bridge proof generation finished for query: {}",
-                atlantic_query_id
+                block_number = new_snos_proof.block_number,
+                atlantic_query_id:? = atlantic_query_id;
+                "Atlantic layout bridge proof generation finished",
             );
 
             let new_proof = BlockInfo {
