@@ -332,7 +332,7 @@ where
         let parsed_proof: P = P::parse(raw_proof).unwrap();
 
         info!(block_number;
-            "Proof generated for block");
+            "SNOS proof successfully retrieved from Atlantic.");
 
         SnosProof {
             block_number: block_number as u64,

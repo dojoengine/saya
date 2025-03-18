@@ -15,7 +15,7 @@ use crate::{
 };
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
+use log::{debug, info, trace, warn};
 use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,
@@ -76,7 +76,9 @@ where
             {
                 Ok(proof) => {
                     let verifier_proof = String::from_utf8(proof).unwrap();
-                    let proof = swiftness::parse(verifier_proof); //Sanity check if the proof is valid
+
+                    // Sanity check if the proof is valid.
+                    let proof = swiftness::parse(verifier_proof);
                     if proof.is_ok() {
                         trace!(
                             block_number = new_snos_proof.block_number;
@@ -89,6 +91,12 @@ where
 
                         task_tx.send(block_info).await.unwrap();
                         continue;
+                    } else {
+                        // TODO: ensure the following match on the `get_query_id` isn't conflicting with this situation.
+                        warn!(
+                            block_number = new_snos_proof.block_number;
+                            "Invalid proof found in db, not using proof from db.",
+                        );
                     }
                 }
                 Err(_) => {
@@ -98,6 +106,7 @@ where
                     );
                 }
             }
+
             match db
                 .get_query_id(block_number_u32, crate::storage::Query::BridgeProof)
                 .await
@@ -151,6 +160,7 @@ where
                     );
                 }
             }
+
             let compressed_pie = match db.get_pie(block_number_u32, Step::Bridge).await {
                 Ok(pie) => pie,
                 Err(_) => {

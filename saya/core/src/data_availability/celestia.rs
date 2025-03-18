@@ -66,11 +66,6 @@ where
             // TODO: error handling
             let mut serialized_packet: Vec<u8> = Vec::new();
             ciborium::into_writer(&packet, &mut serialized_packet).unwrap();
-            debug!(
-                "Celestia DA blob size for block #{}: {} bytes",
-                new_proof.block_number(),
-                serialized_packet.len()
-            );
 
             // TODO: error handling
             let blob = Blob::new(self.namespace, serialized_packet, AppVersion::V3).unwrap();
@@ -81,6 +76,13 @@ where
                 ..Default::default()
             };
 
+            debug!(
+                block_number = new_proof.block_number(),
+                commitment:? = hex::encode(commitment),
+                blob_bytes_size = blob.data.len();
+                "Submitting Celestia DA blob.",
+            );
+
             // TODO: error handling
             let celestia_block = client.blob_submit(&[blob], tx_config).await.unwrap();
 
@@ -90,9 +92,10 @@ where
             });
 
             info!(
+                block_number = new_proof.block_number(),
                 celestia_block,
                 commitment:? = hex::encode(commitment);
-                "Proof made availalbe on Celestia block"
+                "Blob posted on Celestia."
             );
 
             let new_cursor = DataAvailabilityCursor {
