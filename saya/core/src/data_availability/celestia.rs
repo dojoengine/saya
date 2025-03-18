@@ -13,13 +13,12 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
 };
 
-// TODO: make namespace configurable?
-const NAMESPACE: Namespace = Namespace::const_v0(*b"sayaproofs");
-
 #[derive(Debug)]
 pub struct CelestiaDataAvailabilityBackend<P> {
     rpc_url: Url,
     auth_token: String,
+    namespace: Namespace,
+    key_name: Option<String>,
     last_pointer: Option<DataAvailabilityPointer>,
     proof_channel: Receiver<P>,
     cursor_channel: Sender<DataAvailabilityCursor<P>>,
@@ -30,6 +29,8 @@ pub struct CelestiaDataAvailabilityBackend<P> {
 pub struct CelestiaDataAvailabilityBackendBuilder<P> {
     rpc_url: Url,
     auth_token: String,
+    namespace: Namespace,
+    key_name: Option<String>,
     last_pointer: Option<Option<DataAvailabilityPointer>>,
     proof_channel: Option<Receiver<P>>,
     cursor_channel: Option<Sender<DataAvailabilityCursor<P>>>,
@@ -72,14 +73,17 @@ where
             );
 
             // TODO: error handling
-            let blob = Blob::new(NAMESPACE, serialized_packet, AppVersion::V3).unwrap();
+            let blob = Blob::new(self.namespace, serialized_packet, AppVersion::V3).unwrap();
             let commitment = blob.commitment.0;
 
+            let tx_config = TxConfig {
+                key_name: self.key_name.clone(),
+                ..Default::default()
+            };
+
             // TODO: error handling
-            let celestia_block = client
-                .blob_submit(&[blob], TxConfig::default())
-                .await
-                .unwrap();
+            let celestia_block = client.blob_submit(&[blob], tx_config).await.unwrap();
+
             self.last_pointer = Some(DataAvailabilityPointer {
                 height: celestia_block,
                 commitment,
@@ -113,14 +117,21 @@ where
 }
 
 impl<P> CelestiaDataAvailabilityBackendBuilder<P> {
-    pub fn new(rpc_url: Url, auth_token: String) -> Self {
-        Self {
+    pub fn new(
+        rpc_url: Url,
+        auth_token: String,
+        namespace: String,
+        key_name: Option<String>,
+    ) -> Result<Self> {
+        Ok(Self {
             rpc_url,
             auth_token,
+            namespace: Namespace::new_v0(namespace.as_bytes())?,
+            key_name,
             last_pointer: None,
             proof_channel: None,
             cursor_channel: None,
-        }
+        })
     }
 }
 
@@ -134,6 +145,8 @@ where
         Ok(CelestiaDataAvailabilityBackend {
             rpc_url: self.rpc_url,
             auth_token: self.auth_token,
+            namespace: self.namespace,
+            key_name: self.key_name,
             last_pointer: self
                 .last_pointer
                 .ok_or_else(|| anyhow::anyhow!("`last_pointer` not set"))?,

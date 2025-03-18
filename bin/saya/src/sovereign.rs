@@ -49,6 +49,14 @@ struct Start {
     /// Celestia RPC node auth token
     #[clap(long, env)]
     celestia_token: String,
+    /// Celestia key name
+    #[clap(long, env)]
+    celestia_key_name: Option<String>,
+    /// Celestia namespace
+    #[clap(long, env)]
+    #[clap(default_value = "sayaproofs")]
+    #[clap(value_parser = validate_non_empty)]
+    celestia_namespace: String,
     /// Genesis options
     #[clap(flatten)]
     genesis: GenesisOptions,
@@ -58,6 +66,15 @@ struct Start {
     /// Path to the database directory
     #[clap(long, env)]
     db_dir: Option<PathBuf>,
+}
+
+/// Validate that the value is not empty.
+fn validate_non_empty(s: &str) -> Result<String, String> {
+    if s.trim().is_empty() {
+        Err("Value cannot be empty".to_string())
+    } else {
+        Ok(s.to_string())
+    }
 }
 
 #[derive(Debug, Parser)]
@@ -107,8 +124,12 @@ impl Start {
             db.clone(),
             snos_worker_count,
         );
-        let da_builder =
-            CelestiaDataAvailabilityBackendBuilder::new(self.celestia_rpc, self.celestia_token);
+        let da_builder = CelestiaDataAvailabilityBackendBuilder::new(
+            self.celestia_rpc,
+            self.celestia_token,
+            self.celestia_namespace,
+            self.celestia_key_name,
+        )?;
         let storage = InMemoryStorageBackend::new();
 
         let orchestrator = SovereignOrchestratorBuilder::new(

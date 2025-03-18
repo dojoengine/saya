@@ -5,21 +5,15 @@ Saya is a settlement service for Katana.
 ## Katana provable mode
 
 Katana must be running in provable mode to be proven by Saya.
-All the following Katana commands are available from Dojo `1.2.0` and above.
+All the following Katana commands are available from Dojo `1.3.0` and above.
 
-1. Use `katana init` to setup the chain spec, you can use the prompt or the following arguments:
+1. Use `katana init` to setup the chain spec, you can use the options or the prompt (default) to setup the chain spec.
 
 ```
- katana init \
-    --id <CHAIN_ID> \
-    --settlement-chain Sepolia \
-    --settlement-account-address <SEPOLIA_ACCOUNT> \
-    --settlement-account-private-key <PRIVATE_KEY>
+katana init
 ```
 
-This will create a chain spec in the [Katana's configuration directory](https://github.com/dojoengine/dojo/blob/5e1f3b93e769d135b7a01d3c7e648cc9e0f7e7fa/crates/katana/chain-spec/src/rollup/file.rs#L272) and deploy the settlement contract.
-
-2. `katana init` generates a directory with configuration file and genesis block. Use `katana init --show-config <CHAIN_ID>` to display the configuration file path if you want to inspect it.
+2. `katana init` generates a directory with configuration file and genesis block. Use `katana config` to list all the local configuration and `katana config <CHAIN_ID>` to display the configuration and the file path if you want to inspect it.
 
 3. Start Katana with `katana --chain <CHAIN_ID>` to load the generated parameters at start.
 
@@ -27,14 +21,32 @@ This will create a chain spec in the [Katana's configuration directory](https://
 
 > **_NOTE:_** If piltover settlement contract is already deployed, you can skip the automatic deployment by using the `--settlement-contract` and providing the contract address.
 
+4. Block time: when running Katana in provable mode, the block time is important, since each block will be proven by Saya, and eventually settled or posted to a data availability layer (which in both cases is incurring an additional cost).
+
+   It is then recommended to run Katana with a block time. It is important to note that Katana is starting the block time for the very first transaction received for the block, and will never produce empty blocks.
+
+   ```bash
+   # Example for Katana with a block time of 30 seconds.
+   katana --chain <CHAIN_ID> --block-time 30000
+   ```
+
+5. Block step limitation: Due to an issue in the CairoVM not yet merged in Katana, to ensure that the block is provable by Saya, the maximum cairo steps in a block must be at most `16_000_000`. If this limit is reached, Katana will mined the block (regardless of the block time).
+
+   Once this limitation will be removed, the max cairo steps will be `40_000_000` (already enforced by Katana internally).
+
+   ```bash
+   katana --chain <CHAIN_ID> --block-time 30000 --sequencing.block-max-cairo-steps 16000000
+   ```
+
 ## Requirements
 
 - Katana up and running in provable mode.
-- Herodotus Dev account with API key, which can be obtained from https://staging.dashboard.herodotus.dev.
+- Herodotus Dev account with API key, which can be obtained from https://herodotus.cloud.
 
 ### Sovereign mode
 
-- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment).
+- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
+- An account to send the blobs (usually configured with the light node you are running).
 
 ### Persistent mode
 
@@ -59,19 +71,27 @@ SUDO=sudo ./scripts/generate_snos.sh
 
 > **_NOTE:_** The `starknet/cairo-lang` docker image is only available for `linux/amd64` architecture, emulation adds a significant overhead to build the `layout_bridge` program, which already requires a large amount of RAM (~32GB).
 
+> **_NOTE:_** If you don't have a machine that can compile the programs, you can find them in the Saya docker image mounted in the `/programs` directory, or they can be downloaded from the [Saya release page](https://github.com/dojoengine/saya/releases).
+
 ## Environment
 
 For simpler usage, you should export the environment variables required by Saya to run based on the Saya mode / targeted network.
 
-First, check the `.env.example` file and fill in the missing values (some values are pre-filled to settle on Sepolia), copying it to `.env`.
+First, check the `.env.persistent.example` or `.env.sovereign.example` file and fill in the missing values (some values are pre-filled to settle on Sepolia), copying it to `.env.persistent` or `.env.sovereign`.
 
-Source the `.env` file or use:
+Source the `.env.persistent` or `.env.sovereign` file or use:
 
 ```bash
-export $(grep -v '^#' .env | xargs)
+# Persistent
+export $(grep -v '^#' .env.persistent | xargs)
+
+# Sovereign
+export $(grep -v '^#' .env.sovereign | xargs)
 ```
 
-You can override any value exported in `.env` by passing the corresponding flag to the `saya` command.
+You can override any value exported in `.env.persistent` or `.env.sovereign` by passing the corresponding flag to the `saya` command.
+
+Those files are into the `.gitignore` file, so they are not checked into the repository.
 
 ## Persistent mode
 
@@ -81,10 +101,8 @@ cargo run --bin saya -r -- persistent start
 
 ## Sovereign mode
 
-In sovereign mode, the genesis block must be provided when chain head has not been persisted yet.
-
 ```bash
-cargo run --bin saya -r -- sovereign start --genesis.first-block-number <first_block_to_prove>
+cargo run --bin saya -r -- sovereign start
 ```
 
 ## Testing
