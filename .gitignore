@@ -4,3 +4,4 @@
 .env.persistent
 .env.sovereign
 saya.db
+config.toml

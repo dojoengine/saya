@@ -10,4 +10,8 @@ pub enum ProverError {
     Shutdown,
     #[error("Block fail in Prover: {0}")]
     BlockFail(String),
+    #[error("{0}")]
+    MetadataFetch(String),
+    #[error("{0}")]
+    ProofParse(String),
 }
