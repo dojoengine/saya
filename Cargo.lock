@@ -5901,6 +5901,7 @@ dependencies = [
  "sqlx",
  "starknet 0.13.0",
  "starknet-crypto 0.7.4",
+ "starknet-os",
  "starknet-types-core",
  "swiftness",
  "swiftness_air",

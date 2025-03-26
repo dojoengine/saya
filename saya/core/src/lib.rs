@@ -27,3 +27,6 @@ pub mod service;
 
 /// Internal utilities.
 mod utils;
+
+/// Sharding logic for squashing multiple proofs into a single one.
+pub mod shard;
