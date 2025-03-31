@@ -1,4 +1,4 @@
-use std::{io::Read, path::PathBuf, time::Duration};
+use std::{io::Read, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use clap::Parser;
@@ -7,6 +7,15 @@ use saya_core::{
     prover::AtlanticSnosProverBuilder, service::Daemon, shard::AggregatorMockBuilder,
     storage::SqliteDb,
 };
+use starknet::{
+    accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
+    providers::{
+        jsonrpc::{HttpTransport, JsonRpcClient},
+        Provider,
+    },
+    signers::{LocalWallet, SigningKey},
+};
+use starknet_types_core::felt::Felt;
 use url::Url;
 
 use crate::common::SAYA_DB_PATH;
@@ -30,6 +39,20 @@ pub struct Sharding {
     /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
     #[clap(long)]
     mock_snos_from_pie: bool,
+    /// Shard contract address
+    #[clap(long)]
+    shard_contract_address: Felt,
+    #[clap(long)]
+    game_contract_address: Felt,
+    #[clap(long)]
+    event_name: String,
+    #[clap(long)]
+    shard_id: u32,
+    #[clap(long)]
+    account_address: Felt,
+    /// Settlement network account private key
+    #[clap(long, env)]
+    account_private_key: Felt,
 }
 
 impl Sharding {
@@ -45,8 +68,14 @@ impl Sharding {
 
         let db = SqliteDb::new(&saya_path).await?;
 
-        let block_ingestor_builder =
-            ShardingIngestorBuilder::new(self.rollup_rpc, snos, db.clone(), 1);
+        let block_ingestor_builder = ShardingIngestorBuilder::new(
+            self.rollup_rpc.clone(),
+            snos,
+            db.clone(),
+            1,
+            self.game_contract_address,
+            self.event_name,
+        );
 
         let snos_prover_builder = AtlanticSnosProverBuilder::new(
             self.atlantic_key,
@@ -55,7 +84,23 @@ impl Sharding {
             1,
         );
 
-        let aggregator_builder = AggregatorMockBuilder::new();
+        let provider: Arc<JsonRpcClient<HttpTransport>> = Arc::new(JsonRpcClient::new(
+            HttpTransport::new(self.rollup_rpc.clone()),
+        ));
+        let chain_id = provider.chain_id().await?;
+        let signer =
+            LocalWallet::from_signing_key(SigningKey::from_secret_scalar(self.account_private_key));
+
+        let account = SingleOwnerAccount::new(
+            provider,
+            signer,
+            self.account_address,
+            chain_id,
+            ExecutionEncoding::New,
+        );
+
+        let aggregator_builder =
+            AggregatorMockBuilder::new(self.shard_id, account, self.shard_contract_address);
 
         let orchestrator = ShardingOrchestratorBuilder::new(
             block_ingestor_builder,

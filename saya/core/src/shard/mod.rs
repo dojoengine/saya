@@ -6,6 +6,7 @@ use tokio::sync::mpsc::Receiver;
 mod aggregator;
 pub use aggregator::{AggregatorMock, AggregatorMockBuilder};
 
+mod shard_output;
 pub trait AggregatorBuilder {
     type Aggregator: Aggregator;
 

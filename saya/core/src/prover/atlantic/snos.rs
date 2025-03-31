@@ -285,7 +285,7 @@ where
 
         let new_proof = SnosProof {
             block_number: new_block.number,
-            proof: P::parse(serde_json::to_string(&mock_proof).unwrap()).unwrap(),
+            proof: AtlanticProof::from_stark_proof(mock_proof),
         };
 
         let _ = task_tx.send(new_proof).await;

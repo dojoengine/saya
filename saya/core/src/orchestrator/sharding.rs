@@ -82,7 +82,7 @@ where
             .build()
             .unwrap();
 
-        let prover = self
+        let prover: PV = self
             .prover_builder
             .statement_channel(new_block_rx)
             .proof_channel(proof_tx)

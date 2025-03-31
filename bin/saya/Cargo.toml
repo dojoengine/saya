@@ -13,6 +13,7 @@ saya-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 env_logger.workspace = true
+starknet.workspace = true
 starknet-types-core.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 url.workspace = true

@@ -40,3 +40,5 @@ url.workspace = true
 zip.workspace = true
 prover-sdk.workspace = true
 sqlx.workspace = true
+cainome-cairo-serde.workspace = true    
+cainome-cairo-serde-derive.workspace = true

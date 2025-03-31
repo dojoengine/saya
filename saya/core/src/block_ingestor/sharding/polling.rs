@@ -1,9 +1,12 @@
-use std::{sync::Arc, time::Duration};
-
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
 use log::{debug, error, info, trace};
-use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
+use starknet::{
+    core::utils::starknet_keccak,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
+};
+use starknet_types_core::felt::Felt;
+use std::{sync::Arc, time::Duration};
 use tokio::{
     sync::{
         mpsc::{self, Sender},
@@ -15,7 +18,9 @@ use tokio::{
 use url::Url;
 
 use crate::{
-    block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
+    block_ingestor::{
+        sharding::event_fetcher::look_for_event, BlockInfo, BlockIngestor, BlockIngestorBuilder,
+    },
     prover::compress_pie,
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage, Step},
@@ -36,6 +41,8 @@ pub struct ShardingIngestor<S, DB> {
     finish_handle: FinishHandle,
     db: DB,
     workers_count: usize,
+    proxy_contract_address: Felt,
+    event_hash: Felt,
 }
 
 #[derive(Debug)]
@@ -46,6 +53,8 @@ pub struct ShardingIngestorBuilder<S, DB> {
     channel: Option<Sender<BlockInfo>>,
     db: DB,
     workers_count: usize,
+    proxy_contract_address: Felt,
+    event_name: String,
 }
 
 impl<S, DB> ShardingIngestor<S, DB>
@@ -200,9 +209,23 @@ where
                             .await
                             .unwrap();
                     }
+                    let end_event_in_block = look_for_event(
+                        self.proxy_contract_address,
+                        self.current_block,
+                        self.rpc_url.clone(),
+                        self.event_hash,
+                    )
+                    .await;
+                    if end_event_in_block {
+                        if task_tx.send(self.current_block).await.is_err() {
+                            return;
+                        }
+                        break;
+                    }
                     if task_tx.send(self.current_block).await.is_err() {
                         return;
                     }
+
                     self.current_block += 1;
                 }
                 _ => {
@@ -219,7 +242,14 @@ where
 }
 
 impl<S, DB> ShardingIngestorBuilder<S, DB> {
-    pub fn new(rpc_url: Url, snos: S, db: DB, workers_count: usize) -> Self {
+    pub fn new(
+        rpc_url: Url,
+        snos: S,
+        db: DB,
+        workers_count: usize,
+        proxy_contract_address: Felt,
+        event_name: String,
+    ) -> Self {
         Self {
             rpc_url,
             snos,
@@ -227,6 +257,8 @@ impl<S, DB> ShardingIngestorBuilder<S, DB> {
             channel: None,
             db,
             workers_count,
+            proxy_contract_address,
+            event_name,
         }
     }
 }
@@ -251,6 +283,8 @@ where
             finish_handle: FinishHandle::new(),
             db: self.db,
             workers_count: self.workers_count,
+            proxy_contract_address: self.proxy_contract_address,
+            event_hash: starknet_keccak(self.event_name.as_bytes()),
         })
     }
 

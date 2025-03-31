@@ -914,6 +914,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ade8366b8bd5ba243f0a58f036cc0ca8a2f069cff1a2351ef1cac6b083e16fc0"
 
 [[package]]
+name = "cainome-cairo-serde"
+version = "0.1.0"
+source = "git+https://github.com/cartridge-gg/cainome#7a107b32fd0ef5e79853d0be9fe7f25199b4df9b"
+dependencies = [
+ "num-bigint",
+ "serde",
+ "serde_with 3.12.0",
+ "starknet 0.13.0",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "cainome-cairo-serde-derive"
+version = "0.1.0"
+source = "git+https://github.com/cartridge-gg/cainome#7a107b32fd0ef5e79853d0be9fe7f25199b4df9b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.98",
+ "unzip-n",
+]
+
+[[package]]
 name = "cairo-lang-casm"
 version = "2.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2146,7 +2169,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18e4fdb82bd54a12e42fb58a800dcae6b9e13982238ce2296dc3570b92148e1f"
 dependencies = [
  "data-encoding",
- "syn 2.0.98",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -3203,7 +3226,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.8",
+ "socket2 0.4.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -5872,6 +5895,7 @@ dependencies = [
  "log",
  "prover-sdk",
  "saya-core",
+ "starknet 0.13.0",
  "starknet-types-core",
  "tokio",
  "url",
@@ -5883,6 +5907,8 @@ version = "0.1.2"
 dependencies = [
  "anyhow",
  "bigdecimal",
+ "cainome-cairo-serde",
+ "cainome-cairo-serde-derive",
  "cairo-vm 1.0.1 (git+https://github.com/Moonsong-Labs/cairo-vm?branch=notlesh%2Fsnos-2024-11-04)",
  "celestia-rpc",
  "celestia-types",
@@ -7919,6 +7945,17 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
+
+[[package]]
+name = "unzip-n"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2e7e85a0596447f0f2ac090e16bc4c516c6fe91771fb0c0ccf7fa3dae896b9c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "url"
