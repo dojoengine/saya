@@ -11,10 +11,23 @@ pub struct ContractChanges {
     /// The new class hash (if changed).
     pub class_hash: Option<Felt252>,
     /// A map from storage key to its new value.
-    pub storage_changes: Vec<(Felt252, Felt252)>,
+    pub storage_changes: Vec<StorageChange>,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, CairoSerde)]
+pub struct StorageChange {
+    pub key: Felt252,
+    pub value: Felt252,
+    pub crd_type: CRDType,
+}
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, CairoSerde)]
+pub enum CRDType {
+    Add,
+    Lock,
+    Set,
+}
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, CairoSerde)]
 pub struct ShardOutput {
     pub state_diff: Vec<ContractChanges>,
 }
+

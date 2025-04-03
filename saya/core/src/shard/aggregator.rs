@@ -15,7 +15,7 @@ use std::{collections::HashMap, sync::Arc};
 use swiftness::types::StarkProof;
 use tokio::sync::mpsc::Receiver;
 
-use crate::shard::shard_output::{ContractChanges as ShardContractChanges, ShardOutput};
+use crate::shard::shard_output::{CRDType, ContractChanges as ShardContractChanges, ShardOutput, StorageChange};
 use crate::{
     prover::SnosProof,
     service::{Daemon, FinishHandle},
@@ -89,7 +89,11 @@ impl AggregatorMock {
                 storage_changes: contract_change
                     .storage_changes
                     .iter()
-                    .map(|(k, v)| (*k, *v))
+                    .map(|(k, v)| StorageChange {
+                        key: *k,
+                        value: *v,
+                        crd_type: CRDType::Add,
+                    })
                     .collect(),
             });
         }
@@ -152,7 +156,7 @@ pub async fn send_transaction(
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
     shard_id: Felt,
 ) {
-    let selector = selector!("update_state");
+    let selector = selector!("update_contract_state");
     let call = Call {
         to: contract_address,
         selector,

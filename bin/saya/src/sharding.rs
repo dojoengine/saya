@@ -40,18 +40,18 @@ pub struct Sharding {
     #[clap(long)]
     mock_snos_from_pie: bool,
     /// Shard contract address
-    #[clap(long)]
+    #[clap(env, long)]
     shard_contract_address: Felt,
-    #[clap(long)]
+    #[clap(env, long)]
     game_contract_address: Felt,
-    #[clap(long)]
+    #[clap(env, long)]
     event_name: String,
-    #[clap(long)]
+    #[clap(env, long)]
     shard_id: u32,
-    #[clap(long)]
+    #[clap(env, long)]
     account_address: Felt,
     /// Settlement network account private key
-    #[clap(long, env)]
+    #[clap(env, long)]
     account_private_key: Felt,
 }
 
@@ -61,10 +61,7 @@ impl Sharding {
         let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
         snos_file.read_to_end(&mut snos)?;
 
-        let saya_path = self
-            .db_dir
-            .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
-            .unwrap_or_else(|| SAYA_DB_PATH.to_string());
+        let saya_path = ":memory:";
 
         let db = SqliteDb::new(&saya_path).await?;
 
