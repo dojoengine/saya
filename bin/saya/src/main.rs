@@ -49,7 +49,6 @@ async fn main() -> Result<()> {
         );
     }
     env_logger::init();
-
     match cli.command {
         Subcommands::Sovereign(cmd) => cmd.run().await,
         Subcommands::Persistent(cmd) => cmd.run().await,

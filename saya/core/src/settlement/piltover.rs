@@ -94,7 +94,7 @@ where
                     entry_point_selector: selector!("get_state"),
                     calldata: vec![],
                 },
-                BlockId::Tag(BlockTag::Pending),
+                BlockId::Tag(BlockTag::Latest),
             )
             .await?;
 
@@ -313,7 +313,7 @@ where
             debug!(
                 block_number = new_da.block_number;
                 "Estimated settlement transaction cost for block: {} STRK",
-                felt_to_bigdecimal(fees.overall_fee, 18)
+                fees.overall_fee
             );
 
             // TODO: wait for transaction to confirm
@@ -418,7 +418,7 @@ where
             chain_id,
             starknet::accounts::ExecutionEncoding::New,
         );
-        account.set_block_id(BlockId::Tag(BlockTag::Pending));
+        account.set_block_id(BlockId::Tag(BlockTag::Latest));
 
         Ok(PiltoverSettlementBackend {
             provider,

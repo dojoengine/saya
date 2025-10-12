@@ -5,14 +5,17 @@ use bigdecimal::{
     num_bigint::{BigInt, Sign},
     BigDecimal,
 };
-use cairo_vm::{program_hash::compute_program_hash_chain, vm::runners::cairo_pie::CairoPie};
+use cairo_vm::{
+    program_hash::compute_program_hash_chain, types::relocatable::MaybeRelocatable,
+    vm::runners::cairo_pie::CairoPie,
+};
+use integrity::Felt;
 use log::debug;
 use num_traits::ToPrimitive;
 use starknet::{
     core::types::{Call, ExecutionResult, StarknetError, TransactionReceiptWithBlockInfo},
     providers::{Provider, ProviderError},
 };
-use starknet_types_core::felt::Felt;
 use swiftness_air::types::SegmentInfo;
 use swiftness_stark::types::StarkProof;
 
@@ -37,13 +40,12 @@ pub fn calculate_output(proof: &StarkProof) -> Vec<Felt> {
         .collect::<Vec<_>>()
 }
 
-pub fn felt_to_bigdecimal<F, D>(felt: F, decimals: D) -> BigDecimal
+pub fn felt_to_bigdecimal<D>(felt: Felt, decimals: D) -> BigDecimal
 where
-    F: AsRef<Felt>,
     D: Into<i64>,
 {
     BigDecimal::new(
-        BigInt::from_bytes_be(Sign::Plus, &felt.as_ref().to_bytes_be()),
+        BigInt::from_bytes_be(Sign::Plus, &felt.to_bytes_be()),
         decimals.into(),
     )
 }
@@ -114,12 +116,25 @@ pub fn compute_program_hash_from_pie(pie: &CairoPie) -> Result<Felt> {
 /// of the `public_input`.
 pub fn extract_pie_output(pie: &CairoPie) -> Vec<Felt> {
     let output_segment_index = 2_usize;
-    let output_segment = prove_block::get_memory_segment(pie, output_segment_index);
+    let output_segment = get_memory_segment(pie, output_segment_index);
     let output: Vec<Felt> = output_segment
         .iter()
         .map(|(_key, value)| value.get_int().unwrap())
         .collect::<Vec<_>>();
     output
+}
+
+pub fn get_memory_segment(pie: &CairoPie, index: usize) -> Vec<(usize, &MaybeRelocatable)> {
+    let mut segment = pie
+        .memory
+        .0
+        .iter()
+        .filter_map(|((segment_index, offset), value)| {
+            (*segment_index == index).then_some((*offset, value))
+        })
+        .collect::<Vec<_>>();
+    segment.sort_by(|(offset1, _), (offset2, _)| offset1.cmp(offset2));
+    segment
 }
 
 /// This proof is mocked but calling `calculate_output` on it correctly yields

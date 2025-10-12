@@ -379,7 +379,7 @@ pub async fn compress_pie(pie: CairoPie) -> std::result::Result<Vec<u8>, std::io
         zip_writer.start_file("metadata.json", options)?;
         serde_json::to_writer(&mut zip_writer, &pie.metadata)?;
         zip_writer.start_file("memory.bin", options)?;
-        zip_writer.write_all(&pie.memory.to_bytes())?;
+        zip_writer.write_all(&pie.memory.to_bytes(None))?;
         zip_writer.start_file("additional_data.json", options)?;
         serde_json::to_writer(&mut zip_writer, &pie.additional_data)?;
         zip_writer.start_file("execution_resources.json", options)?;

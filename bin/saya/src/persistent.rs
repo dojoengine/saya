@@ -44,9 +44,6 @@ struct Start {
     /// Settlement network Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
     settlement_rpc: Url,
-    /// Path to the compiled Starknet OS program
-    #[clap(long, env)]
-    snos_program: PathBuf,
     /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
     #[clap(long)]
     mock_snos_from_pie: bool,
@@ -89,18 +86,14 @@ impl Persistent {
 
 impl Start {
     pub async fn run(self) -> Result<()> {
-        let mut snos_file = std::fs::File::open(self.snos_program)?;
-        let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
-        snos_file.read_to_end(&mut snos)?;
-
         let saya_path = self
             .db_dir
             .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
             .unwrap_or_else(|| SAYA_DB_PATH.to_string());
 
-        let workers_distribution: [usize; NUMBER_OF_STAGES] =
-            calculate_workers_per_stage(self.blocks_processed_in_parallel);
-
+        // let workers_distribution: [usize; NUMBER_OF_STAGES] =
+        //     calculate_workers_per_stage(self.blocks_processed_in_parallel);
+        let workers_distribution: [usize; NUMBER_OF_STAGES] = [1, 1, 1];
         let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
@@ -137,12 +130,8 @@ impl Start {
 
         // TODO: make impls of these providers configurable
 
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
-            self.rollup_rpc,
-            snos,
-            db.clone(),
-            ingestor_worker_count,
-        );
+        let block_ingestor_builder =
+            PollingBlockIngestorBuilder::new(self.rollup_rpc, db.clone(), ingestor_worker_count);
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
                 self.atlantic_key,

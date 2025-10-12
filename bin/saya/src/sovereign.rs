@@ -111,12 +111,8 @@ impl Start {
         let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
-            self.starknet_rpc,
-            snos,
-            db.clone(),
-            ingestor_worker_count,
-        );
+        let block_ingestor_builder =
+            PollingBlockIngestorBuilder::new(self.starknet_rpc, db.clone(), ingestor_worker_count);
 
         let prover_builder = AtlanticSnosProverBuilder::new(
             self.atlantic_key,

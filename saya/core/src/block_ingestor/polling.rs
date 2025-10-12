@@ -2,8 +2,13 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
+use generate_pie::{
+    generate_pie,
+    types::{ChainConfig, OsHintsConfiguration},
+};
 use log::{debug, error, info, trace};
 use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
+use starknet_api::{contract_address, core::ChainId};
 use tokio::{
     sync::{
         mpsc::{self, Sender},
@@ -20,7 +25,7 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage, Step},
 };
-use prove_block::prove_block;
+// use prove_block::prove_block;
 
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const TASK_BUFFER_SIZE: usize = 4;
@@ -28,9 +33,8 @@ const MAX_RETRIES: usize = 3;
 
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
 #[derive(Debug)]
-pub struct PollingBlockIngestor<S, DB> {
+pub struct PollingBlockIngestor<DB> {
     rpc_url: Url,
-    snos: S,
     current_block: u64,
     channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
@@ -39,18 +43,16 @@ pub struct PollingBlockIngestor<S, DB> {
 }
 
 #[derive(Debug)]
-pub struct PollingBlockIngestorBuilder<S, DB> {
+pub struct PollingBlockIngestorBuilder<DB> {
     rpc_url: Url,
-    snos: S,
     start_block: Option<u64>,
     channel: Option<Sender<BlockInfo>>,
     db: DB,
     workers_count: usize,
 }
 
-impl<S, DB> PollingBlockIngestor<S, DB>
+impl<DB> PollingBlockIngestor<DB>
 where
-    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     /// Fetches the latest block number from the StarkNet RPC.
@@ -80,10 +82,8 @@ where
         finish_handle: FinishHandle,
         rpc_url: Url,
         channel: mpsc::Sender<BlockInfo>,
-        snos: S,
         db: DB,
     ) where
-        S: AsRef<[u8]> + Send + Sync + 'static,
         DB: PersistantStorage + Send + Sync + 'static,
     {
         loop {
@@ -128,16 +128,33 @@ where
                     trace!( block_number, error:% =err; "Pie not found in db");
                 }
             }
+            //TODO: make this configurable from CLI.
+            let pie_input = generate_pie::types::PieGenerationInput {
+                rpc_url: rpc_url.to_string(),
+                blocks: vec![block_number],
+                strk_fee_token_address: String::from(
+                    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
+                ),
+                eth_fee_token_address: String::from(
+                    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
+                ),
+                chain_config: ChainConfig {
+                    chain_id: ChainId::Other("KATANA2".to_string()),
+                    strk_fee_token_address: contract_address!(
+                        "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea"
+                    ),
+                    is_l3: false,
+                },
+                layout: cairo_vm::types::layout_name::LayoutName::all_cairo,
+                os_hints_config: OsHintsConfiguration {
+                    debug_mode: false,
+                    full_output: true,
+                    use_kzg_da: false,
+                },
+                output_path: None,
+            };
 
-            let (pie, _) = prove_block(
-                snos.as_ref(),
-                block_number,
-                rpc_url.as_str().trim_end_matches("/rpc/v0_7"),
-                cairo_vm::types::layout_name::LayoutName::all_cairo,
-                true,
-            )
-            .await
-            .unwrap();
+            let pie = generate_pie(pie_input).await.unwrap().output.cairo_pie;
 
             if finish_handle.is_shutdown_requested() {
                 break;
@@ -191,14 +208,12 @@ where
             let finish_handle = self.finish_handle.clone();
             let rpc_url = self.rpc_url.clone();
             let channel = self.channel.clone();
-            let snos = self.snos.clone();
 
             workers.push(task::spawn(Self::worker(
                 worker_task_rx,
                 finish_handle,
                 rpc_url,
                 channel,
-                snos,
                 self.db.clone(),
             )));
         }
@@ -236,11 +251,10 @@ where
     }
 }
 
-impl<S, DB> PollingBlockIngestorBuilder<S, DB> {
-    pub fn new(rpc_url: Url, snos: S, db: DB, workers_count: usize) -> Self {
+impl<DB> PollingBlockIngestorBuilder<DB> {
+    pub fn new(rpc_url: Url, db: DB, workers_count: usize) -> Self {
         Self {
             rpc_url,
-            snos,
             start_block: None,
             channel: None,
             db,
@@ -249,17 +263,16 @@ impl<S, DB> PollingBlockIngestorBuilder<S, DB> {
     }
 }
 
-impl<S, DB> BlockIngestorBuilder for PollingBlockIngestorBuilder<S, DB>
+impl<DB> BlockIngestorBuilder for PollingBlockIngestorBuilder<DB>
 where
-    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Ingestor = PollingBlockIngestor<S, DB>;
+    type Ingestor = PollingBlockIngestor<DB>;
 
     fn build(self) -> Result<Self::Ingestor> {
         Ok(PollingBlockIngestor {
             rpc_url: self.rpc_url,
-            snos: self.snos,
+            db: self.db,
             current_block: self
                 .start_block
                 .ok_or_else(|| anyhow::anyhow!("`start_block` not set"))?,
@@ -267,7 +280,6 @@ where
                 .channel
                 .ok_or_else(|| anyhow::anyhow!("`channel` not set"))?,
             finish_handle: FinishHandle::new(),
-            db: self.db,
             workers_count: self.workers_count,
         })
     }
@@ -283,16 +295,13 @@ where
     }
 }
 
-impl<S, DB> BlockIngestor for PollingBlockIngestor<S, DB>
-where
-    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
-    DB: PersistantStorage + Send + Sync + Clone + 'static,
+impl<DB> BlockIngestor for PollingBlockIngestor<DB> where
+    DB: PersistantStorage + Send + Sync + Clone + 'static
 {
 }
 
-impl<S, DB> Daemon for PollingBlockIngestor<S, DB>
+impl<DB> Daemon for PollingBlockIngestor<DB>
 where
-    S: AsRef<[u8]> + Send + Sync + Clone + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {

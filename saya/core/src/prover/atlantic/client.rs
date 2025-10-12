@@ -8,7 +8,7 @@ use reqwest::{
 use serde::Deserialize;
 use url::Url;
 
-const ATLANTIC_API_BASE: &str = "https://staging.atlantic.api.herodotus.cloud";
+const ATLANTIC_API_BASE: &str = "https://atlantic.api.herodotus.cloud/";
 const ATLANTIC_HTTP_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
