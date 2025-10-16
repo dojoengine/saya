@@ -11,7 +11,7 @@ use starknet::{
     accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
         codec::{Decode, Encode},
-        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt, U256},
+        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt,},
     },
     macros::{selector, short_string},
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
@@ -69,10 +69,7 @@ struct AppchainState {
 
 #[derive(Debug, Encode)]
 struct UpdateStateCalldata {
-    snos_output: Vec<Felt>,
     program_output: Vec<Felt>,
-    onchain_data_hash: Felt,
-    onchain_data_size: U256,
 }
 
 #[derive(Debug)]
@@ -267,28 +264,12 @@ where
                 }
             }
 
-            let new_snos_proof = self
-                .db
-                .get_proof(
-                    new_da.block_number.try_into().unwrap(),
-                    crate::storage::Step::Snos,
-                )
-                .await
-                .unwrap();
-
-            let new_snos_proof = String::from_utf8(new_snos_proof).unwrap();
-            let parsed_snos_proof = swiftness::parse(&new_snos_proof).unwrap().transform_to();
-            let snos_output = calculate_output(&parsed_snos_proof);
-
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
-                        snos_output,
                         program_output: calculate_output(&layout_bridge_proof),
-                        onchain_data_hash: Felt::ZERO,
-                        onchain_data_size: U256::from_words(0, 0),
                     };
                     let mut raw_calldata = vec![];
 

@@ -91,10 +91,9 @@ impl Start {
             .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
             .unwrap_or_else(|| SAYA_DB_PATH.to_string());
 
-        // let workers_distribution: [usize; NUMBER_OF_STAGES] =
-        //     calculate_workers_per_stage(self.blocks_processed_in_parallel);
-        let workers_distribution: [usize; NUMBER_OF_STAGES] = [1, 1, 1];
-        let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
+        let workers_distribution: [usize; NUMBER_OF_STAGES] =
+            calculate_workers_per_stage(self.blocks_processed_in_parallel);
+            let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
         log::info!(

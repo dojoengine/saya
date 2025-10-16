@@ -139,7 +139,7 @@ where
                     "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
                 ),
                 chain_config: ChainConfig {
-                    chain_id: ChainId::Other("KATANA2".to_string()),
+                    chain_id: ChainId::Other("KATANA3".to_string()),
                     strk_fee_token_address: contract_address!(
                         "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea"
                     ),
@@ -148,7 +148,7 @@ where
                 layout: cairo_vm::types::layout_name::LayoutName::all_cairo,
                 os_hints_config: OsHintsConfiguration {
                     debug_mode: false,
-                    full_output: true,
+                    full_output: false,
                     use_kzg_da: false,
                 },
                 output_path: None,
