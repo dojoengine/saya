@@ -9,13 +9,8 @@ fi
 
 CAIRO_VERSION=${CAIRO_VERSION#"v"}
 
-if [ "$CAIRO_VERSION" = "0.13.2.1" ]; then
-  # Doing this as v0.13.2.1 is not tagged
-  git clone --recursive https://github.com/starkware-libs/cairo-lang -b v0.13.3 --depth 2 /src
-  cd /src && git checkout a86e92bfde9c171c0856d7b46580c66e004922f3
-else
-  git clone --recursive https://github.com/starkware-libs/cairo-lang -b v$CAIRO_VERSION --depth 1 /src
-fi
+git clone --recursive https://github.com/starkware-libs/cairo-lang -b v$CAIRO_VERSION --depth 1 /src
+
 
 # Patch to make the verifier work with `dynamic` layout
 sed -i s/all_cairo/dynamic/g /src/src/starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo

@@ -11,7 +11,7 @@ use starknet::{
     accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
         codec::{Decode, Encode},
-        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt,},
+        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt},
     },
     macros::{selector, short_string},
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},

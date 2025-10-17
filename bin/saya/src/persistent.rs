@@ -13,6 +13,7 @@ use saya_core::{
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
     storage::SqliteDb,
+    ChainId, OsHintsConfiguration,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -93,7 +94,7 @@ impl Start {
 
         let workers_distribution: [usize; NUMBER_OF_STAGES] =
             calculate_workers_per_stage(self.blocks_processed_in_parallel);
-            let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
+        let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
         log::info!(
@@ -129,8 +130,17 @@ impl Start {
 
         // TODO: make impls of these providers configurable
 
-        let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.rollup_rpc, db.clone(), ingestor_worker_count);
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.rollup_rpc,
+            db.clone(),
+            ingestor_worker_count,
+            OsHintsConfiguration {
+                debug_mode: false,
+                full_output: false,
+                use_kzg_da: false,
+            },
+            ChainId::Other("KATANA3".to_string()),
+        );
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
                 self.atlantic_key,

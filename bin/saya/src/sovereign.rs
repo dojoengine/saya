@@ -9,6 +9,7 @@ use saya_core::{
     prover::AtlanticSnosProverBuilder,
     service::Daemon,
     storage::{InMemoryStorageBackend, SqliteDb},
+    ChainId, OsHintsConfiguration,
 };
 use url::Url;
 
@@ -111,8 +112,17 @@ impl Start {
         let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
-        let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.starknet_rpc, db.clone(), ingestor_worker_count);
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.starknet_rpc,
+            db.clone(),
+            ingestor_worker_count,
+            OsHintsConfiguration {
+                debug_mode: false,
+                full_output: false,
+                use_kzg_da: false,
+            },
+            ChainId::Other("KATANA3".to_string()),
+        );
 
         let prover_builder = AtlanticSnosProverBuilder::new(
             self.atlantic_key,

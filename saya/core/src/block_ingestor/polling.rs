@@ -25,12 +25,12 @@ use crate::{
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage, Step},
 };
-// use prove_block::prove_block;
 
 const BLOCK_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const TASK_BUFFER_SIZE: usize = 4;
 const MAX_RETRIES: usize = 3;
-
+const KATANA_DEFAULT_TOKEN_ADDRESS: &str =
+    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea";
 /// A block ingestor which collects new blocks by polling a Starknet RPC endpoint.
 #[derive(Debug)]
 pub struct PollingBlockIngestor<DB> {
@@ -40,6 +40,8 @@ pub struct PollingBlockIngestor<DB> {
     finish_handle: FinishHandle,
     db: DB,
     workers_count: usize,
+    chain_id: ChainId,
+    os_hints_config: OsHintsConfiguration,
 }
 
 #[derive(Debug)]
@@ -49,6 +51,8 @@ pub struct PollingBlockIngestorBuilder<DB> {
     channel: Option<Sender<BlockInfo>>,
     db: DB,
     workers_count: usize,
+    chain_id: ChainId,
+    os_hints_config: OsHintsConfiguration,
 }
 
 impl<DB> PollingBlockIngestor<DB>
@@ -83,6 +87,8 @@ where
         rpc_url: Url,
         channel: mpsc::Sender<BlockInfo>,
         db: DB,
+        os_hints_config: OsHintsConfiguration,
+        chain_id: ChainId,
     ) where
         DB: PersistantStorage + Send + Sync + 'static,
     {
@@ -128,29 +134,20 @@ where
                     trace!( block_number, error:% =err; "Pie not found in db");
                 }
             }
+
             //TODO: make this configurable from CLI.
             let pie_input = generate_pie::types::PieGenerationInput {
                 rpc_url: rpc_url.to_string(),
                 blocks: vec![block_number],
-                strk_fee_token_address: String::from(
-                    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
-                ),
-                eth_fee_token_address: String::from(
-                    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea",
-                ),
+                strk_fee_token_address: String::from(KATANA_DEFAULT_TOKEN_ADDRESS),
+                eth_fee_token_address: String::from(KATANA_DEFAULT_TOKEN_ADDRESS),
                 chain_config: ChainConfig {
-                    chain_id: ChainId::Other("KATANA3".to_string()),
-                    strk_fee_token_address: contract_address!(
-                        "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea"
-                    ),
+                    chain_id: chain_id.clone(),
+                    strk_fee_token_address: contract_address!(KATANA_DEFAULT_TOKEN_ADDRESS),
                     is_l3: false,
                 },
                 layout: cairo_vm::types::layout_name::LayoutName::all_cairo,
-                os_hints_config: OsHintsConfiguration {
-                    debug_mode: false,
-                    full_output: false,
-                    use_kzg_da: false,
-                },
+                os_hints_config: os_hints_config.clone(),
                 output_path: None,
             };
 
@@ -215,6 +212,8 @@ where
                 rpc_url,
                 channel,
                 self.db.clone(),
+                self.os_hints_config.clone(),
+                self.chain_id.clone(),
             )));
         }
 
@@ -252,13 +251,21 @@ where
 }
 
 impl<DB> PollingBlockIngestorBuilder<DB> {
-    pub fn new(rpc_url: Url, db: DB, workers_count: usize) -> Self {
+    pub fn new(
+        rpc_url: Url,
+        db: DB,
+        workers_count: usize,
+        os_hints_config: OsHintsConfiguration,
+        chain_id: ChainId,
+    ) -> Self {
         Self {
             rpc_url,
             start_block: None,
             channel: None,
             db,
             workers_count,
+            chain_id,
+            os_hints_config,
         }
     }
 }
@@ -281,6 +288,8 @@ where
                 .ok_or_else(|| anyhow::anyhow!("`channel` not set"))?,
             finish_handle: FinishHandle::new(),
             workers_count: self.workers_count,
+            chain_id: self.chain_id,
+            os_hints_config: self.os_hints_config,
         })
     }
 
