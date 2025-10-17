@@ -78,13 +78,13 @@ struct Start {
     /// Configuration for OS pie generation
     #[clap(flatten)]
     hints: HintsConfiguration,
-    /// Chain ID 
+    /// Chain ID
     #[clap(long, env)]
-    chain_id: String
+    chain_id: String,
 }
 
 #[derive(Debug, Parser, Clone)]
-struct HintsConfiguration{
+struct HintsConfiguration {
     /// Enable debug mode for OS hints generation
     #[clap(long, env, default_value_t = false)]
     debug_mode: bool,
