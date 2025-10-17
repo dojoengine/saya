@@ -75,6 +75,25 @@ struct Start {
     /// Number of blocks processed in parallel evenly distributed between the stages
     #[clap(long, env, default_value_t = 60)]
     blocks_processed_in_parallel: usize,
+    /// Configuration for OS pie generation
+    #[clap(flatten)]
+    hints: HintsConfiguration,
+    /// Chain ID 
+    #[clap(long, env)]
+    chain_id: String
+}
+
+#[derive(Debug, Parser, Clone)]
+struct HintsConfiguration{
+    /// Enable debug mode for OS hints generation
+    #[clap(long, env, default_value_t = false)]
+    debug_mode: bool,
+    /// Generate full output for OS hints
+    #[clap(long, env, default_value_t = false)]
+    full_output: bool,
+    /// Use KZG data availability for OS hints
+    #[clap(long, env, default_value_t = false)]
+    use_kzg_da: bool,
 }
 
 impl Persistent {
@@ -135,11 +154,11 @@ impl Start {
             db.clone(),
             ingestor_worker_count,
             OsHintsConfiguration {
-                debug_mode: false,
-                full_output: false,
-                use_kzg_da: false,
+                debug_mode: self.hints.debug_mode,
+                full_output: self.hints.full_output,
+                use_kzg_da: self.hints.use_kzg_da,
             },
-            ChainId::Other("KATANA3".to_string()),
+            ChainId::Other(self.chain_id.clone()),
         );
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
