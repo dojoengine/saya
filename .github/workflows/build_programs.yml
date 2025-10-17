@@ -14,9 +14,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "snos"
-            runner: "ubuntu-latest-8-cores"
-            script: "generate_snos.sh"
           - name: "layout_bridge"
             runner: "ubuntu-latest-16-cores"
             script: "generate_layout_bridge.sh"

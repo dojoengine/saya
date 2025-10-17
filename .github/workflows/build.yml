@@ -25,6 +25,11 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: "Install dependencies"
+        run: |
+             python3 -m venv sequencer_venv &&
+              . sequencer_venv/bin/activate &&
+              pip install -r requirements.txt
       - name: "Cargo build"
         run: |
           cargo build --workspace --all-features
