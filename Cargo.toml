@@ -15,8 +15,8 @@ repository = "https://github.com/dojoengine/saya"
 [workspace.dependencies]
 # saya
 saya-core = { path = "saya/core" }
-generate-pie = {git = "https://github.com/keep-starknet-strange/snos.git",rev = "94a5004"}
-starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "241bf0766f1f68f36e2c0e39e99c2222932dca9a", features = [
+generate-pie = {git = "https://github.com/keep-starknet-strange/snos.git",rev = "6cf7040"}
+starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "e04617e0581d5ec93a035ec0e15419b4c201b629", features = [
   "testing",
 ] }
 

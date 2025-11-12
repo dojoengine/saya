@@ -135,16 +135,15 @@ where
                 }
             }
 
-            //TODO: make this configurable from CLI.
             let pie_input = generate_pie::types::PieGenerationInput {
                 rpc_url: rpc_url.to_string(),
                 blocks: vec![block_number],
-                strk_fee_token_address: String::from(KATANA_DEFAULT_TOKEN_ADDRESS),
-                eth_fee_token_address: String::from(KATANA_DEFAULT_TOKEN_ADDRESS),
+                versioned_constants: None,
                 chain_config: ChainConfig {
                     chain_id: chain_id.clone(),
                     strk_fee_token_address: contract_address!(KATANA_DEFAULT_TOKEN_ADDRESS),
                     is_l3: false,
+                    eth_fee_token_address: contract_address!(KATANA_DEFAULT_TOKEN_ADDRESS),
                 },
                 layout: cairo_vm::types::layout_name::LayoutName::all_cairo,
                 os_hints_config: os_hints_config.clone(),
