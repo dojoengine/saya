@@ -400,8 +400,8 @@ fn bootloader_snos_output(pie: &CairoPie) -> Vec<Felt> {
     let snos_output = extract_pie_output(pie);
 
     let mut bootloader_output = vec![
-        // Bootloader config (not checked by piltover, set to 0)
-        Felt::ZERO,
+        // Bootloader constants (number of task executed by bootloader, in case of herodotus its always 1)
+        Felt::ONE,
         // bootloader output len (not checked by piltover, set to 0)
         Felt::ZERO,
         snos_program_hash,

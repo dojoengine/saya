@@ -21,7 +21,7 @@ use starknet_types_core::felt::Felt;
 use swiftness::TransformTo;
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
-
+use swiftness::types::StarkProof;
 use crate::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
@@ -138,7 +138,7 @@ where
                 .await
                 .unwrap();
             let raw_proof = String::from_utf8(layout_bridge_proof).unwrap();
-            let layout_bridge_proof = swiftness::parse(raw_proof).unwrap().transform_to();
+            let mut program_output = vec![];
 
             match self
                 .db
@@ -149,6 +149,8 @@ where
                 crate::storage::BlockStatus::BridgeProofGenerated => {
                     match self.fact_registration {
                         FactRegistrationConfig::Integrity(integrity_address) => {
+                            let layout_bridge_proof =
+                                swiftness::parse(raw_proof).unwrap().transform_to();
                             // TODO: error handling
                             let split_proof = split_proof::<
                                 swiftness_air::layout::recursive_with_poseidon::Layout,
@@ -156,6 +158,7 @@ where
                                 layout_bridge_proof.clone()
                             )
                             .unwrap();
+                            program_output = calculate_output(&layout_bridge_proof);
                             let integrity_job_id = SigningKey::from_random().secret_scalar();
                             let integrity_calls = split_proof
                                 .into_calls(
@@ -242,6 +245,8 @@ where
                                 .unwrap();
                         }
                         FactRegistrationConfig::Skipped => {
+                            let layout_bridge_proof = serde_json::from_str::<StarkProof>(&raw_proof).unwrap();
+                            program_output = calculate_output(&layout_bridge_proof);
                             info!(
                                 block_number = new_da.block_number;
                                 "On-chain fact-registration skipped for block",
@@ -269,7 +274,7 @@ where
                 selector: selector!("update_state"),
                 calldata: {
                     let calldata = UpdateStateCalldata {
-                        program_output: calculate_output(&layout_bridge_proof),
+                        program_output,
                     };
                     let mut raw_calldata = vec![];
 

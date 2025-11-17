@@ -128,6 +128,7 @@ impl Start {
                 (Some(mock_layout_bridge_program_hash), _) => {
                     AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new(
                         mock_layout_bridge_program_hash,
+                    db.clone(),
                     ))
                 }
                 (None, Some(layout_bridge_program)) => {
