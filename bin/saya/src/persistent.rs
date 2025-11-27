@@ -15,6 +15,10 @@ use saya_core::{
     storage::SqliteDb,
     ChainId, OsHintsConfiguration,
 };
+use starknet::{
+    core::utils::parse_cairo_short_string,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
+};
 use starknet_types_core::felt::Felt;
 use url::Url;
 
@@ -78,9 +82,6 @@ struct Start {
     /// Configuration for OS pie generation
     #[clap(flatten)]
     hints: HintsConfiguration,
-    /// Chain ID
-    #[clap(long, env)]
-    chain_id: String,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -121,6 +122,12 @@ impl Start {
             "workers distribution"
         );
 
+        let rollup_chain_id = parse_cairo_short_string(
+            &JsonRpcClient::new(HttpTransport::new(self.rollup_rpc.clone()))
+                .chain_id()
+                .await?,
+        )?;
+
         let db = SqliteDb::new(&saya_path).await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
@@ -159,7 +166,7 @@ impl Start {
                 full_output: self.hints.full_output,
                 use_kzg_da: self.hints.use_kzg_da,
             },
-            ChainId::Other(self.chain_id.clone()),
+            ChainId::Other(rollup_chain_id),
         );
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
