@@ -26,7 +26,7 @@ jobs:
       - run: |
           VERSION=${{ inputs.version }}
           VERSION=${VERSION#v}
-          cargo install cargo-release
+          cargo install cargo-release --version 0.25.19 --locked
           cargo release version $VERSION --execute --no-confirm && cargo release replace --execute --no-confirm
 
       - id: version_info
