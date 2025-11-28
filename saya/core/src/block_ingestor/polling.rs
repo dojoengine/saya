@@ -142,7 +142,7 @@ where
                 chain_config: ChainConfig {
                     chain_id: chain_id.clone(),
                     strk_fee_token_address: contract_address!(KATANA_DEFAULT_TOKEN_ADDRESS),
-                    is_l3: false,
+                    is_l3: true,
                     eth_fee_token_address: contract_address!(KATANA_DEFAULT_TOKEN_ADDRESS),
                 },
                 layout: cairo_vm::types::layout_name::LayoutName::all_cairo,

@@ -57,7 +57,7 @@ struct Start {
     layout_bridge_program: Option<PathBuf>,
     /// Atlantic prover API key
     #[clap(long, env)]
-    atlantic_key: String,
+    atlantic_key: Option<String>,
     /// Settlement network integrity contract address
     #[clap(long, env)]
     settlement_integrity_address: Option<Felt>,
@@ -128,6 +128,7 @@ impl Start {
                 .await?,
         )?;
 
+        let mut atlantic_key: String = String::new();
         let db = SqliteDb::new(&saya_path).await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
@@ -139,12 +140,18 @@ impl Start {
                     ))
                 }
                 (None, Some(layout_bridge_program)) => {
+                    atlantic_key = match self.atlantic_key.clone() {
+                        Some(key) => key,
+                        None => return Err(anyhow::anyhow!("`atlantic-key` must be provided unless `--mock-layout-bridge-program-hash` is used"))
+                    };
+
                     let mut layout_bridge_file = std::fs::File::open(layout_bridge_program)?;
                     let mut layout_bridge =
                         Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
                     layout_bridge_file.read_to_end(&mut layout_bridge)?;
+
                     AnyLayoutBridgeProverBuilder::Atlantic(AtlanticLayoutBridgeProverBuilder::new(
-                        self.atlantic_key.clone(),
+                        atlantic_key.clone(),
                         layout_bridge,
                         db.clone(),
                         layout_bridge_workers_count,
@@ -168,9 +175,10 @@ impl Start {
             },
             ChainId::Other(rollup_chain_id),
         );
+
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
-                self.atlantic_key,
+                atlantic_key,
                 self.mock_snos_from_pie,
                 db.clone(),
                 snos_worker_count,
