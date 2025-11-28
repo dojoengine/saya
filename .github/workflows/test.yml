@@ -32,11 +32,11 @@ jobs:
         with:
           python-version: "3.9"
           cache: "pip"
-      
+
       - name: "Install dependencies"
         run: |
           pip install -r requirements.txt
-      
+
       - name: "Cargo test"
         run: |
           cargo test --workspace --all-features

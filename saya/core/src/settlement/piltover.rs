@@ -4,6 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::{
+    block_ingestor::BlockInfo,
+    data_availability::DataAvailabilityCursor,
+    service::{Daemon, FinishHandle},
+    settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
+    storage::PersistantStorage,
+    utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
+};
 use anyhow::Result;
 use integrity::{split_proof, VerifierConfiguration};
 use log::{debug, info};
@@ -18,18 +26,10 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_types_core::felt::Felt;
+use swiftness::types::StarkProof;
 use swiftness::TransformTo;
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
-use swiftness::types::StarkProof;
-use crate::{
-    block_ingestor::BlockInfo,
-    data_availability::DataAvailabilityCursor,
-    service::{Daemon, FinishHandle},
-    settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
-    storage::PersistantStorage,
-    utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
-};
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -245,7 +245,8 @@ where
                                 .unwrap();
                         }
                         FactRegistrationConfig::Skipped => {
-                            let layout_bridge_proof = serde_json::from_str::<StarkProof>(&raw_proof).unwrap();
+                            let layout_bridge_proof =
+                                serde_json::from_str::<StarkProof>(&raw_proof).unwrap();
                             program_output = calculate_output(&layout_bridge_proof);
                             info!(
                                 block_number = new_da.block_number;
@@ -273,9 +274,7 @@ where
                 to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
-                    let calldata = UpdateStateCalldata {
-                        program_output,
-                    };
+                    let calldata = UpdateStateCalldata { program_output };
                     let mut raw_calldata = vec![];
 
                     // Encoding `UpdateStateCalldata` never fails

@@ -65,24 +65,32 @@ where
             let mut bootloader_output = vec![
                 // Bootloader constants (number of task executed by bootloader, in case of herodotus its always 1)
                 Felt::ONE,
-                // Bootloader output len (not checked by piltover, set to 0) 
+                // Bootloader output len (not checked by piltover, set to 0)
                 Felt::ZERO,
                 // Verifier Program Hash (not checked by piltover, set to 0)
                 self.layout_bridge_program_hash,
-                // Bootloader program hash 
-                Felt::from_hex_unchecked("0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07"),
+                // Bootloader program hash
+                Felt::from_hex_unchecked(
+                    "0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07",
+                ),
                 // Verifier output len (not checked by piltover, set to 0)
                 Felt::ZERO,
             ];
-                bootloader_output.extend_from_slice(&snos_output);
-
+            bootloader_output.extend_from_slice(&snos_output);
 
             let mock_proof = crate::utils::stark_proof_mock(&bootloader_output);
-            
+
             let string_proof = serde_json::to_string(&mock_proof).unwrap();
             let bytes_proof = string_proof.as_bytes();
 
-            self.db.add_proof(new_snos_proof.block_number.try_into().unwrap(), bytes_proof.to_vec(), crate::storage::Step::Bridge).await.unwrap();
+            self.db
+                .add_proof(
+                    new_snos_proof.block_number.try_into().unwrap(),
+                    bytes_proof.to_vec(),
+                    crate::storage::Step::Bridge,
+                )
+                .await
+                .unwrap();
             let new_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
                 snos_output,
@@ -108,7 +116,7 @@ where
     }
 }
 
-impl <DB> MockLayoutBridgeProverBuilder <DB> {
+impl<DB> MockLayoutBridgeProverBuilder<DB> {
     pub fn new(layout_bridge_program_hash: Felt, db: DB) -> Self {
         Self {
             statement_channel: None,
