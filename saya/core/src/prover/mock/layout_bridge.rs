@@ -2,35 +2,39 @@ use crate::block_ingestor::BlockInfo;
 use anyhow::Result;
 use integrity::Felt;
 use log::{debug, info};
-use starknet_crypto::poseidon_hash_many;
 use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
+use crate::storage::PersistantStorage;
 use crate::{
     prover::{Prover, ProverBuilder, RecursiveProof, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
     utils::calculate_output,
 };
-
 /// Prover implementation as a client to the hosted [Mock Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
-pub struct MockLayoutBridgeProver {
+pub struct MockLayoutBridgeProver<DB> {
     statement_channel: Receiver<SnosProof<String>>,
     block_info_channel: Sender<BlockInfo>,
     layout_bridge_program_hash: Felt,
     finish_handle: FinishHandle,
+    db: DB,
 }
 
 #[derive(Debug, Default)]
-pub struct MockLayoutBridgeProverBuilder {
+pub struct MockLayoutBridgeProverBuilder<DB> {
     statement_channel: Option<Receiver<SnosProof<String>>>,
     block_info_channel: Option<Sender<BlockInfo>>,
     layout_bridge_program_hash: Felt,
+    db: DB,
 }
 
-impl MockLayoutBridgeProver {
+impl<DB> MockLayoutBridgeProver<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
     async fn run(mut self) {
         loop {
             let new_snos_proof = tokio::select! {
@@ -58,16 +62,35 @@ impl MockLayoutBridgeProver {
 
             let snos_output = calculate_output(&parsed_snos_proof);
 
-            let bootloader_output = [
+            let mut bootloader_output = vec![
+                // Bootloader constants (number of task executed by bootloader, in case of herodotus its always 1)
+                Felt::ONE,
+                // Bootloader output len (not checked by piltover, set to 0)
                 Felt::ZERO,
-                Felt::ZERO,
+                // Verifier Program Hash (not checked by piltover, set to 0)
                 self.layout_bridge_program_hash,
+                // Bootloader program hash
+                Felt::from_hex_unchecked(
+                    "0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07",
+                ),
+                // Verifier output len (not checked by piltover, set to 0)
                 Felt::ZERO,
-                poseidon_hash_many(&snos_output),
             ];
+            bootloader_output.extend_from_slice(&snos_output);
 
             let mock_proof = crate::utils::stark_proof_mock(&bootloader_output);
 
+            let string_proof = serde_json::to_string(&mock_proof).unwrap();
+            let bytes_proof = string_proof.as_bytes();
+
+            self.db
+                .add_proof(
+                    new_snos_proof.block_number.try_into().unwrap(),
+                    bytes_proof.to_vec(),
+                    crate::storage::Step::Bridge,
+                )
+                .await
+                .unwrap();
             let new_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
                 snos_output,
@@ -93,18 +116,22 @@ impl MockLayoutBridgeProver {
     }
 }
 
-impl MockLayoutBridgeProverBuilder {
-    pub fn new(layout_bridge_program_hash: Felt) -> Self {
+impl<DB> MockLayoutBridgeProverBuilder<DB> {
+    pub fn new(layout_bridge_program_hash: Felt, db: DB) -> Self {
         Self {
             statement_channel: None,
             block_info_channel: None,
             layout_bridge_program_hash,
+            db,
         }
     }
 }
 
-impl ProverBuilder for MockLayoutBridgeProverBuilder {
-    type Prover = MockLayoutBridgeProver;
+impl<DB> ProverBuilder for MockLayoutBridgeProverBuilder<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
+    type Prover = MockLayoutBridgeProver<DB>;
 
     fn build(self) -> Result<Self::Prover> {
         Ok(MockLayoutBridgeProver {
@@ -116,6 +143,7 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             layout_bridge_program_hash: self.layout_bridge_program_hash,
+            db: self.db,
         })
     }
 
@@ -130,12 +158,18 @@ impl ProverBuilder for MockLayoutBridgeProverBuilder {
     }
 }
 
-impl Prover for MockLayoutBridgeProver {
+impl<DB> Prover for MockLayoutBridgeProver<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
     type Statement = SnosProof<String>;
     type BlockInfo = BlockInfo;
 }
 
-impl Daemon for MockLayoutBridgeProver {
+impl<DB> Daemon for MockLayoutBridgeProver<DB>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+{
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }

@@ -4,24 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
-use integrity::{split_proof, VerifierConfiguration};
-use log::{debug, info};
-use starknet::{
-    accounts::{Account, ConnectedAccount, SingleOwnerAccount},
-    core::{
-        codec::{Decode, Encode},
-        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt, U256},
-    },
-    macros::{selector, short_string},
-    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
-    signers::{LocalWallet, SigningKey},
-};
-use starknet_types_core::felt::Felt;
-use swiftness::TransformTo;
-use tokio::sync::mpsc::{Receiver, Sender};
-use url::Url;
-
 use crate::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
@@ -30,6 +12,24 @@ use crate::{
     storage::PersistantStorage,
     utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
 };
+use anyhow::Result;
+use integrity::{split_proof, VerifierConfiguration};
+use log::{debug, info};
+use starknet::{
+    accounts::{Account, ConnectedAccount, SingleOwnerAccount},
+    core::{
+        codec::{Decode, Encode},
+        types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt},
+    },
+    macros::{selector, short_string},
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
+    signers::{LocalWallet, SigningKey},
+};
+use starknet_types_core::felt::Felt;
+use swiftness::types::StarkProof;
+use swiftness::TransformTo;
+use tokio::sync::mpsc::{Receiver, Sender};
+use url::Url;
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -69,10 +69,7 @@ struct AppchainState {
 
 #[derive(Debug, Encode)]
 struct UpdateStateCalldata {
-    snos_output: Vec<Felt>,
     program_output: Vec<Felt>,
-    onchain_data_hash: Felt,
-    onchain_data_size: U256,
 }
 
 #[derive(Debug)]
@@ -94,7 +91,7 @@ where
                     entry_point_selector: selector!("get_state"),
                     calldata: vec![],
                 },
-                BlockId::Tag(BlockTag::Pending),
+                BlockId::Tag(BlockTag::Latest),
             )
             .await?;
 
@@ -141,7 +138,7 @@ where
                 .await
                 .unwrap();
             let raw_proof = String::from_utf8(layout_bridge_proof).unwrap();
-            let layout_bridge_proof = swiftness::parse(raw_proof).unwrap().transform_to();
+            let mut program_output = vec![];
 
             match self
                 .db
@@ -152,6 +149,8 @@ where
                 crate::storage::BlockStatus::BridgeProofGenerated => {
                     match self.fact_registration {
                         FactRegistrationConfig::Integrity(integrity_address) => {
+                            let layout_bridge_proof =
+                                swiftness::parse(raw_proof).unwrap().transform_to();
                             // TODO: error handling
                             let split_proof = split_proof::<
                                 swiftness_air::layout::recursive_with_poseidon::Layout,
@@ -159,6 +158,7 @@ where
                                 layout_bridge_proof.clone()
                             )
                             .unwrap();
+                            program_output = calculate_output(&layout_bridge_proof);
                             let integrity_job_id = SigningKey::from_random().secret_scalar();
                             let integrity_calls = split_proof
                                 .into_calls(
@@ -245,6 +245,9 @@ where
                                 .unwrap();
                         }
                         FactRegistrationConfig::Skipped => {
+                            let layout_bridge_proof =
+                                serde_json::from_str::<StarkProof>(&raw_proof).unwrap();
+                            program_output = calculate_output(&layout_bridge_proof);
                             info!(
                                 block_number = new_da.block_number;
                                 "On-chain fact-registration skipped for block",
@@ -267,29 +270,11 @@ where
                 }
             }
 
-            let new_snos_proof = self
-                .db
-                .get_proof(
-                    new_da.block_number.try_into().unwrap(),
-                    crate::storage::Step::Snos,
-                )
-                .await
-                .unwrap();
-
-            let new_snos_proof = String::from_utf8(new_snos_proof).unwrap();
-            let parsed_snos_proof = swiftness::parse(&new_snos_proof).unwrap().transform_to();
-            let snos_output = calculate_output(&parsed_snos_proof);
-
             let update_state_call = Call {
                 to: self.piltover_address,
                 selector: selector!("update_state"),
                 calldata: {
-                    let calldata = UpdateStateCalldata {
-                        snos_output,
-                        program_output: calculate_output(&layout_bridge_proof),
-                        onchain_data_hash: Felt::ZERO,
-                        onchain_data_size: U256::from_words(0, 0),
-                    };
+                    let calldata = UpdateStateCalldata { program_output };
                     let mut raw_calldata = vec![];
 
                     // Encoding `UpdateStateCalldata` never fails
@@ -313,7 +298,7 @@ where
             debug!(
                 block_number = new_da.block_number;
                 "Estimated settlement transaction cost for block: {} STRK",
-                felt_to_bigdecimal(fees.overall_fee, 18)
+                fees.overall_fee
             );
 
             // TODO: wait for transaction to confirm
@@ -418,7 +403,7 @@ where
             chain_id,
             starknet::accounts::ExecutionEncoding::New,
         );
-        account.set_block_id(BlockId::Tag(BlockTag::Pending));
+        account.set_block_id(BlockId::Tag(BlockTag::Latest));
 
         Ok(PiltoverSettlementBackend {
             provider,

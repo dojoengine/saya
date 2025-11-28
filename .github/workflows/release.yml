@@ -73,6 +73,16 @@ jobs:
         with:
           cache-on-failure: true
 
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+          cache: "pip"
+
+      - name: "Install dependencies"
+        run: |
+          pip install -r requirements.txt
+
       - name: Apple M1 setup
         if: ${{ matrix.job.target == 'aarch64-apple-darwin' }}
         run: |
@@ -139,9 +149,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: "snos"
-            runner: "ubuntu-latest-8-cores"
-            script: "generate_snos.sh"
           - name: "layout_bridge"
             runner: "ubuntu-latest-16-cores"
             script: "generate_layout_bridge.sh"

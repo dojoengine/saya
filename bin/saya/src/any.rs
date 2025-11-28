@@ -13,13 +13,13 @@ use tokio::sync::mpsc::{Receiver, Sender};
 #[derive(Debug)]
 pub enum AnyLayoutBridgeProver<DB> {
     Atlantic(AtlanticLayoutBridgeProver<DB>),
-    Mock(MockLayoutBridgeProver),
+    Mock(MockLayoutBridgeProver<DB>),
 }
 
 #[derive(Debug)]
 pub enum AnyLayoutBridgeProverBuilder<DB> {
     Atlantic(AtlanticLayoutBridgeProverBuilder<DB>),
-    Mock(MockLayoutBridgeProverBuilder),
+    Mock(MockLayoutBridgeProverBuilder<DB>),
 }
 
 impl<DB> Prover for AnyLayoutBridgeProver<DB>

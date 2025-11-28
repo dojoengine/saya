@@ -379,7 +379,7 @@ pub async fn compress_pie(pie: CairoPie) -> std::result::Result<Vec<u8>, std::io
         zip_writer.start_file("metadata.json", options)?;
         serde_json::to_writer(&mut zip_writer, &pie.metadata)?;
         zip_writer.start_file("memory.bin", options)?;
-        zip_writer.write_all(&pie.memory.to_bytes())?;
+        zip_writer.write_all(&pie.memory.to_bytes(None))?;
         zip_writer.start_file("additional_data.json", options)?;
         serde_json::to_writer(&mut zip_writer, &pie.additional_data)?;
         zip_writer.start_file("execution_resources.json", options)?;
@@ -400,8 +400,8 @@ fn bootloader_snos_output(pie: &CairoPie) -> Vec<Felt> {
     let snos_output = extract_pie_output(pie);
 
     let mut bootloader_output = vec![
-        // Bootloader config (not checked by piltover, set to 0)
-        Felt::ZERO,
+        // Bootloader constants (number of task executed by bootloader, in case of herodotus its always 1)
+        Felt::ONE,
         // bootloader output len (not checked by piltover, set to 0)
         Felt::ZERO,
         snos_program_hash,

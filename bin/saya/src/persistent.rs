@@ -13,6 +13,11 @@ use saya_core::{
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
     storage::SqliteDb,
+    ChainId, OsHintsConfiguration,
+};
+use starknet::{
+    core::utils::parse_cairo_short_string,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -44,9 +49,6 @@ struct Start {
     /// Settlement network Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
     settlement_rpc: Url,
-    /// Path to the compiled Starknet OS program
-    #[clap(long, env)]
-    snos_program: PathBuf,
     /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
     #[clap(long)]
     mock_snos_from_pie: bool,
@@ -55,7 +57,7 @@ struct Start {
     layout_bridge_program: Option<PathBuf>,
     /// Atlantic prover API key
     #[clap(long, env)]
-    atlantic_key: String,
+    atlantic_key: Option<String>,
     /// Settlement network integrity contract address
     #[clap(long, env)]
     settlement_integrity_address: Option<Felt>,
@@ -77,6 +79,22 @@ struct Start {
     /// Number of blocks processed in parallel evenly distributed between the stages
     #[clap(long, env, default_value_t = 60)]
     blocks_processed_in_parallel: usize,
+    /// Configuration for OS pie generation
+    #[clap(flatten)]
+    hints: HintsConfiguration,
+}
+
+#[derive(Debug, Parser, Clone)]
+struct HintsConfiguration {
+    /// Enable debug mode for OS hints generation
+    #[clap(long, env, default_value_t = false)]
+    debug_mode: bool,
+    /// Generate full output for OS hints
+    #[clap(long, env, default_value_t = false)]
+    full_output: bool,
+    /// Use KZG data availability for OS hints
+    #[clap(long, env, default_value_t = false)]
+    use_kzg_da: bool,
 }
 
 impl Persistent {
@@ -89,10 +107,6 @@ impl Persistent {
 
 impl Start {
     pub async fn run(self) -> Result<()> {
-        let mut snos_file = std::fs::File::open(self.snos_program)?;
-        let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
-        snos_file.read_to_end(&mut snos)?;
-
         let saya_path = self
             .db_dir
             .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
@@ -100,7 +114,6 @@ impl Start {
 
         let workers_distribution: [usize; NUMBER_OF_STAGES] =
             calculate_workers_per_stage(self.blocks_processed_in_parallel);
-
         let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
@@ -109,6 +122,13 @@ impl Start {
             "workers distribution"
         );
 
+        let rollup_chain_id = parse_cairo_short_string(
+            &JsonRpcClient::new(HttpTransport::new(self.rollup_rpc.clone()))
+                .chain_id()
+                .await?,
+        )?;
+
+        let mut atlantic_key: String = String::new();
         let db = SqliteDb::new(&saya_path).await?;
         let layout_bridge_prover_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
@@ -116,15 +136,22 @@ impl Start {
                 (Some(mock_layout_bridge_program_hash), _) => {
                     AnyLayoutBridgeProverBuilder::Mock(MockLayoutBridgeProverBuilder::new(
                         mock_layout_bridge_program_hash,
+                    db.clone(),
                     ))
                 }
                 (None, Some(layout_bridge_program)) => {
+                    atlantic_key = match self.atlantic_key.clone() {
+                        Some(key) => key,
+                        None => return Err(anyhow::anyhow!("`atlantic-key` must be provided unless `--mock-layout-bridge-program-hash` is used"))
+                    };
+
                     let mut layout_bridge_file = std::fs::File::open(layout_bridge_program)?;
                     let mut layout_bridge =
                         Vec::with_capacity(layout_bridge_file.metadata()?.len() as usize);
                     layout_bridge_file.read_to_end(&mut layout_bridge)?;
+
                     AnyLayoutBridgeProverBuilder::Atlantic(AtlanticLayoutBridgeProverBuilder::new(
-                        self.atlantic_key.clone(),
+                        atlantic_key.clone(),
                         layout_bridge,
                         db.clone(),
                         layout_bridge_workers_count,
@@ -139,13 +166,19 @@ impl Start {
 
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(
             self.rollup_rpc,
-            snos,
             db.clone(),
             ingestor_worker_count,
+            OsHintsConfiguration {
+                debug_mode: self.hints.debug_mode,
+                full_output: self.hints.full_output,
+                use_kzg_da: self.hints.use_kzg_da,
+            },
+            ChainId::Other(rollup_chain_id),
         );
+
         let prover_builder = RecursiveProverBuilder::new(
             AtlanticSnosProverBuilder::new(
-                self.atlantic_key,
+                atlantic_key,
                 self.mock_snos_from_pie,
                 db.clone(),
                 snos_worker_count,

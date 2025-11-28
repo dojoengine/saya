@@ -15,37 +15,39 @@ repository = "https://github.com/dojoengine/saya"
 [workspace.dependencies]
 # saya
 saya-core = { path = "saya/core" }
+generate-pie = {git = "https://github.com/keep-starknet-strange/snos.git",rev = "6cf7040"}
+starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "e04617e0581d5ec93a035ec0e15419b4c201b629", features = [
+  "testing",
+] }
 
 anyhow = { version = "1.0.95", default-features = false }
 bigdecimal = { version = "0.3.1", default-features = false }
-# `cairo-vm` fork used by `prove_block` from `snos`
-cairo-vm = { git = "https://github.com/Moonsong-Labs/cairo-vm", branch = "notlesh/snos-2024-11-04", default-features = false }
-prover-sdk ={ git = "https://github.com/cartridge-gg/http-prover.git",rev = "02aebf2"}
+cairo-vm = "=2.5.0"
 celestia-rpc = { version = "0.8.0", default-features = false }
 celestia-types = { version = "0.9.0", default-features = false }
 ciborium = { version = "0.2.2", default-features = false }
 clap = { version = "4.5.23", default-features = false, features = ["derive", "env", "std"] }
 env_logger = {version = "0.11.6",features = ["unstable-kv"]}
 futures-util = { version ="0.3.31", default-features = false }
-# Compilation fails with `E0275` without pinning `good_lp`
-good_lp = { version = "=1.8.1", default-features = false }
 hex = { version = "0.4.3", default-features = false }
-integrity = { version = "0.1.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+integrity = { git = "https://github.com/chudkowsky/integrity-rs.git", rev = "9729be1", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
 log = {version = "0.4.22",features = ["kv"]}
 num-traits = { version = "0.2.19", default-features = false }
-prove_block = { git = "https://github.com/cartridge-gg/snos", rev = "03f07963" }
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 serde = { version = "1.0.217", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0.134", default-features = false }
-starknet = "0.13.0"
-starknet-crypto = "0.7.4"
-starknet-types-core = { version = "0.1.7", default-features = false }
-swiftness = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
-swiftness_air = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
-swiftness_commitment = { version = "1.0.0", default-features = false }
-swiftness_fri = { version = "1.0.0", default-features = false }
-swiftness_pow = { version = "1.0.0", default-features = false }
-swiftness_stark = { version = "1.0.0", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+
+starknet = "0.17.0"
+starknet-crypto = "0.8.1"
+starknet-types-core = { version = "0.2.1", default-features = false }
+
+swiftness = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+swiftness_air = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+swiftness_commitment = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false }
+swiftness_fri = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false }
+swiftness_pow = {git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false }
+swiftness_stark = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
+
 thiserror = "2.0.12"
 tokio = { version = "1.42.0", default-features = false }
 tokio-util = { version = "0.7.13", default-features = false }

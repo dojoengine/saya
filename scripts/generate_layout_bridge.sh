@@ -11,8 +11,8 @@ set -e
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 REPO_ROOT=$( dirname -- $SCRIPT_DIR )
 
-CAIRO_VERSION="0.13.3"
-COMPILER_VERSION="0.13.3"
+CAIRO_VERSION="0.14.0.1"
+COMPILER_VERSION="0.14.0.1"
 
 mkdir -p $REPO_ROOT/programs
 
@@ -21,7 +21,7 @@ $SUDO docker run --rm \
   -v "$SCRIPT_DIR/entrypoints/layout_bridge.sh:/entry:ro" \
   -e "CAIRO_VERSION=$CAIRO_VERSION" \
   --entrypoint "/entry" \
-  starknet/cairo-lang:$COMPILER_VERSION
+  ghcr.io/cartridge-gg/docker-cairo-lang:$COMPILER_VERSION
 
 $SUDO docker run --rm \
   -v "$REPO_ROOT/programs:/output" \
@@ -33,4 +33,4 @@ $SUDO docker run --rm \
   -v "$REPO_ROOT/programs/layout_bridge.json:/program.json" \
   -v "$SCRIPT_DIR/entrypoints/hash_program.py:/entry:ro" \
   --entrypoint "/entry" \
-  starknet/cairo-lang:$COMPILER_VERSION
+  ghcr.io/cartridge-gg/docker-cairo-lang:$COMPILER_VERSION
