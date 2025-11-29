@@ -247,7 +247,23 @@ where
                         FactRegistrationConfig::Skipped => {
                             let layout_bridge_proof =
                                 serde_json::from_str::<StarkProof>(&raw_proof).unwrap();
-                            program_output = calculate_output(&layout_bridge_proof);
+                            let output = calculate_output(&layout_bridge_proof);
+
+                            let (messages_to_l1, messages_to_l2) =
+                                crate::utils::extract_messages_from_program_output(
+                                    &mut output.clone().into_iter(),
+                                );
+
+                            for message in messages_to_l1 {
+                                debug!("Message to L1: {:?}", message,);
+                            }
+
+                            for message in messages_to_l2 {
+                                debug!("Message to L2: {:?}", message);
+                            }
+
+                            program_output = output;
+
                             info!(
                                 block_number = new_da.block_number;
                                 "On-chain fact-registration skipped for block",

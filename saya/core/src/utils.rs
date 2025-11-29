@@ -288,3 +288,209 @@ where
         }
     }
 }
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct MessageToL1 {
+    pub from_address: Felt,
+    pub to_address: Felt,
+    pub payload: Vec<Felt>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct MessageToL2 {
+    pub from_address: Felt,
+    pub to_address: Felt,
+    pub nonce: Felt,
+    pub selector: Felt,
+    pub payload: Vec<Felt>,
+}
+
+/// The blockifier doesn't expose the trait to parse from felt the OsCommonOutput...
+/// <https://github.com/starkware-libs/sequencer/blob/7193cc2247daefb08ff4462ea69e6c8b3a0ea4c5/crates/starknet_os/src/io/os_output.rs#L273>
+///
+/// So for now, we parse manually the messages from the program output.
+pub fn extract_messages_from_program_output(
+    program_output: &mut impl Iterator<Item = Felt>,
+) -> (Vec<MessageToL1>, Vec<MessageToL2>) {
+    // Index 18 starts the message to L1 segment length.
+    // Then we need to parse each message to L1, which will then be followed by the message to L2 segment length.
+    program_output.nth(17);
+
+    let mut messages_to_l1 = vec![];
+    let mut messages_to_l2 = vec![];
+
+    let message_to_l1_segment_length = program_output.next().unwrap();
+    dbg!(&message_to_l1_segment_length);
+
+    if message_to_l1_segment_length.to_usize().unwrap() > 0 {
+        let mut message_to_l1_cursor = 0;
+
+        while message_to_l1_cursor < message_to_l1_segment_length.to_usize().unwrap() {
+            let from_address = program_output.next().unwrap();
+            let to_address = program_output.next().unwrap();
+            message_to_l1_cursor += 2;
+
+            let payload_len = program_output.next().unwrap().to_usize().unwrap();
+            message_to_l1_cursor += 1;
+
+            let payload = program_output
+                .take(payload_len.to_usize().unwrap())
+                .collect();
+
+            message_to_l1_cursor += payload_len.to_usize().unwrap();
+
+            messages_to_l1.push(MessageToL1 {
+                from_address,
+                to_address,
+                payload,
+            });
+        }
+    }
+
+    let message_to_l2_segment_length = program_output.next().unwrap();
+    dbg!(&message_to_l2_segment_length);
+
+    let mut message_to_l2_cursor = 0;
+
+    while message_to_l2_cursor < message_to_l2_segment_length.to_usize().unwrap() {
+        let from_address = program_output.next().unwrap();
+        let to_address = program_output.next().unwrap();
+        let nonce = program_output.next().unwrap();
+        let selector = program_output.next().unwrap();
+        message_to_l2_cursor += 4;
+
+        let payload_len = program_output.next().unwrap().to_usize().unwrap();
+        message_to_l2_cursor += 1;
+
+        let payload = program_output
+            .take(payload_len.to_usize().unwrap())
+            .collect();
+        message_to_l2_cursor += payload_len.to_usize().unwrap();
+
+        messages_to_l2.push(MessageToL2 {
+            from_address,
+            to_address,
+            nonce,
+            selector,
+            payload,
+        });
+    }
+
+    (messages_to_l1, messages_to_l2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use starknet::macros::felt;
+
+    #[test]
+    fn test_extract_messages_only_messages_to_l1() {
+        let program_output: Vec<Felt> = vec![
+            felt!("0x1"),
+            felt!("0x0"),
+            felt!("0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8"),
+            felt!("0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07"),
+            felt!("0x0"),
+            felt!("0x1"),
+            felt!("0x0"),
+            felt!("0x10e5341a417427d140af8f5def7d2cc687d84591ff8ec241623c590b5ca8c80"),
+            felt!("0xe9955bc27d5ce8dfd21ffd3e887ad1c8fbdf2ba1f8968a20808ac0c761bece"),
+            felt!("0x5c7fc140fa4fc1a7105a08d9321e128dcaa126877a2446c6e21a6165c338ec5"),
+            felt!("0x4"),
+            felt!("0x5"),
+            felt!("0x30327ce034485166e616b9a45ad0e89307b5adcce1b7d408114958694d3876e"),
+            felt!("0x36966db0df331ea61ce0a63e42701132571d60c7dc75b2440a61c8f30db0c61"),
+            felt!("0x0"),
+            felt!("0x1d6140d8a47e980132a4f31e51d6a82c82e7e1cbef99b2ee92159550c47f5f8"),
+            felt!("0x0"),
+            felt!("0x0"),
+            felt!("0x4"),
+            felt!("0xbe8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429"),
+            felt!("0x3c87be0be4d0ff385fe08d8beb0a1c2861c8133d54dfa73e27b082748b5c2a1"),
+            felt!("0x1"),
+            felt!("0x6f"),
+            felt!("0x0"),
+            felt!("0x800000000010000100000000000000a00000"),
+            felt!("0x21e12778bee0b852800"),
+            felt!("0x7693dcca6bad800"),
+            felt!("0x23c045000a011a50080420002"),
+            felt!("0xd528b93"),
+        ];
+
+        let (messages_to_l1, messages_to_l2) =
+            extract_messages_from_program_output(&mut program_output.into_iter());
+
+        assert_eq!(messages_to_l1.len(), 1);
+        assert_eq!(messages_to_l2.len(), 0);
+
+        assert_eq!(
+            messages_to_l1[0].from_address,
+            felt!("0xbe8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429")
+        );
+        assert_eq!(
+            messages_to_l1[0].to_address,
+            felt!("0x3c87be0be4d0ff385fe08d8beb0a1c2861c8133d54dfa73e27b082748b5c2a1")
+        );
+        assert_eq!(messages_to_l1[0].payload, vec![felt!("0x6f")]);
+    }
+
+    #[test]
+    fn test_extract_messages_only_messages_to_l2() {
+        let program_output: Vec<Felt> = vec![
+            felt!("0x1"),
+            felt!("0x0"),
+            felt!("0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8"),
+            felt!("0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07"),
+            felt!("0x0"),
+            felt!("0x1"),
+            felt!("0x0"),
+            felt!("0x10e5341a417427d140af8f5def7d2cc687d84591ff8ec241623c590b5ca8c80"),
+            felt!("0x5c7fc140fa4fc1a7105a08d9321e128dcaa126877a2446c6e21a6165c338ec5"),
+            felt!("0x5c7fc140fa4fc1a7105a08d9321e128dcaa126877a2446c6e21a6165c338ec5"),
+            felt!("0x5"),
+            felt!("0x6"),
+            felt!("0x36966db0df331ea61ce0a63e42701132571d60c7dc75b2440a61c8f30db0c61"),
+            felt!("0x7b0171fbe302ce5aa393dbccb430a8422d57786014faa97767fc8f3ff353e26"),
+            felt!("0x0"),
+            felt!("0x1d6140d8a47e980132a4f31e51d6a82c82e7e1cbef99b2ee92159550c47f5f8"),
+            felt!("0x0"),
+            felt!("0x0"),
+            felt!("0x0"),
+            felt!("0x6"),
+            felt!("0x3c87be0be4d0ff385fe08d8beb0a1c2861c8133d54dfa73e27b082748b5c2a1"),
+            felt!("0xbe8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429"),
+            felt!("0x1"),
+            felt!("0x5421de947699472df434466845d68528f221a52fce7ad2934c5dae2e1f1cdc"),
+            felt!("0x1"),
+            felt!("0x378"),
+            felt!("0x10000100000000000000000000000000000200000"),
+            felt!("0x0"),
+            felt!("0x0"),
+            felt!("0x2f"),
+        ];
+
+        let (messages_to_l1, messages_to_l2) =
+            extract_messages_from_program_output(&mut program_output.into_iter());
+
+        assert_eq!(messages_to_l1.len(), 0);
+        assert_eq!(messages_to_l2.len(), 1);
+
+        assert_eq!(
+            messages_to_l2[0].from_address,
+            felt!("0x3c87be0be4d0ff385fe08d8beb0a1c2861c8133d54dfa73e27b082748b5c2a1")
+        );
+        assert_eq!(
+            messages_to_l2[0].to_address,
+            felt!("0xbe8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429")
+        );
+        assert_eq!(messages_to_l2[0].nonce, felt!("0x1"));
+        assert_eq!(
+            messages_to_l2[0].selector,
+            felt!("0x5421de947699472df434466845d68528f221a52fce7ad2934c5dae2e1f1cdc")
+        );
+        assert_eq!(messages_to_l2[0].payload, vec![felt!("0x378")]);
+    }
+}
