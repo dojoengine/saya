@@ -49,6 +49,7 @@ impl SqliteDb {
             Self::create_pies_table(&pool).await?;
             Self::create_job_id_table(&pool).await?;
             Self::create_failed_blocks_table(&pool).await?;
+            Self::create_state_update_table(&pool).await?;
         } else {
             trace!("Table 'blocks' with correct structure found.");
         }
@@ -137,6 +138,20 @@ impl SqliteDb {
                 block_id INTEGER NOT NULL,
                 failure_reason TEXT NOT NULL,
                 handled BOOLEAN DEFAULT FALSE
+            );
+            "#,
+        )
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+    pub async fn create_state_update_table(pool: &Pool<Sqlite>) -> Result<(), Error> {
+        query(
+            r#"
+            CREATE TABLE IF NOT EXISTS state_updates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                block_id INTEGER NOT NULL,
+                state_update BLOB NOT NULL
             );
             "#,
         )

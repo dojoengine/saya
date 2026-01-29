@@ -11,7 +11,10 @@ use saya_core::{
     storage::{InMemoryStorageBackend, SqliteDb},
     ChainId, OsHintsConfiguration,
 };
-use starknet::{core::utils::parse_cairo_short_string, providers::{JsonRpcClient, Provider, jsonrpc::HttpTransport}};
+use starknet::{
+    core::utils::parse_cairo_short_string,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
+};
 use url::Url;
 
 use crate::common::{calculate_workers_per_stage, SAYA_DB_PATH};
@@ -68,7 +71,7 @@ struct Start {
 }
 
 /// Validate that the value is not empty.
-fn validate_non_empty(s: &str) -> Result<String, String> {
+pub fn validate_non_empty(s: &str) -> Result<String, String> {
     if s.trim().is_empty() {
         Err("Value cannot be empty".to_string())
     } else {
@@ -105,7 +108,7 @@ impl Start {
             calculate_workers_per_stage(self.blocks_processed_in_parallel);
         let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
-      
+
         let chain_id = parse_cairo_short_string(
             &JsonRpcClient::new(HttpTransport::new(self.starknet_rpc.clone()))
                 .chain_id()

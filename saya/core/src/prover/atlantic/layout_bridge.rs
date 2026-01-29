@@ -67,7 +67,7 @@ where
             };
 
             let block_number_u32 = new_snos_proof.block_number.try_into().unwrap();
-
+            let state_update = db.get_state_update(block_number_u32).await.unwrap();
             match db
                 .get_proof(block_number_u32, crate::storage::Step::Bridge)
                 .await
@@ -85,6 +85,7 @@ where
                         let block_info = BlockInfo {
                             number: new_snos_proof.block_number,
                             status: crate::storage::BlockStatus::SnosProofGenerated,
+                            state_update: Some(state_update.clone()),
                         };
 
                         task_tx.send(block_info).await.unwrap();
@@ -155,6 +156,7 @@ where
                     let new_proof = BlockInfo {
                         number: new_snos_proof.block_number,
                         status: crate::storage::BlockStatus::SnosProofGenerated,
+                        state_update: Some(state_update.clone()),
                     };
 
                     task_tx.send(new_proof).await.unwrap();
@@ -325,6 +327,7 @@ where
             let new_proof = BlockInfo {
                 number: new_snos_proof.block_number,
                 status: crate::storage::BlockStatus::SnosProofGenerated,
+                state_update: Some(state_update.clone()),
             };
 
             tokio::select! {

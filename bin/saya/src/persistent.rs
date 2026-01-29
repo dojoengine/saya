@@ -4,7 +4,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
-    data_availability::NoopDataAvailabilityBackendBuilder,
+    data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
         AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
@@ -25,6 +25,7 @@ use url::Url;
 use crate::{
     any::AnyLayoutBridgeProverBuilder,
     common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
+    sovereign::validate_non_empty,
 };
 
 /// 10 seconds.
@@ -82,6 +83,19 @@ struct Start {
     /// Configuration for OS pie generation
     #[clap(flatten)]
     hints: HintsConfiguration,
+    #[clap(long, env)]
+    celestia_rpc: Url,
+    /// Celestia RPC node auth token
+    #[clap(long, env)]
+    celestia_token: String,
+    /// Celestia key name
+    #[clap(long, env)]
+    celestia_key_name: Option<String>,
+    /// Celestia namespace
+    #[clap(long, env)]
+    #[clap(default_value = "sayaproofs")]
+    #[clap(value_parser = validate_non_empty)]
+    celestia_namespace: String,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -185,7 +199,14 @@ impl Start {
             ),
             layout_bridge_prover_builder,
         );
-        let da_builder = NoopDataAvailabilityBackendBuilder::new();
+        let da_builder = CelestiaDataAvailabilityBackendBuilder::new(
+            self.celestia_rpc,
+            self.celestia_token,
+            self.celestia_namespace,
+            self.celestia_key_name,
+        )
+        .unwrap();
+
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_piltover_address,

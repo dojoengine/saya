@@ -1,5 +1,6 @@
 use anyhow::Result;
 
+use starknet::core::types::StateUpdate;
 use tokio::sync::mpsc::Sender;
 
 mod polling;
@@ -24,4 +25,5 @@ pub trait BlockIngestor: Daemon {}
 pub struct BlockInfo {
     pub number: u64,
     pub status: BlockStatus,
+    pub state_update: Option<StateUpdate>,
 }

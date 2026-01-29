@@ -1,6 +1,6 @@
 use anyhow::Result;
 use celestia_rpc::{BlobClient, Client, TxConfig};
-use celestia_types::{nmt::Namespace, AppVersion, Blob, };
+use celestia_types::{nmt::Namespace, AppVersion, Blob};
 use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
@@ -53,7 +53,7 @@ where
             debug!("Received new proof");
 
             // TODO: error handling
-            let client = Client::new(self.rpc_url.as_ref(), Some(&self.auth_token),None,None)
+            let client = Client::new(self.rpc_url.as_ref(), Some(&self.auth_token), None, None)
                 .await
                 .unwrap();
 
@@ -68,7 +68,13 @@ where
             ciborium::into_writer(&packet, &mut serialized_packet).unwrap();
 
             // TODO: error handling
-            let blob = Blob::new(self.namespace, serialized_packet, None,AppVersion::latest()).unwrap();
+            let blob = Blob::new(
+                self.namespace,
+                serialized_packet,
+                None,
+                AppVersion::latest(),
+            )
+            .unwrap();
             let commitment = blob.clone().commitment;
             let commitment = commitment.hash();
 
@@ -132,7 +138,7 @@ impl<P> CelestiaDataAvailabilityBackendBuilder<P> {
             auth_token,
             namespace: Namespace::new_v0(namespace.as_bytes())?,
             key_name,
-            last_pointer: None,
+            last_pointer: Some(None),
             proof_channel: None,
             cursor_channel: None,
         })

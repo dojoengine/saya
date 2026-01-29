@@ -305,6 +305,35 @@ impl PersistantStorage for SqliteDb {
         sql_query.execute(&self.pool).await?;
         Ok(())
     }
+
+    async fn add_state_update(
+        &self,
+        block_number: u32,
+        state_update: starknet::core::types::StateUpdate,
+    ) -> anyhow::Result<()> {
+        let serialized = serde_json::to_vec(&state_update)?;
+        let mut tx = self.pool.begin().await?;
+        query("INSERT OR IGNORE INTO state_updates (block_id, state_update) VALUES (?, ?);")
+            .bind(block_number)
+            .bind(serialized)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn get_state_update(
+        &self,
+        block_number: u32,
+    ) -> anyhow::Result<starknet::core::types::StateUpdate> {
+        let row = query("SELECT state_update FROM state_updates WHERE block_id = ?1")
+            .bind(block_number)
+            .fetch_one(&self.pool)
+            .await?;
+        let serialized: Vec<u8> = row.try_get(0)?;
+        let state_update: starknet::core::types::StateUpdate = serde_json::from_slice(&serialized)?;
+        Ok(state_update)
+    }
 }
 
 #[cfg(test)]

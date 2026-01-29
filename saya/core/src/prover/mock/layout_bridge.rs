@@ -104,6 +104,7 @@ where
             let new_proof = BlockInfo {
                 number: new_proof.block_number,
                 status: crate::storage::BlockStatus::BridgeProofGenerated,
+                state_update: None,
             };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
