@@ -1,4 +1,4 @@
-use std::{io::Read, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -11,6 +11,7 @@ use saya_core::{
     storage::{InMemoryStorageBackend, SqliteDb},
     ChainId, OsHintsConfiguration,
 };
+use starknet::{core::utils::parse_cairo_short_string, providers::{JsonRpcClient, Provider, jsonrpc::HttpTransport}};
 use url::Url;
 
 use crate::common::{calculate_workers_per_stage, SAYA_DB_PATH};
@@ -35,9 +36,6 @@ struct Start {
     /// Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
     starknet_rpc: Url,
-    /// Path to the compiled Starknet OS program
-    #[clap(long, env)]
-    snos_program: PathBuf,
     /// Whether to mock the SNOS proof by extracting the output from the PIE and using it from a proof.
     #[clap(long)]
     mock_snos_from_pie: bool,
@@ -97,10 +95,6 @@ impl Sovereign {
 
 impl Start {
     pub async fn run(self) -> Result<()> {
-        let mut snos_file = std::fs::File::open(self.snos_program)?;
-        let mut snos = Vec::with_capacity(snos_file.metadata()?.len() as usize);
-        snos_file.read_to_end(&mut snos)?;
-
         let saya_path = self
             .db_dir
             .map(|db_dir| format!("{}/{}", db_dir.display(), SAYA_DB_PATH))
@@ -111,6 +105,12 @@ impl Start {
             calculate_workers_per_stage(self.blocks_processed_in_parallel);
         let [snos_worker_count, _layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
+      
+        let chain_id = parse_cairo_short_string(
+            &JsonRpcClient::new(HttpTransport::new(self.starknet_rpc.clone()))
+                .chain_id()
+                .await?,
+        )?;
 
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(
             self.starknet_rpc,
@@ -121,7 +121,7 @@ impl Start {
                 full_output: false,
                 use_kzg_da: false,
             },
-            ChainId::Other("KATANA3".to_string()),
+            ChainId::Other(chain_id),
         );
 
         let prover_builder = AtlanticSnosProverBuilder::new(
