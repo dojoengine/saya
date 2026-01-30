@@ -15,6 +15,9 @@ use persistent::Persistent;
 mod sharding;
 use sharding::Sharding;
 
+mod core_contract;
+use core_contract::CoreContract;
+
 mod any;
 
 mod common;
@@ -36,6 +39,7 @@ enum Subcommands {
     /// network.
     Persistent(Persistent),
     Sharding(Sharding),
+    CoreContract(CoreContract),
 }
 
 #[tokio::main]
@@ -53,5 +57,6 @@ async fn main() -> Result<()> {
         Subcommands::Sovereign(cmd) => cmd.run().await,
         Subcommands::Persistent(cmd) => cmd.run().await,
         Subcommands::Sharding(cmd) => cmd.run().await,
+        Subcommands::CoreContract(cmd) => cmd.run().await,
     }
 }
