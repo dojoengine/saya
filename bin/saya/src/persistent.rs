@@ -83,6 +83,7 @@ struct Start {
     /// Configuration for OS pie generation
     #[clap(flatten)]
     hints: HintsConfiguration,
+    /// Celestia RPC endpoint URL
     #[clap(long, env)]
     celestia_rpc: Url,
     /// Celestia RPC node auth token

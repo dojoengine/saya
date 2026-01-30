@@ -1,9 +1,3 @@
-use std::{
-    collections::BTreeMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
 use crate::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
@@ -15,10 +9,11 @@ use crate::{
 use anyhow::Result;
 use integrity::{split_proof, VerifierConfiguration};
 use log::{debug, info};
+use piltover::{DaLayerInfo, PiltoverInput};
 use starknet::{
     accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
-        codec::{Decode, Encode},
+        codec::Decode,
         types::{BlockId, BlockTag, Call, FunctionCall, TransactionReceipt},
     },
     macros::{selector, short_string},
@@ -26,6 +21,11 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use starknet_types_core::felt::Felt;
+use std::{
+    collections::BTreeMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use swiftness::types::StarkProof;
 use swiftness::TransformTo;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -65,11 +65,6 @@ struct AppchainState {
     block_number: Felt,
     #[allow(unused)]
     block_hash: Felt,
-}
-
-#[derive(Debug, Encode)]
-struct UpdateStateCalldata {
-    program_output: Vec<Felt>,
 }
 
 #[derive(Debug)]
@@ -286,22 +281,46 @@ where
                 }
             }
 
-            let update_state_call = Call {
-                to: self.piltover_address,
-                selector: selector!("update_state"),
-                calldata: {
-                    let calldata = UpdateStateCalldata { program_output };
-                    let mut raw_calldata = vec![];
-
-                    // Encoding `UpdateStateCalldata` never fails
-                    calldata.encode(&mut raw_calldata).unwrap();
-
-                    raw_calldata
-                },
+            let update_state_call = if let Some(pointer) = new_da.pointer {
+                let da_layer_info = DaLayerInfo {
+                    height: pointer.height.into(),
+                    commitment: Felt::from_bytes_be(&pointer.commitment),
+                };
+                info!(
+                    block_number = new_da.block_number;
+                    "Submitting DA layer info with height {} and commitment {:#064x}",
+                    da_layer_info.height,
+                    da_layer_info.commitment
+                );
+                Call {
+                    to: self.piltover_address,
+                    selector: selector!("update_state"),
+                    calldata: {
+                        use cainome::cairo_serde::CairoSerde;
+                        let piltover_input = PiltoverInput::LayoutBridgeOutputWithDa((
+                            program_output,
+                            da_layer_info,
+                        ));
+                        <PiltoverInput as CairoSerde>::cairo_serialize(&piltover_input)
+                    },
+                }
+            } else {
+                info!(
+                    block_number = new_da.block_number;
+                    "No DA layer info provided, submitting without DA",
+                );
+                Call {
+                    to: self.piltover_address,
+                    selector: selector!("update_state"),
+                    calldata: {
+                        use cainome::cairo_serde::CairoSerde;
+                        let piltover_input = PiltoverInput::LayoutBridgeOutputNoDa(program_output);
+                        <PiltoverInput as CairoSerde>::cairo_serialize(&piltover_input)
+                    },
+                }
             };
 
             let execution = self.account.execute_v3(vec![update_state_call]);
-
             // TODO: error handling
             let fees = crate::utils::retry_with_backoff(
                 || execution.estimate_fee(),

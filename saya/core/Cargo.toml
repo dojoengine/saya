@@ -38,3 +38,5 @@ sqlx.workspace = true
 cairo-vm.workspace = true
 generate-pie.workspace = true
 starknet_api.workspace = true
+piltover.workspace = true
+cainome.workspace = true
