@@ -10,7 +10,7 @@ pub const DEFAULT_PILTOVER_PATH: &str = "programs/core_contract.json";
 ///
 /// This program can be found here: <https://github.com/starkware-libs/cairo-lang/blob/a86e92bfde9c171c0856d7b46580c66e004922f3/src/starkware/starknet/core/os/os.cairo>.
 pub const SNOS_PROGRAM_HASH: Felt =
-    felt!("0x054d3603ed14fb897d0925c48f26330ea9950bd4ca95746dad4f7f09febffe0d");
+    felt!("0x10e5341a417427d140af8f5def7d2cc687d84591ff8ec241623c590b5ca8c80");
 
 /// To execute the SNOS program, a specific layout named "all_cairo" is required.
 /// However, this layout can't be verified by the Cairo verifier that lives on Starknet.
@@ -26,7 +26,7 @@ pub const SNOS_PROGRAM_HASH: Felt =
 ///
 /// This program can be found here: <https://github.com/starkware-libs/cairo-lang/blob/8276ac35830148a397e1143389f23253c8b80e93/src/starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo>.
 pub const LAYOUT_BRIDGE_PROGRAM_HASH: Felt =
-    felt!("0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0");
+    felt!("0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8");
 
 /// The bootloader program hash is the program hash of the bootloader program.
 ///
@@ -54,4 +54,4 @@ pub const ATLANTIC_FACT_REGISTRY_SEPOLIA: Felt =
     felt!("0x4ce7851f00b6c3289674841fd7a1b96b6fd41ed1edc248faccd672c26371b8c");
 
 pub const STRK_FEE_TOKEN: Felt =
-    felt!("0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d");
+    felt!("0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea");

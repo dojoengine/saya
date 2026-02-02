@@ -11,6 +11,7 @@ use log::{info, warn};
 use starknet::accounts::{Account, SingleOwnerAccount};
 use starknet::core::types::contract::SierraClass;
 use starknet::core::types::{Call, Felt, FlattenedSierraClass};
+use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::macros::selector;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{JsonRpcClient, Provider};
@@ -23,7 +24,7 @@ use crate::core_contract::constants::{
     INITIAL_BLOCK_HASH, INITIAL_BLOCK_NUMBER, INITIAL_STATE_ROOT, LAYOUT_BRIDGE_PROGRAM_HASH,
     SEPOLIA_RPC_URL, SNOS_PROGRAM_HASH, STRK_FEE_TOKEN,
 };
-use crate::core_contract::short_string::{compute_starknet_os_config_hash, ShortString};
+use crate::core_contract::short_string::compute_starknet_os_config_hash;
 
 #[derive(Debug, Parser)]
 pub struct CoreContract {
@@ -93,23 +94,20 @@ impl CoreContract {
                     Path::new(&declare_args.core_contract_path),
                 )
                 .await?;
-                info!("Core contract class hash: {:#066x}", class_hash);
+                info!("Core contract class hash: {:?}", class_hash);
             }
             CoreContractCmd::Deploy(deploy_args) => {
                 let contract_address =
                     deploy_core_contract(account.clone(), deploy_args.class_hash, deploy_args.salt)
                         .await?;
 
-                info!("Core contract address: {:#066x}", contract_address);
+                info!("Core contract address: {:?}", contract_address);
             }
             CoreContractCmd::SetupProgram(setup_program_args) => {
-                let chain_id = ShortString::from_ascii(&setup_program_args.chain_id);
+                let chain_id = cairo_short_string_to_felt(&setup_program_args.chain_id)?;
 
-                let snos_config_hash = compute_starknet_os_config_hash(
-                    chain_id.into(),
-                    STRK_FEE_TOKEN,
-                    STRK_FEE_TOKEN,
-                );
+                let snos_config_hash =
+                    compute_starknet_os_config_hash(chain_id.into(), STRK_FEE_TOKEN);
                 info!("Starknet OS config hash: {:#066x}", snos_config_hash);
                 let tx_res = set_program_info(
                     account.clone(),
@@ -159,12 +157,12 @@ pub async fn declare_core_contract(
         }
         TransactionResult::Hash(hash) => {
             info!("Core contract declared.");
-            info!("  Tx hash   : {hash:#066x}");
+            info!("  Tx hash   : {hash:?}");
             *hash
         }
         TransactionResult::HashReceipt(hash, receipt) => {
             info!("Core contract declared.");
-            info!("  Tx hash   : {hash:#066x}");
+            info!("  Tx hash   : {hash:?}");
             info!(" Declared on block  : {:?}", receipt.block.block_number());
             *hash
         }
@@ -205,10 +203,10 @@ pub async fn deploy_core_contract(
                     info!("noop (already deployed).");
                 }
                 TransactionResult::Hash(hash) => {
-                    info!(" Tx hash   : {hash:#066x}");
+                    info!(" Tx hash   : {hash:?}");
                 }
                 TransactionResult::HashReceipt(hash, receipt) => {
-                    info!(" Tx hash   : {hash:#066x}");
+                    info!(" Tx hash   : {hash:?}");
                     info!(" Deployed on block  : {:?}", receipt.block.block_number());
                 }
             }
@@ -217,10 +215,7 @@ pub async fn deploy_core_contract(
         Err(e) => {
             let address = try_extract_already_deployed_address(&e)?;
             if let Some(address) = address {
-                warn!(
-                    "Core contract already deployed at address: {:#066x}",
-                    address
-                );
+                warn!("Core contract already deployed at address: {:?}", address);
                 return Ok(address);
             }
             Err(anyhow!("Deployment failed: {:?}", e))
