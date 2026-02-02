@@ -106,9 +106,8 @@ impl CoreContract {
             CoreContractCmd::SetupProgram(setup_program_args) => {
                 let chain_id = cairo_short_string_to_felt(&setup_program_args.chain_id)?;
 
-                let snos_config_hash =
-                    compute_starknet_os_config_hash(chain_id.into(), STRK_FEE_TOKEN);
-                info!("Starknet OS config hash: {:#066x}", snos_config_hash);
+                let snos_config_hash = compute_starknet_os_config_hash(chain_id, STRK_FEE_TOKEN);
+                info!("Starknet OS config hash: {:?}", snos_config_hash);
                 let tx_res = set_program_info(
                     account.clone(),
                     setup_program_args.core_contract_address,

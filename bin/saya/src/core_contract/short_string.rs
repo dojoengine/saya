@@ -6,7 +6,7 @@ use starknet::macros::short_string;
 pub fn compute_starknet_os_config_hash(chain_id: Felt, fee_token: Felt) -> Felt {
     const STARKNET_OS_CONFIG_VERSION: Felt = short_string!("StarknetOsConfig3");
 
-    compute_hash_on_elements(&[STARKNET_OS_CONFIG_VERSION.into(), chain_id, fee_token])
+    compute_hash_on_elements(&[STARKNET_OS_CONFIG_VERSION, chain_id, fee_token])
 }
 
 #[cfg(test)]
