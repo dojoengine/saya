@@ -93,6 +93,51 @@ You can override any value exported in `.env.persistent` or `.env.sovereign` by 
 
 Those files are into the `.gitignore` file, so they are not checked into the repository.
 
+## Core contract (Piltover)
+
+The `core-contract` subcommand manages the Piltover core contract: declaring the class, deploying the contract, and setting program info / fact registry.
+
+Defaults based on the core contract constants:
+
+- Sepolia RPC: `https://api.cartridge.gg/x/starknet/sepolia`
+- Core contract artifact path: `programs/core_contract.json`
+- Bootloader program hash: `0x5ab580b04e3532b6b18f81cfa654a05e29dd8e2352d88df1e765a84072db07`
+- SNOS program hash: `0x054d3603ed14fb897d0925c48f26330ea9950bd4ca95746dad4f7f09febffe0d`
+- Layout bridge program hash: `0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0`
+- Default fact registry (Sepolia): `0x4ce7851f00b6c3289674841fd7a1b96b6fd41ed1edc248faccd672c26371b8c`
+- Fee token (STRK): `0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d`
+
+Required environment variables:
+
+```bash
+export SETTLEMENT_ACCOUNT_PRIVATE_KEY=<HEX_PRIVATE_KEY>
+export SETTLEMENT_ACCOUNT_ADDRESS=<HEX_ACCOUNT_ADDRESS>
+```
+
+Declare the core contract class:
+
+```bash
+cargo run --bin saya -r -- core-contract declare \
+    --core-contract-path programs/core_contract.json
+```
+
+Deploy the core contract:
+
+```bash
+cargo run --bin saya -r -- core-contract deploy \
+    --class-hash <CLASS_HASH> \
+    --salt <SALT>
+```
+
+Set program info and fact registry (defaults to Sepolia Atlantic registry if not provided):
+
+```bash
+cargo run --bin saya -r -- core-contract setup-program \
+    --core-contract-address <CORE_CONTRACT_ADDRESS> \
+    --fact-registry-address <FACT_REGISTRY_ADDRESS> \
+    --chain-id <CHAIN_ID>
+```
+
 ## Persistent mode
 
 ```bash
