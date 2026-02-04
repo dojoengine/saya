@@ -11,7 +11,13 @@ impl SqliteDb {
         let pies_table = Self::check_pies_table(pool).await?;
         let job_ids_table = Self::check_ids_table(pool).await?;
         let failed_blocks_table = Self::check_failed_blocks_table(pool).await?;
-        Ok(blocks_table && proofs_table && pies_table && job_ids_table && failed_blocks_table)
+        let state_updates_table = Self::check_state_updates_table(pool).await?;
+        Ok(blocks_table
+            && proofs_table
+            && pies_table
+            && job_ids_table
+            && failed_blocks_table
+            && state_updates_table)
     }
 
     /// Function to check if the blocks table has the correct columns
@@ -133,9 +139,36 @@ impl SqliteDb {
         Ok(has_id && has_block_id && has_failure_reason)
     }
 
+    /// Function to check if the state_updates table has the correct columns
+    pub(crate) async fn check_state_updates_table(pool: &Pool<Sqlite>) -> Result<bool, Error> {
+        let columns = sqlx::query("PRAGMA table_info(state_updates);")
+            .fetch_all(pool)
+            .await?;
+        let mut has_id = false;
+        let mut has_block_id = false;
+        let mut has_state_update = false;
+        for column in columns {
+            let name: String = column.get("name");
+            match name.as_str() {
+                "id" => has_id = true,
+                "block_id" => has_block_id = true,
+                "state_update" => has_state_update = true,
+                _ => {}
+            }
+        }
+        Ok(has_id && has_block_id && has_state_update)
+    }
+
     /// Function to check if the tables exist
     pub(crate) async fn check_tables_exist(pool: &Pool<Sqlite>) -> Result<bool, Error> {
-        let expected_tables = vec!["blocks", "pies", "proofs", "job_ids", "failed_blocks"];
+        let expected_tables = vec![
+            "blocks",
+            "pies",
+            "proofs",
+            "job_ids",
+            "failed_blocks",
+            "state_updates",
+        ];
         for table in expected_tables {
             let exists =
                 sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name=?")

@@ -305,10 +305,42 @@ impl PersistantStorage for SqliteDb {
         sql_query.execute(&self.pool).await?;
         Ok(())
     }
+
+    async fn add_state_update(
+        &self,
+        block_number: u32,
+        state_update: starknet::core::types::StateUpdate,
+    ) -> anyhow::Result<()> {
+        let serialized = serde_json::to_vec(&state_update)?;
+        let mut tx = self.pool.begin().await?;
+        query("INSERT OR REPLACE INTO state_updates (block_id, state_update) VALUES (?, ?);")
+            .bind(block_number)
+            .bind(serialized)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    async fn get_state_update(
+        &self,
+        block_number: u32,
+    ) -> anyhow::Result<starknet::core::types::StateUpdate> {
+        let row = query("SELECT state_update FROM state_updates WHERE block_id = ?1")
+            .bind(block_number)
+            .fetch_one(&self.pool)
+            .await?;
+        let serialized: Vec<u8> = row.try_get(0)?;
+        let state_update: starknet::core::types::StateUpdate = serde_json::from_slice(&serialized)?;
+        Ok(state_update)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use integrity::Felt;
+    use starknet::core::types::StateDiff;
+
     use crate::storage::sql_lite::IN_MEMORY_DB;
 
     use super::*;
@@ -528,5 +560,147 @@ mod tests {
         let failed_blocks = db.get_failed_blocks().await.unwrap();
 
         assert_eq!(failed_blocks, vec![(1, "failed".to_string())]);
+    }
+
+    #[tokio::test]
+    async fn test_add_state_update_and_get_state_update() {
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
+        db.initialize_block(1).await.unwrap();
+
+        let state_update = starknet::core::types::StateUpdate {
+            block_hash: Felt::ZERO,
+            new_root: Felt::ZERO,
+            old_root: Felt::ZERO,
+            state_diff: StateDiff {
+                storage_diffs: vec![],
+                declared_classes: vec![],
+                deployed_contracts: vec![],
+                nonces: vec![],
+                deprecated_declared_classes: vec![],
+                replaced_classes: vec![],
+            },
+        };
+
+        db.add_state_update(1, state_update.clone()).await.unwrap();
+        let result = db.get_state_update(1).await.unwrap();
+
+        assert_eq!(result.block_hash, state_update.block_hash);
+        assert_eq!(result.new_root, state_update.new_root);
+        assert_eq!(result.old_root, state_update.old_root);
+    }
+
+    #[tokio::test]
+    async fn test_unique_constraint_enforced_on_pies() {
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
+        db.initialize_block(1).await.unwrap();
+
+        let pie1 = vec![1, 2, 3];
+        let pie2 = vec![4, 5, 6];
+
+        // Add first pie
+        db.add_pie(1, pie1.clone(), Step::Snos).await.unwrap();
+        let result1 = db.get_pie(1, Step::Snos).await.unwrap();
+        assert_eq!(result1, pie1);
+
+        // Update with second pie (should update, not create duplicate)
+        db.add_pie(1, pie2.clone(), Step::Snos).await.unwrap();
+        let result2 = db.get_pie(1, Step::Snos).await.unwrap();
+        assert_eq!(result2, pie2);
+    }
+
+    #[tokio::test]
+    async fn test_unique_constraint_enforced_on_proofs() {
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
+        db.initialize_block(1).await.unwrap();
+
+        let proof1 = vec![10, 20, 30];
+        let proof2 = vec![40, 50, 60];
+
+        // Add first proof
+        db.add_proof(1, proof1.clone(), Step::Snos).await.unwrap();
+        let result1 = db.get_proof(1, Step::Snos).await.unwrap();
+        assert_eq!(result1, proof1);
+
+        // Update with second proof (should update, not create duplicate)
+        db.add_proof(1, proof2.clone(), Step::Snos).await.unwrap();
+        let result2 = db.get_proof(1, Step::Snos).await.unwrap();
+        assert_eq!(result2, proof2);
+    }
+
+    #[tokio::test]
+    async fn test_unique_constraint_enforced_on_job_ids() {
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
+        db.initialize_block(1).await.unwrap();
+
+        let query_id_1 = "query_1".to_string();
+        let query_id_2 = "query_2".to_string();
+
+        // Add first query id
+        db.add_query_id(1, query_id_1.clone(), Query::SnosProof)
+            .await
+            .unwrap();
+        let result1 = db.get_query_id(1, Query::SnosProof).await.unwrap();
+        assert_eq!(result1, query_id_1);
+
+        // Update with second query id (should update, not create duplicate)
+        db.add_query_id(1, query_id_2.clone(), Query::SnosProof)
+            .await
+            .unwrap();
+        let result2 = db.get_query_id(1, Query::SnosProof).await.unwrap();
+        assert_eq!(result2, query_id_2);
+    }
+
+    #[tokio::test]
+    async fn test_unique_constraint_enforced_on_state_updates() {
+        let db = SqliteDb::new(IN_MEMORY_DB).await.unwrap();
+
+        db.initialize_block(1).await.unwrap();
+
+        let state_update_1 = starknet::core::types::StateUpdate {
+            block_hash: Felt::ZERO,
+            new_root: Felt::ZERO,
+            old_root: Felt::ZERO,
+            state_diff: StateDiff {
+                storage_diffs: vec![],
+                declared_classes: vec![],
+                deployed_contracts: vec![],
+                nonces: vec![],
+                deprecated_declared_classes: vec![],
+                replaced_classes: vec![],
+            },
+        };
+
+        let state_update_2 = starknet::core::types::StateUpdate {
+            block_hash: Felt::ONE,
+            new_root: Felt::ONE,
+            old_root: Felt::ONE,
+            state_diff: StateDiff {
+                storage_diffs: vec![],
+                declared_classes: vec![],
+                deployed_contracts: vec![],
+                nonces: vec![],
+                deprecated_declared_classes: vec![],
+                replaced_classes: vec![],
+            },
+        };
+
+        // Add first state update
+        db.add_state_update(1, state_update_1.clone())
+            .await
+            .unwrap();
+        let result1 = db.get_state_update(1).await.unwrap();
+        assert_eq!(result1.block_hash, state_update_1.block_hash);
+
+        // Update with second state update (should update, not create duplicate)
+        db.add_state_update(1, state_update_2.clone())
+            .await
+            .unwrap();
+        let result2 = db.get_state_update(1).await.unwrap();
+        assert_eq!(result2.new_root, state_update_2.new_root);
+        assert_eq!(result2.old_root, state_update_2.old_root);
     }
 }

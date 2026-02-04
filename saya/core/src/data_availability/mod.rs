@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use starknet::core::types::StateUpdate;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -74,7 +75,9 @@ pub struct SovereignPacket {
 /// the state diff section) needs to be made available anyway, so we might as well just keep the DA
 /// posting mechanism in place for now.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PersistentPacket;
+pub struct PersistentPacket {
+    pub state_update: Option<StateUpdate>,
+}
 
 // TODO: abstract over this to allow other DA backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

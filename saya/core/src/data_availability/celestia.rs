@@ -1,6 +1,6 @@
 use anyhow::Result;
-use celestia_rpc::{BlobClient, Client};
-use celestia_types::{nmt::Namespace, AppVersion, Blob, TxConfig};
+use celestia_rpc::{BlobClient, Client, TxConfig};
+use celestia_types::{nmt::Namespace, AppVersion, Blob};
 use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
@@ -53,7 +53,7 @@ where
             debug!("Received new proof");
 
             // TODO: error handling
-            let client = Client::new(self.rpc_url.as_ref(), Some(&self.auth_token))
+            let client = Client::new(self.rpc_url.as_ref(), Some(&self.auth_token), None, None)
                 .await
                 .unwrap();
 
@@ -68,8 +68,9 @@ where
             ciborium::into_writer(&packet, &mut serialized_packet).unwrap();
 
             // TODO: error handling
-            let blob = Blob::new(self.namespace, serialized_packet, AppVersion::V3).unwrap();
-            let commitment = blob.commitment.0;
+            let blob = Blob::new(self.namespace, serialized_packet, None, AppVersion::V7).unwrap();
+            let commitment = blob.clone().commitment;
+            let commitment = commitment.hash();
 
             let tx_config = TxConfig {
                 key_name: self.key_name.clone(),
@@ -88,7 +89,7 @@ where
 
             self.last_pointer = Some(DataAvailabilityPointer {
                 height: celestia_block,
-                commitment,
+                commitment: *commitment,
             });
 
             info!(
@@ -102,7 +103,7 @@ where
                 block_number: new_proof.block_number(),
                 pointer: Some(DataAvailabilityPointer {
                     height: celestia_block,
-                    commitment,
+                    commitment: *commitment,
                 }),
                 full_payload: new_proof,
             };
@@ -131,7 +132,7 @@ impl<P> CelestiaDataAvailabilityBackendBuilder<P> {
             auth_token,
             namespace: Namespace::new_v0(namespace.as_bytes())?,
             key_name,
-            last_pointer: None,
+            last_pointer: Some(None),
             proof_channel: None,
             cursor_channel: None,
         })

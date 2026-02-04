@@ -1,5 +1,6 @@
 use crate::data_availability::DataAvailabilityPointer;
 use anyhow::Result;
+use starknet::core::types::StateUpdate;
 use std::future::Future;
 
 mod in_memory;
@@ -154,4 +155,15 @@ pub trait PersistantStorage {
         &self,
         block_id: &[u32],
     ) -> impl Future<Output = Result<()>> + Send;
+
+    fn add_state_update(
+        &self,
+        block_number: u32,
+        state_update: StateUpdate,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    fn get_state_update(
+        &self,
+        block_number: u32,
+    ) -> impl Future<Output = Result<StateUpdate>> + Send;
 }

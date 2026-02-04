@@ -4,7 +4,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
-    data_availability::NoopDataAvailabilityBackendBuilder,
+    data_availability::{
+        CelestiaDataAvailabilityBackendBuilder, NoopDataAvailabilityBackendBuilder,
+    },
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
         AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
@@ -23,8 +25,9 @@ use starknet_types_core::felt::Felt;
 use url::Url;
 
 use crate::{
-    any::AnyLayoutBridgeProverBuilder,
+    any::{AnyDataAvailabilityLayerBuilder, AnyLayoutBridgeProverBuilder},
     common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
+    sovereign::validate_non_empty,
 };
 
 /// 10 seconds.
@@ -82,6 +85,27 @@ struct Start {
     /// Configuration for OS pie generation
     #[clap(flatten)]
     hints: HintsConfiguration,
+    /// Celestia configuration
+    #[clap(flatten)]
+    celestia: CelestiaConfiguration,
+}
+
+#[derive(Debug, Parser, Clone)]
+struct CelestiaConfiguration {
+    /// Celestia RPC endpoint URL
+    #[clap(long, env)]
+    celestia_rpc: Option<Url>,
+    /// Celestia RPC node auth token
+    #[clap(long, env)]
+    celestia_token: Option<String>,
+    /// Celestia key name
+    #[clap(long, env)]
+    celestia_key_name: Option<String>,
+    /// Celestia namespace
+    #[clap(long, env)]
+    #[clap(default_value = "sayaproofs")]
+    #[clap(value_parser = validate_non_empty)]
+    celestia_namespace: String,
 }
 
 #[derive(Debug, Parser, Clone)]
@@ -185,7 +209,23 @@ impl Start {
             ),
             layout_bridge_prover_builder,
         );
-        let da_builder = NoopDataAvailabilityBackendBuilder::new();
+
+        let da_builder = if let (Some(celestia_rpc), Some(celestia_token)) =
+            (self.celestia.celestia_rpc, self.celestia.celestia_token)
+        {
+            AnyDataAvailabilityLayerBuilder::Celestia(Box::new(
+                CelestiaDataAvailabilityBackendBuilder::new(
+                    celestia_rpc,
+                    celestia_token,
+                    self.celestia.celestia_namespace,
+                    self.celestia.celestia_key_name,
+                )
+                .unwrap(),
+            ))
+        } else {
+            AnyDataAvailabilityLayerBuilder::Noop(NoopDataAvailabilityBackendBuilder::new())
+        };
+
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_piltover_address,

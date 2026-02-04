@@ -73,18 +73,6 @@ impl DataAvailabilityPayload for SnosProof<StarkProof> {
     }
 }
 
-impl DataAvailabilityPayload for RecursiveProof {
-    type Packet = PersistentPacket;
-
-    fn block_number(&self) -> u64 {
-        self.block_number
-    }
-
-    fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
-        PersistentPacket
-    }
-}
-
 impl DataAvailabilityPayload for BlockInfo {
     type Packet = PersistentPacket;
 
@@ -93,6 +81,8 @@ impl DataAvailabilityPayload for BlockInfo {
     }
 
     fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
-        PersistentPacket
+        PersistentPacket {
+            state_update: self.state_update,
+        }
     }
 }

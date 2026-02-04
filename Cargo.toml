@@ -23,8 +23,8 @@ starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "e04617e0
 anyhow = { version = "1.0.95", default-features = false }
 bigdecimal = { version = "0.3.1", default-features = false }
 cairo-vm = "=2.5.0"
-celestia-rpc = { version = "0.8.0", default-features = false }
-celestia-types = { version = "0.9.0", default-features = false }
+celestia-rpc = { version = "0.16.2", default-features = false }
+celestia-types = { version = "0.20.0", default-features = false }
 ciborium = { version = "0.2.2", default-features = false }
 clap = { version = "4.5.23", default-features = false, features = ["derive", "env", "std"] }
 env_logger = {version = "0.11.6",features = ["unstable-kv"]}
@@ -54,3 +54,5 @@ tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", default-features = false }
 zip = { version = "2.2.2", default-features = false, features = ["deflate"] }
 sqlx = { version = "0.8.2", features = [ "chrono", "macros", "regexp", "runtime-async-std", "runtime-tokio", "sqlite", "uuid" ] }
+piltover = {package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "ab34aaa" }
+cainome = { version = "0.10.1", features = ["abigen-rs"] }

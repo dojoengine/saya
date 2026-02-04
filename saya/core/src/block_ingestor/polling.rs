@@ -7,7 +7,10 @@ use generate_pie::{
     types::{ChainConfig, OsHintsConfiguration},
 };
 use log::{debug, error, info, trace};
-use starknet::providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider};
+use starknet::{
+    core::types::BlockId,
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
+};
 use starknet_api::{contract_address, core::ChainId};
 use tokio::{
     sync::{
@@ -106,6 +109,23 @@ where
             db.initialize_block(block_number.try_into().unwrap())
                 .await
                 .unwrap();
+            let state_update = &JsonRpcClient::new(HttpTransport::new(rpc_url.clone()))
+                .get_state_update(BlockId::Number(block_number))
+                .await
+                .unwrap();
+            let state_update = match state_update {
+                starknet::core::types::MaybePreConfirmedStateUpdate::Update(state_update) => {
+                    state_update
+                }
+                //TODO: handle this case properly
+                starknet::core::types::MaybePreConfirmedStateUpdate::PreConfirmedUpdate(_) => {
+                    panic!("PreConfirmedStateUpdate not supported")
+                }
+            };
+
+            db.add_state_update(block_number.try_into().unwrap(), state_update.clone())
+                .await
+                .unwrap();
 
             match db
                 .get_pie(block_number.try_into().unwrap(), Step::Snos)
@@ -116,6 +136,7 @@ where
                         let new_block = BlockInfo {
                             number: block_number,
                             status: BlockStatus::SnosPieGenerated,
+                            state_update: Some(state_update.clone()),
                         };
                         trace!(block_number; "Pie generated");
 
@@ -159,6 +180,7 @@ where
             let new_block = BlockInfo {
                 number: block_number,
                 status: BlockStatus::SnosPieGenerated,
+                state_update: Some(state_update.clone()),
             };
 
             let pie_bytes = compress_pie(pie.clone()).await.unwrap();

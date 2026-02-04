@@ -41,10 +41,14 @@ where
                 _ = self.finish_handle.shutdown_requested() => break,
                 new_snos_proof = self.statement_channel.recv() => new_snos_proof,
             };
-
             // This should be fine for now as block ingestors wouldn't drop senders. This might
             // change in the future.
             let new_snos_proof = new_snos_proof.unwrap();
+            let state_update = self
+                .db
+                .get_state_update(new_snos_proof.block_number.try_into().unwrap())
+                .await
+                .unwrap();
 
             debug!(
                 "Receive raw SNOS proof for block #{}",
@@ -104,6 +108,7 @@ where
             let new_proof = BlockInfo {
                 number: new_proof.block_number,
                 status: crate::storage::BlockStatus::BridgeProofGenerated,
+                state_update: Some(state_update),
             };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
