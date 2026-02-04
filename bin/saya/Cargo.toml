@@ -6,6 +6,9 @@ license.workspace = true
 repository.workspace = true
 description = "Settlement service for Katana."
 
+[features]
+init-custom-settlement-chain = []
+
 [dependencies]
 # saya
 saya-core.workspace = true

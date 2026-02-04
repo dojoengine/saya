@@ -1,5 +1,5 @@
 mod cli;
 mod constants;
-mod short_string;
+mod utils;
 
 pub use cli::CoreContract;

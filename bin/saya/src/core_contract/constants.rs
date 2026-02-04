@@ -1,18 +1,22 @@
 use starknet::{core::types::Felt, macros::felt};
 
 pub const SEPOLIA_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/sepolia";
+pub const MAINNET_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/mainnet";
+
 pub const DEFAULT_PILTOVER_PATH: &str = "contracts/core_contract.json";
+pub const DEFAULT_PILTOVER_CLASS_HASH: Felt =
+    felt!("0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5");
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.
 /// This program hash is required to be known by the settlement contract in order to
 /// only accept a new state from a valid SNOS program.
 ///
-/// This program can be found here: <https://github.com/starkware-libs/cairo-lang/blob/a86e92bfde9c171c0856d7b46580c66e004922f3/src/starkware/starknet/core/os/os.cairo>.
+/// This program can be found here: https://github.com/keep-starknet-strange/snos.git, rev = "6cf7040".
 pub const SNOS_PROGRAM_HASH: Felt =
     felt!("0x10e5341a417427d140af8f5def7d2cc687d84591ff8ec241623c590b5ca8c80");
 
-/// To execute the SNOS program, a specific layout named "all_cairo" is required.
+/// To execute the SNOS program, a specific layout named "all_cairo/dynamic" is required.
 /// However, this layout can't be verified by the Cairo verifier that lives on Starknet.
 ///
 /// This is why we're using an other program, the Layout Bridge program, which act as a verifier
@@ -24,7 +28,7 @@ pub const SNOS_PROGRAM_HASH: Felt =
 /// For the same reason as above, the Layout Bridge program is required to be known by the
 /// settlement contract for security reasons.
 ///
-/// This program can be found here: <https://github.com/starkware-libs/cairo-lang/blob/8276ac35830148a397e1143389f23253c8b80e93/src/starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo>.
+/// This program can be found here: <https://github.com/starkware-libs/cairo-lang/blob/66355d7d99f1962ff9ccba8d0dbacbce3bd79bf8/src/starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo>.
 pub const LAYOUT_BRIDGE_PROGRAM_HASH: Felt =
     felt!("0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8");
 
@@ -50,8 +54,21 @@ pub const INITIAL_STATE_ROOT: Felt = Felt::ZERO;
 pub const INITIAL_BLOCK_NUMBER: Felt = Felt::MAX;
 pub const INITIAL_BLOCK_HASH: Felt = Felt::ZERO;
 
+/// The contract address that handles fact verification.
+///
+/// Taken from <https://github.com/HerodotusDev/integrity/blob/main/deployed_contracts.md>
+pub const ATLANTIC_FACT_REGISTRY_MAINNET: Felt =
+    felt!("0xcc63a1e8e7824642b89fa6baf996b8ed21fa4707be90ef7605570ca8e4f00b");
+
+/// The contract address that handles fact verification.
+///
+/// This address points to Herodotus' Atlantic Fact Registry contract on Starknet Sepolia as we rely
+/// on their services to generates and verifies proofs.
+///
+/// Taken from <https://github.com/HerodotusDev/integrity/blob/main/deployed_contracts.md>
 pub const ATLANTIC_FACT_REGISTRY_SEPOLIA: Felt =
     felt!("0x4ce7851f00b6c3289674841fd7a1b96b6fd41ed1edc248faccd672c26371b8c");
 
-pub const STRK_FEE_TOKEN: Felt =
+/// Token address for paying fees on Katana in provable mode.
+pub const KATANA_STRK_FEE_TOKEN: Felt =
     felt!("0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea");
