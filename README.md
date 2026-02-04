@@ -4,96 +4,174 @@ Saya is a settlement service for Katana.
 
 ## Katana provable mode
 
-Katana must be running in provable mode to be proven by Saya.
-All the following Katana commands are available from Dojo `1.3.0` and above.
+Katana must be running in **provable mode** to be proven by Saya.
+All commands described below are available starting from **Dojo `1.3.0`**.
 
-1. Due to the fact that provable katana currently supports only starknet version 14.0.1 we cannot use its built-in logic to deploy core-contract. Instead this is now handled by the saya.
+### Important limitation
 
-The correct flow is to first use saya to declare/use predeclared default core-contract, then deploy it and set the correct program info and fact registry. After going through all of this we should have contract address and a block number at which the contract was deployed. With this information we can use `katana init`  
+Provable Katana currently supports only **Starknet v14.0.1**.
+Because of this, Katana’s built-in logic for deploying the core contract **cannot be used**.
+Instead, deployment is handled by **Saya**.
+
+### Correct flow
+
+1. Use Saya to:
+
+   * declare (or use the predeclared) core contract,
+   * deploy the contract,
+   * set the program info and fact registry.
+
+2. From this process, obtain:
+
+   * the **core contract address**,
+   * the **block number** where it was deployed.
+
+3. Use these values when running `katana init`.
+
+---
 
 ## Core contract (Piltover)
 
-The `core-contract` subcommand manages the Piltover core contract: declaring the class, deploying the contract, and setting program info / fact registry.
+The `core-contract` subcommand manages the Piltover core contract:
 
-Required environment variables:
+* declaring the class,
+* deploying the contract,
+* setting program info and fact registry.
+
+### Required environment variables
 
 ```bash
 export SETTLEMENT_ACCOUNT_PRIVATE_KEY=<PRIVATE_KEY_IN_HEX>
 export SETTLEMENT_ACCOUNT_ADDRESS=<ACCOUNT_ADDRESS_IN_HEX>
 export SETTLEMENT_CHAIN_ID=<STRING_CHAIN_ID>
 ```
-This step is not mandatory as deploy command has its default class hash which is latest compatible piltover. 
 
-Declare the core contract class:
+> This step is optional if you rely on the default class hash used by the `deploy` command (latest compatible Piltover).
 
-The only argument for this command is a path for core-contract which by default point to the one in repo:
+---
+
+## Declare the core contract
+
+The only argument is the path to the core contract definition.
+By default, it points to the contract in the repository:
+
 ```
 --core-contract-path <CORE_CONTRACT_PATH>
-    [env: CORE_CONTRACT_PATH=] [default: contracts/core_contract.json]
+    [env: CORE_CONTRACT_PATH=]
+    [default: contracts/core_contract.json]
 ```
 
+Command:
+
 ```bash
-cargo run core-contract declare 
+cargo run core-contract declare
 ```
-or 
+
+or:
+
 ```bash
 cargo run core-contract declare --core-contract-path <PATH>
 ```
 
-The expected output for unmodified core-contract is 
+Expected output for the unmodified core contract:
+
 ```
-[2026-02-04T12:31:26Z INFO  saya::core_contract::utils] Core contract already declared on-chain.
-[2026-02-04T12:31:26Z INFO  saya::core_contract::cli] Core contract class hash: 0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5
+[INFO  saya::core_contract::utils] Core contract already declared on-chain.
+[INFO  saya::core_contract::cli] Core contract class hash: 0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5
 ```
 
-Deploy the core contract:
-the expected parameters are: 
+---
+
+## Deploy the core contract
+
 Options:
-      --class-hash <CLASS_HASH>  [env: CLASS_HASH=] [default: 0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5]
-      --salt <SALT>              [env: SALT=]
-class-hash by default is set to latest piltover 
+
+```
+--class-hash <CLASS_HASH>  [env: CLASS_HASH=]
+                           [default: latest Piltover hash]
+--salt <SALT>             [env: SALT=]
+```
+
+Example:
+
 ```bash
 cargo run core-contract deploy --salt 0x5
 ```
 
-Output contains 2 important things: block number and contract address, save them for future use. 
+The output contains two important values:
+
+* **block number**,
+* **contract address**.
+
+Save them for later.
 
 Example output:
-```
-[2026-02-04T12:38:24Z INFO  saya::core_contract::utils] Core contract deployed.
-[2026-02-04T12:38:24Z INFO  saya::core_contract::utils]  Tx hash   : 0x5bfedaba61dcebb3ab0a8f5856eace3a6bec17f007654142f5004b0ef4f39bf
-[2026-02-04T12:38:24Z INFO  saya::core_contract::utils]  Deployed on block  : 6180778
-[2026-02-04T12:38:24Z INFO  saya::core_contract::cli] Core contract address: 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53
-```
-Last step is to set program info and fact registry (defaults to Atlantic registry):
 
 ```
-Options:
-      --fact-registry-address <FACT_REGISTRY_ADDRESS>
-          [env: FACT_REGISTRY_ADDRESS=]
-      --core-contract-address <CORE_CONTRACT_ADDRESS>
-          [env: CORE_CONTRACT_ADDRESS=]
-      --fee-token-address <FEE_TOKEN_ADDRESS>
-          [env: FEE_TOKEN_ADDRESS=] [default: 0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea]
-      --chain-id <CHAIN_ID>
-          [env: CHAIN_ID=]
+[INFO  saya::core_contract::utils] Core contract deployed.
+[INFO  saya::core_contract::utils]  Tx hash   : 0x5bfedaba61dcebb3ab0a8f5856eace3a6bec17f007654142f5004b0ef4f39bf
+[INFO  saya::core_contract::utils]  Deployed on block  : 6180778
+[INFO  saya::core_contract::cli] Core contract address: 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53
 ```
+
+---
+
+## Set program info and fact registry
+
+Defaults to the Atlantic fact registry.
+
+Options:
+
+```
+--fact-registry-address <FACT_REGISTRY_ADDRESS>
+    [env: FACT_REGISTRY_ADDRESS=]
+
+--core-contract-address <CORE_CONTRACT_ADDRESS>
+    [env: CORE_CONTRACT_ADDRESS=]
+
+--fee-token-address <FEE_TOKEN_ADDRESS>
+    [env: FEE_TOKEN_ADDRESS=]
+    [default: 0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea]
+
+--chain-id <CHAIN_ID>
+    [env: CHAIN_ID=]
+```
+
+Example:
 
 ```bash
-cargo run core-contract setup-program --core-contract-address 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 --chain-id example-chain
-```
-example output:
-```
-[2026-02-04T12:41:43Z INFO  saya::core_contract::cli] Starknet OS config hash: 0x1676f3cc88a3ac2bf40e1a6780b73c46ccd5769e0e141ffc5491981a131e5d5
-[2026-02-04T12:42:11Z INFO  saya::core_contract::cli] Set program info transaction submitted: Hash(0x4a7dbe9d4c8613518acde5d66b69f7daa29efe756c20182b01b83856aed0cda)
-[2026-02-04T12:42:17Z INFO  saya::core_contract::cli] Fact registry set transaction submitted: Hash(0x27c24c82c0f1b7ac71cba02d4cbf1aa0136094d2bd9f9396b1f3f78afecc167)
+cargo run core-contract setup-program \
+  --core-contract-address 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
+  --chain-id example-chain
 ```
 
-2. `katana init` generates a directory with configuration file and genesis block. 
+Example output:
 
-To generate a config: 
-katana init 
+```
+[INFO  saya::core_contract::cli] Starknet OS config hash: 0x1676f3cc88a3ac2bf40e1a6780b73c46ccd5769e0e141ffc5491981a131e5d5
+[INFO  saya::core_contract::cli] Set program info transaction submitted: Hash(0x4a7dbe9d4c8613518acde5d66b69f7daa29efe756c20182b01b83856aed0cda)
+[INFO  saya::core_contract::cli] Fact registry set transaction submitted: Hash(0x27c24c82c0f1b7ac71cba02d4cbf1aa0136094d2bd9f9396b1f3f78afecc167)
+```
 
+---
+
+## Initialize Katana
+
+`katana init` generates:
+
+* a configuration file,
+* a genesis block.
+
+Example:
+
+```bash
+katana init \
+  --settlement-chain sepolia \
+  --id example-chain \
+  --settlement-contract 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
+  --settlement-contract-deployed-block 6180778 
+  
+```
 
 Use `katana config` to list all the local configuration and `katana config <CHAIN_ID>` to display the configuration and the file path if you want to inspect it.
 
@@ -108,15 +186,6 @@ Use `katana config` to list all the local configuration and `katana config <CHAI
    ```bash
    # Example for Katana with a block time of 30 seconds.
    katana --chain <CHAIN_ID> --block-time 30000
-   ```
-
-//todo: check if still valid 
-5. Block step limitation: Due to an issue in the CairoVM not yet merged in Katana, to ensure that the block is provable by Saya, the maximum cairo steps in a block must be at most `16_000_000`. If this limit is reached, Katana will mined the block (regardless of the block time).
-
-   Once this limitation will be removed, the max cairo steps will be `40_000_000` (already enforced by Katana internally).
-
-   ```bash
-   katana --chain <CHAIN_ID> --block-time 30000 --sequencing.block-max-cairo-steps 16000000
    ```
 
 ## Requirements

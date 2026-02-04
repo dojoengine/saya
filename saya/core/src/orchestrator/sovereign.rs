@@ -118,6 +118,7 @@ where
                 self.da_builder.last_pointer(Some(DataAvailabilityPointer {
                     height: block_with_da.height,
                     commitment: block_with_da.da_pointer.commitment,
+                    namespace: block_with_da.da_pointer.namespace,
                 })),
             ),
         };

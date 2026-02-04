@@ -285,6 +285,7 @@ where
                 let da_layer_info = DaLayerInfo {
                     height: pointer.height.into(),
                     commitment: Felt::from_bytes_be(&pointer.commitment),
+                    namespace: pointer.namespace,
                 };
                 info!(
                     block_number = new_da.block_number;

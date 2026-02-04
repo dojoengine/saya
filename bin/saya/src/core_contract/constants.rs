@@ -4,8 +4,12 @@ pub const SEPOLIA_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/sepolia";
 pub const MAINNET_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/mainnet";
 
 pub const DEFAULT_PILTOVER_PATH: &str = "contracts/core_contract.json";
+/// The default class hash of the piltover core contract.
+/// This class hash corresponds to the piltover contract compiled from
+/// the source code at:
+/// https://github.com/cartridge-gg/piltover/tree/67e65b8928b7ee3c2c188bf36c6b9eddc14addb2
 pub const DEFAULT_PILTOVER_CLASS_HASH: Felt =
-    felt!("0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5");
+    felt!("0x1d7927de261ef86b08e58f850b47a1ed93587f87167b512cded4c1a1b3391a3");
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.

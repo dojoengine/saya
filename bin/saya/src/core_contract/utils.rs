@@ -41,25 +41,21 @@ pub async fn declare_core_contract(
     declarer.add_class(labeled);
     let results = declarer.declare_all().await?;
 
-    // There is only one class to declare.
-    let class_hash = match &results[0] {
+    match &results[0] {
         TransactionResult::Noop => {
             info!("Core contract already declared on-chain.");
-            class.class_hash
         }
         TransactionResult::Hash(hash) => {
             info!("Core contract declared.");
             info!("  Tx hash   : {hash:?}");
-            *hash
         }
         TransactionResult::HashReceipt(hash, receipt) => {
             info!("Core contract declared.");
             info!("  Tx hash   : {hash:?}");
             info!(" Declared on block  : {:?}", receipt.block.block_number());
-            *hash
         }
     };
-    Ok(class_hash)
+    Ok(class.class_hash)
 }
 
 pub async fn deploy_core_contract(

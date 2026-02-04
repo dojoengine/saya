@@ -145,7 +145,9 @@ impl CoreContract {
                 JsonRpcClient::new(HttpTransport::new(Url::parse(SEPOLIA_RPC_URL).unwrap()))
             }
             #[cfg(feature = "init-custom-settlement-chain")]
-            SettlementChain::Custom => JsonRpcClient::new(HttpTransport::new(self.settlement_rpc_url.clone())),
+            SettlementChain::Custom => {
+                JsonRpcClient::new(HttpTransport::new(self.settlement_rpc_url.clone()))
+            }
         }
     }
     pub fn get_fact_registry_address(&self, fact_registry_address: Option<Felt>) -> Felt {
