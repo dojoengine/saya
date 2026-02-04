@@ -81,10 +81,8 @@ impl DataAvailabilityPayload for BlockInfo {
     }
 
     fn into_packet(self, _ctx: DataAvailabilityPacketContext) -> Self::Packet {
-        if let Some(state_update) = self.state_update {
-            PersistentPacket { state_update }
-        } else {
-            panic!("BlockInfo must contain state_update to be converted into PersistentPacket");
+        PersistentPacket {
+            state_update: self.state_update,
         }
     }
 }
