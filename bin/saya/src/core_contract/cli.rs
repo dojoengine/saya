@@ -20,12 +20,12 @@ use starknet::signers::{LocalWallet, SigningKey};
 use url::Url;
 
 /// Supported settlement chain options for rollup initialization.
-#[derive(Debug, Clone, PartialEq, Eq, Parser, ValueEnum)]
+#[derive(Debug, Clone, PartialEq, Eq, ValueEnum)]
 enum SettlementChain {
     Mainnet,
     Sepolia,
     #[cfg(feature = "init-custom-settlement-chain")]
-    Custom(Url),
+    Custom,
 }
 #[derive(Debug, Parser)]
 pub struct CoreContract {
@@ -35,7 +35,10 @@ pub struct CoreContract {
     private_key: String,
     #[clap(long, env = "SETTLEMENT_ACCOUNT_ADDRESS")]
     account_address: String,
-    #[clap(long, env = "SETTLEMENT_CHAIN")]
+    #[cfg(feature = "init-custom-settlement-chain")]
+    #[clap(long, env = "SETTLEMENT_RPC_URL")]
+    settlement_rpc_url: Url,
+    #[clap(long, env = "SETTLEMENT_CHAIN_ID")]
     settlement_chain_id: SettlementChain,
 }
 
@@ -142,7 +145,7 @@ impl CoreContract {
                 JsonRpcClient::new(HttpTransport::new(Url::parse(SEPOLIA_RPC_URL).unwrap()))
             }
             #[cfg(feature = "init-custom-settlement-chain")]
-            SettlementChain::Custom(url) => JsonRpcClient::new(HttpTransport::new(url.clone())),
+            SettlementChain::Custom => JsonRpcClient::new(HttpTransport::new(self.settlement_rpc_url.clone())),
         }
     }
     pub fn get_fact_registry_address(&self, fact_registry_address: Option<Felt>) -> Felt {
@@ -154,7 +157,7 @@ impl CoreContract {
             SettlementChain::Mainnet => ATLANTIC_FACT_REGISTRY_MAINNET,
             SettlementChain::Sepolia => ATLANTIC_FACT_REGISTRY_SEPOLIA,
             #[cfg(feature = "init-custom-settlement-chain")]
-            SettlementChain::Custom(_) => {
+            SettlementChain::Custom => {
                 panic!("Fact registry address must be provided for custom settlement chain");
             }
         }

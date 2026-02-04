@@ -18,7 +18,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 export NETWORK=mocha                                               
 export RPC_URL=rpc-mocha.pops.one
 export RPC_PORT=9090
-export IMAGE=ghcr.io/celestiaorg/celestia-node:v0.21.5
+export IMAGE=ghcr.io/celestiaorg/celestia-node:v0.28.4
 export VOLUME=celestia-light-mocha
 
 if [ "$1" = "init" ]; then
