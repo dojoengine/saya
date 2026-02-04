@@ -117,6 +117,7 @@ where
                 starknet::core::types::MaybePreConfirmedStateUpdate::Update(state_update) => {
                     state_update
                 }
+                //TODO: handle this case properly
                 starknet::core::types::MaybePreConfirmedStateUpdate::PreConfirmedUpdate(_) => {
                     panic!("PreConfirmedStateUpdate not supported")
                 }
@@ -179,7 +180,7 @@ where
             let new_block = BlockInfo {
                 number: block_number,
                 status: BlockStatus::SnosPieGenerated,
-                state_update: None,
+                state_update: Some(state_update.clone()),
             };
 
             let pie_bytes = compress_pie(pie.clone()).await.unwrap();

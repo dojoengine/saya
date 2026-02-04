@@ -67,7 +67,10 @@ where
             };
 
             let block_number_u32 = new_snos_proof.block_number.try_into().unwrap();
-            let state_update = db.get_state_update(block_number_u32).await.unwrap();
+            let state_update = db
+                .get_state_update(block_number_u32)
+                .await
+                .map_err(|e| ProverError::MetadataFetch(e.to_string()))?;
             match db
                 .get_proof(block_number_u32, crate::storage::Step::Bridge)
                 .await

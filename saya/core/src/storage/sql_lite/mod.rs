@@ -89,7 +89,7 @@ impl SqliteDb {
             r#"
             CREATE TABLE IF NOT EXISTS pies (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
-              block_id INTEGER NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
+              block_id INTEGER NOT NULL UNIQUE REFERENCES blocks(block_id) ON DELETE CASCADE,
               snos_pie BLOB,
               bridge_pie BLOB
             );
@@ -104,7 +104,7 @@ impl SqliteDb {
         query(
             r#"CREATE TABLE IF NOT EXISTS proofs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                block_id INTEGER NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
+                block_id INTEGER NOT NULL UNIQUE REFERENCES blocks(block_id) ON DELETE CASCADE,
                 snos_proof BLOB,
                 bridge_proof BLOB
         );"#,
@@ -118,7 +118,7 @@ impl SqliteDb {
         query(
             r#"CREATE TABLE IF NOT EXISTS job_ids (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            block_id INTEGER NOT NULL REFERENCES blocks(block_id) ON DELETE CASCADE,
+            block_id INTEGER NOT NULL UNIQUE REFERENCES blocks(block_id) ON DELETE CASCADE,
             snos_proof_query_id TEXT,
             trace_gen_query_id TEXT,
             bridge_proof_query_id TEXT
@@ -149,9 +149,9 @@ impl SqliteDb {
         query(
             r#"
             CREATE TABLE IF NOT EXISTS state_updates (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                block_id INTEGER NOT NULL,
-                state_update BLOB NOT NULL
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              block_id INTEGER NOT NULL UNIQUE REFERENCES blocks(block_id) ON DELETE CASCADE,
+              state_update BLOB NOT NULL
             );
             "#,
         )

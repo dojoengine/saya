@@ -76,7 +76,7 @@ pub struct SovereignPacket {
 /// posting mechanism in place for now.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PersistentPacket {
-    pub state_update: StateUpdate,
+    pub state_update: Option<StateUpdate>,
 }
 
 // TODO: abstract over this to allow other DA backends.

@@ -27,10 +27,3 @@ pub struct BlockInfo {
     pub status: BlockStatus,
     pub state_update: Option<StateUpdate>,
 }
-
-#[derive(Debug, Clone)]
-pub struct BlobPointer {
-    pub height: u64,
-    pub commitment: [u8; 32],
-    pub namespace: String,
-}

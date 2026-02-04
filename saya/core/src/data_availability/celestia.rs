@@ -68,13 +68,7 @@ where
             ciborium::into_writer(&packet, &mut serialized_packet).unwrap();
 
             // TODO: error handling
-            let blob = Blob::new(
-                self.namespace,
-                serialized_packet,
-                None,
-                AppVersion::latest(),
-            )
-            .unwrap();
+            let blob = Blob::new(self.namespace, serialized_packet, None, AppVersion::V7).unwrap();
             let commitment = blob.clone().commitment;
             let commitment = commitment.hash();
 

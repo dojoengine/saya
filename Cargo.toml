@@ -54,5 +54,5 @@ tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", default-features = false }
 zip = { version = "2.2.2", default-features = false, features = ["deflate"] }
 sqlx = { version = "0.8.2", features = [ "chrono", "macros", "regexp", "runtime-async-std", "runtime-tokio", "sqlite", "uuid" ] }
-piltover = {package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", branch = "feat/update-starknet-output" }
+piltover = {package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "ab34aaa" }
 cainome = { version = "0.10.1", features = ["abigen-rs"] }

@@ -5217,7 +5217,7 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 [[package]]
 name = "piltover"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/piltover.git?branch=feat%2Fupdate-starknet-output#3edc066544587512141127c19f641ac6a8cd941a"
+source = "git+https://github.com/cartridge-gg/piltover.git?rev=ab34aaa#ab34aaaf7be0847fadada4c37efdc1c8f484667c"
 dependencies = [
  "cainome",
  "starknet 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
