@@ -1,7 +1,7 @@
 use starknet::{core::types::Felt, macros::felt};
 
 pub const SEPOLIA_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/sepolia";
-pub const DEFAULT_PILTOVER_PATH: &str = "programs/core_contract.json";
+pub const DEFAULT_PILTOVER_PATH: &str = "contracts/core_contract.json";
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.
