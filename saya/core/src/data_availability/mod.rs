@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use starknet::core::types::Felt;
 use starknet::core::types::StateUpdate;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -86,6 +87,8 @@ pub struct DataAvailabilityPointer {
     pub height: u64,
     /// Celestia blob commitment.
     pub commitment: [u8; 32],
+    /// Celestia namespace ID.
+    pub namespace: Felt,
 }
 
 // TODO: abstract over this to allow other DA backends.

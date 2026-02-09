@@ -14,7 +14,11 @@ anyhow.workspace = true
 clap.workspace = true
 env_logger.workspace = true
 starknet-types-core.workspace = true
-starknet.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 url.workspace = true
 log.workspace = true
+cairo-lang-starknet-classes = "2.12.3"
+starknet_api = "0.16.0-rc.1"
+serde_json.workspace = true
+dojo-utils = { git = "https://github.com/dojoengine/dojo", branch = "main" }
+starknet = { git = "https://github.com/dojoengine/starknet-rs", branch = "feat/types-rs-100-blake2s" }

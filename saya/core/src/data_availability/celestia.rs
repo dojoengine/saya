@@ -1,6 +1,7 @@
 use anyhow::Result;
 use celestia_rpc::{BlobClient, Client, TxConfig};
 use celestia_types::{nmt::Namespace, AppVersion, Blob};
+use integrity::Felt;
 use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
@@ -90,6 +91,7 @@ where
             self.last_pointer = Some(DataAvailabilityPointer {
                 height: celestia_block,
                 commitment: *commitment,
+                namespace: Felt::from_bytes_be_slice(self.namespace.as_bytes()),
             });
 
             info!(
@@ -104,6 +106,7 @@ where
                 pointer: Some(DataAvailabilityPointer {
                     height: celestia_block,
                     commitment: *commitment,
+                    namespace: Felt::from_bytes_be_slice(self.namespace.as_bytes()),
                 }),
                 full_payload: new_proof,
             };
