@@ -24,7 +24,6 @@ use url::Url;
 enum SettlementChain {
     Mainnet,
     Sepolia,
-    #[cfg(feature = "init-custom-settlement-chain")]
     Custom,
 }
 #[derive(Debug, Parser)]
@@ -35,9 +34,8 @@ pub struct CoreContract {
     private_key: String,
     #[clap(long, env = "SETTLEMENT_ACCOUNT_ADDRESS")]
     account_address: String,
-    #[cfg(feature = "init-custom-settlement-chain")]
     #[clap(long, env = "SETTLEMENT_RPC_URL")]
-    settlement_rpc_url: Url,
+    settlement_rpc_url: Option<Url>,
     #[clap(long, env = "SETTLEMENT_CHAIN_ID")]
     settlement_chain_id: SettlementChain,
 }
@@ -144,10 +142,12 @@ impl CoreContract {
             SettlementChain::Sepolia => {
                 JsonRpcClient::new(HttpTransport::new(Url::parse(SEPOLIA_RPC_URL).unwrap()))
             }
-            #[cfg(feature = "init-custom-settlement-chain")]
-            SettlementChain::Custom => {
-                JsonRpcClient::new(HttpTransport::new(self.settlement_rpc_url.clone()))
-            }
+            SettlementChain::Custom => JsonRpcClient::new(HttpTransport::new(
+                self.settlement_rpc_url
+                    .clone()
+                    .expect("Settlement rpc provider is not provided")
+                    .clone(),
+            )),
         }
     }
     pub fn get_fact_registry_address(&self, fact_registry_address: Option<Felt>) -> Felt {
@@ -158,7 +158,6 @@ impl CoreContract {
         match &self.settlement_chain_id {
             SettlementChain::Mainnet => ATLANTIC_FACT_REGISTRY_MAINNET,
             SettlementChain::Sepolia => ATLANTIC_FACT_REGISTRY_SEPOLIA,
-            #[cfg(feature = "init-custom-settlement-chain")]
             SettlementChain::Custom => {
                 panic!("Fact registry address must be provided for custom settlement chain");
             }

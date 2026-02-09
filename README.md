@@ -84,13 +84,15 @@ Expected output for the unmodified core contract:
 
 ## Deploy the core contract
 
-Options:
+The deploy command accepts the following options:
 
 ```
 --class-hash <CLASS_HASH>  [env: CLASS_HASH=]
                            [default: latest Piltover hash]
 --salt <SALT>             [env: SALT=]
 ```
+
+By default, the class hash is set to the latest compatible Piltover core contract.
 
 Example:
 
@@ -103,7 +105,7 @@ The output contains two important values:
 * **block number**,
 * **contract address**.
 
-Save them for later.
+So save them for future use.
 
 Example output:
 
@@ -118,7 +120,7 @@ Example output:
 
 ## Set program info and fact registry
 
-Defaults to the Atlantic fact registry.
+The last step is to set the program info and fact registry (defaults to the Atlantic fact registry).
 
 Options:
 
