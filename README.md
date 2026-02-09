@@ -177,11 +177,11 @@ katana init \
 
 Use `katana config` to list all the local configuration and `katana config <CHAIN_ID>` to display the configuration and the file path if you want to inspect it.
 
-3. Start Katana with `katana --chain <CHAIN_ID>` to load the generated parameters at start.
+1. Start Katana with `katana --chain <CHAIN_ID>` to load the generated parameters at start.
 
 > **_NOTE:_** You can define an `--output-path` when working with `katana init` to output the configuration files in the given directory. You will then want to start katana with the `--chain /path` instead of `--chain <CHAIN_ID>`.
 
-4. Block time: when running Katana in provable mode, the block time is important, since each block will be proven by Saya, and eventually settled or posted to a data availability layer (which in both cases is incurring an additional cost).
+1. Block time: when running Katana in provable mode, the block time is important, since each block will be proven by Saya, and eventually settled or posted to a data availability layer (which in both cases is incurring an additional cost).
 
    It is then recommended to run Katana with a block time. It is important to note that Katana is starting the block time for the very first transaction received for the block, and will never produce empty blocks.
 
@@ -192,18 +192,18 @@ Use `katana config` to list all the local configuration and `katana config <CHAI
 
 ## Requirements
 
-- Katana up and running in provable mode.
-- Herodotus Dev account with API key, which can be obtained from https://herodotus.cloud.
+* Katana up and running in provable mode.
+* Herodotus Dev account with API key, which can be obtained from <https://herodotus.cloud>.
 
 ### Sovereign mode
 
-- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
-- An account to send the blobs (usually configured with the light node you are running).
+* Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
+* An account to send the blobs (usually configured with the light node you are running).
 
 ### Persistent mode
 
-- Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
-- An account on the settlement chain with funds to verify the proof.
+* Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
+* An account on the settlement chain with funds to verify the proof.
 
 ## Cairo programs
 
@@ -243,7 +243,6 @@ You can override any value exported in `.env.persistent` or `.env.sovereign` by 
 
 Those files are into the `.gitignore` file, so they are not checked into the repository.
 
-
 ## Persistent mode
 
 ```bash
@@ -265,14 +264,15 @@ Before running Saya, you must first change the fact registry address for the pil
 > **_NOTE:_** `0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867` is a deployed mock fact registry address on Sepolia that returns the expected fact confirmation for any fact.
 
 ```
-starkli invoke <PILTOVER_ADDRESS> set_facts_registry 0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867
-```
+cargo run core-contract --settlement-chain-id sepolia setup-program   --core-contract-address <PILTOVER_ADDRESS>   --chain-id example-chain  --fact-registry-address 0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867```
 
 Then you can run Saya with:
 
 ```
+
 saya persistent start \
-    --mock-layout-bridge-program-hash 0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0
+    --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
+
 ```
 
 By doing so, Saya will mock the layout bridge proof and call the `update_state` function of the settlement contract.
@@ -280,9 +280,11 @@ By doing so, Saya will mock the layout bridge proof and call the `update_state` 
 In order to also mock the SNOS proof, you can use the following command:
 
 ```
+
 saya persistent start \
-    --mock-layout-bridge-program-hash 0x193641eb151b0f41674641089952e60bc3aded26e3cf42793655c562b8c3aa0 \
+    --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
     --mock-snos-from-pie
+
 ```
 
 This will generates the SNOS's PIE, and mock the proof from it.
