@@ -1,4 +1,5 @@
 use anyhow::Result;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use celestia_rpc::{BlobClient, Client, TxConfig};
 use celestia_types::{nmt::Namespace, AppVersion, Blob};
 use integrity::Felt;
@@ -97,6 +98,7 @@ where
             info!(
                 block_number = new_proof.block_number(),
                 celestia_block,
+                namespace:? = STANDARD.encode(self.namespace.as_bytes()),
                 commitment:? = hex::encode(commitment);
                 "Blob posted on Celestia."
             );

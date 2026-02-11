@@ -21,6 +21,7 @@ starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "e04617e0
 ] }
 
 anyhow = { version = "1.0.95", default-features = false }
+base64 = { version = "0.22.1" }
 bigdecimal = { version = "0.3.1", default-features = false }
 cairo-vm = "=2.5.0"
 celestia-rpc = { version = "0.16.2", default-features = false }

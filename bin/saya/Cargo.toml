@@ -17,6 +17,10 @@ starknet-types-core.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "time"] }
 url.workspace = true
 log.workspace = true
+celestia-rpc.workspace = true
+celestia-types.workspace = true
+base64.workspace = true
+hex.workspace = true
 cairo-lang-starknet-classes = "2.12.3"
 starknet_api = "0.16.0-rc.1"
 serde_json.workspace = true

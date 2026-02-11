@@ -25,14 +25,15 @@ pub fn compute_starknet_os_config_hash(chain_id: Felt, fee_token: Felt) -> Felt 
     compute_hash_on_elements(&[STARKNET_OS_CONFIG_VERSION, chain_id, fee_token])
 }
 
-pub async fn declare_core_contract(
+pub async fn declare_contract(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
-    core_contract_path: &Path,
+    contract_name: &str,
+    contract_path: &Path,
 ) -> Result<Felt> {
     let txn_config = TxnConfig::default();
 
     let mut declarer = Declarer::new(account, txn_config);
-    let class = prepare_class(core_contract_path, true)?;
+    let class = prepare_class(contract_path, true)?;
     let labeled = LabeledClass {
         label: class.label.clone(),
         casm_class_hash: class.casm_class_hash,
@@ -43,14 +44,48 @@ pub async fn declare_core_contract(
 
     match &results[0] {
         TransactionResult::Noop => {
-            info!("Core contract already declared on-chain.");
+            info!("Contract {} already declared.", contract_name);
         }
         TransactionResult::Hash(hash) => {
-            info!("Core contract declared.");
+            info!("Contract {} declared.", contract_name);
             info!("  Tx hash   : {hash:?}");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            info!("Core contract declared.");
+            info!("Contract {} declared.", contract_name);
+            info!("  Tx hash   : {hash:?}");
+            info!(" Declared on block  : {:?}", receipt.block.block_number());
+        }
+    };
+    Ok(class.class_hash)
+}
+
+pub async fn declare_contract_from_bytes(
+    account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    contract_name: &str,
+    contract_bytes: &[u8],
+) -> Result<Felt> {
+    let txn_config = TxnConfig::default();
+
+    let mut declarer = Declarer::new(account, txn_config);
+    let class = prepare_class_from_bytes(contract_bytes, true, contract_name.to_string())?;
+    let labeled = LabeledClass {
+        label: class.label.clone(),
+        casm_class_hash: class.casm_class_hash,
+        class: class.class.clone(),
+    };
+    declarer.add_class(labeled);
+    let results = declarer.declare_all().await?;
+
+    match &results[0] {
+        TransactionResult::Noop => {
+            info!("Contract {} already declared.", contract_name);
+        }
+        TransactionResult::Hash(hash) => {
+            info!("Contract {} declared.", contract_name);
+            info!("  Tx hash   : {hash:?}");
+        }
+        TransactionResult::HashReceipt(hash, receipt) => {
+            info!("Contract {} declared.", contract_name);
             info!("  Tx hash   : {hash:?}");
             info!(" Declared on block  : {:?}", receipt.block.block_number());
         }
@@ -60,15 +95,10 @@ pub async fn declare_core_contract(
 
 pub async fn deploy_core_contract(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    contract_name: &str,
     class_hash: Felt,
     salt: Felt,
 ) -> Result<Felt> {
-    let txn_config = dojo_utils::TxnConfig {
-        receipt: true,
-        ..Default::default()
-    };
-
-    let deployer = Deployer::new(account.clone(), txn_config);
     let constructor_calldata: Vec<Felt> = vec![
         // owner.
         account.address(),
@@ -80,22 +110,47 @@ pub async fn deploy_core_contract(
         INITIAL_BLOCK_HASH,
     ];
 
+    deploy_contract(
+        account,
+        contract_name,
+        class_hash,
+        salt,
+        &constructor_calldata,
+    )
+    .await
+}
+
+pub async fn deploy_contract(
+    account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
+    contract_name: &str,
+    class_hash: Felt,
+    salt: Felt,
+    constructor_calldata: &[Felt],
+) -> Result<Felt> {
+    let txn_config = dojo_utils::TxnConfig {
+        receipt: true,
+        ..Default::default()
+    };
+
+    let deployer = Deployer::new(account.clone(), txn_config);
+
     match deployer
         .deploy_via_udc(class_hash, salt, &constructor_calldata, Felt::ZERO)
         .await
     {
         Ok((contract_address, transaction_result)) => {
-            info!("Core contract deployed.");
             match transaction_result {
                 TransactionResult::Noop => {
-                    info!("noop (already deployed).");
+                    info!("Contract {} already deployed.", contract_name);
                 }
                 TransactionResult::Hash(hash) => {
-                    info!(" Tx hash   : {hash:?}");
+                    info!("Contract {} deployed.", contract_name);
+                    info!("Tx hash   : {hash:?}");
                 }
                 TransactionResult::HashReceipt(hash, receipt) => {
-                    info!(" Tx hash   : {hash:?}");
-                    info!(" Deployed on block  : {:?}", receipt.block.block_number());
+                    info!("Contract {} deployed.", contract_name);
+                    info!("Tx hash   : {hash:?}");
+                    info!("At block  : {:?}", receipt.block.block_number());
                 }
             }
             Ok(contract_address)
@@ -103,10 +158,13 @@ pub async fn deploy_core_contract(
         Err(e) => {
             let address = try_extract_already_deployed_address(&e)?;
             if let Some(address) = address {
-                warn!("Core contract already deployed at address: {:?}", address);
+                warn!(
+                    "{} already deployed at address: {:?}",
+                    contract_name, address
+                );
                 return Ok(address);
             }
-            Err(anyhow!("Deployment failed: {:?}", e))
+            Err(anyhow!("{} deployment failed: {:?}", contract_name, e))
         }
     }
 }
@@ -184,21 +242,19 @@ struct PreparedClass {
 
 fn prepare_class(path: &Path, use_blake2s: bool) -> Result<PreparedClass> {
     let data = fs::read(path)?;
+    prepare_class_from_bytes(&data, use_blake2s, path.display().to_string())
+}
 
-    let sierra: SierraClass = serde_json::from_slice(&data)?;
+fn prepare_class_from_bytes(
+    data: &[u8],
+    use_blake2s: bool,
+    label: String,
+) -> Result<PreparedClass> {
+    let sierra: SierraClass = serde_json::from_slice(data)?;
     let class_hash = sierra.class_hash()?;
     let flattened = sierra.clone().flatten()?;
 
-    let casm_hash = casm_class_hash_from_bytes(&data, use_blake2s)?;
-
-    let label = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| anyhow!("Unable to infer contract name from {}", path.display()))?
-        .split('.')
-        .next()
-        .ok_or_else(|| anyhow!("Unable to infer contract name from {}", path.display()))?
-        .to_string();
+    let casm_hash = casm_class_hash_from_bytes(data, use_blake2s)?;
 
     Ok(PreparedClass {
         label,
