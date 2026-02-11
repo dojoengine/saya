@@ -10,6 +10,7 @@ This skill runs a structured technical interview to turn a rough idea or an exis
 ## Invocation
 
 The user will provide one of:
+
 - A path to a spec or plan file (for example: `SPEC.md`, `PLAN.md`, `RFC.md`)
 - A rough description of what they want to build
 - A feature request or problem statement
@@ -26,6 +27,7 @@ Output is always written to `PLAN.md` in the repo root.
 ### Phase 1: Discovery
 
 Summarize what is known, then identify missing details. Focus on:
+
 - Goals and non-goals
 - Constraints (time, budget, platform, dependencies)
 - Success metrics and acceptance criteria
@@ -35,6 +37,7 @@ Summarize what is known, then identify missing details. Focus on:
 Use the `AskUserQuestion` (Claude) and/or `request_user_input` (Codex) tools in rounds. Ask 1-3 questions per round. Each round should go deeper and avoid repeating what is already known.
 
 CRITICAL RULES:
+
 1. Never ask obvious questions. If the codebase or spec already answers it, do not ask it again.
 2. Ask about edge cases and failure modes.
 3. Probe for hidden complexity (state transitions, migrations, concurrency).
@@ -43,6 +46,7 @@ CRITICAL RULES:
 6. If the user is unsure, propose a default and ask for confirmation.
 
 Question categories to cover as relevant:
+
 - Technical architecture and data flow
 - Data model and state management
 - API contracts and versioning
@@ -60,6 +64,7 @@ Question categories to cover as relevant:
 ### Phase 3: Dependency Analysis
 
 Identify:
+
 1. Serial dependencies that must complete first
 2. Parallel workstreams that can run independently
 3. Merge points where work reconvenes
@@ -76,38 +81,48 @@ The generated plan MUST follow this structure:
 # [Feature Name] Implementation Plan
 
 ## Overview
+
 [2-3 sentence summary of what this implements and why]
 
 ## Goals
+
 - [Explicit goal 1]
 - [Explicit goal 2]
 
 ## Non-Goals
+
 - [What this explicitly does NOT do]
 
 ## Assumptions and Constraints
+
 - [Known constraints or assumptions]
 
 ## Requirements
 
 ### Functional
+
 - [Requirement]
 
 ### Non-Functional
+
 - [Performance, reliability, security, compliance]
 
 ## Technical Design
 
 ### Data Model
+
 [Schema changes, new entities, relationships]
 
 ### API Design
+
 [New endpoints, request/response shapes, versioning]
 
 ### Architecture
+
 [System diagram in text or mermaid, component interactions]
 
 ### UX Flow (if applicable)
+
 [Key screens, loading states, error recovery]
 
 ---
@@ -119,12 +134,13 @@ The generated plan MUST follow this structure:
 These tasks create foundations that other work depends on. Complete in order.
 
 #### Phase 0: [Foundation Name]
+
 **Prerequisite for:** All subsequent phases
 
-| Task | Description | Output |
-|------|-------------|--------|
-| 0.1 | [Task description] | [Concrete deliverable] |
-| 0.2 | [Task description] | [Concrete deliverable] |
+| Task | Description        | Output                 |
+| ---- | ------------------ | ---------------------- |
+| 0.1  | [Task description] | [Concrete deliverable] |
+| 0.2  | [Task description] | [Concrete deliverable] |
 
 ---
 
@@ -133,21 +149,23 @@ These tasks create foundations that other work depends on. Complete in order.
 These workstreams can be executed independently after Phase 0.
 
 #### Workstream A: [Name]
+
 **Dependencies:** Phase 0
 **Can parallelize with:** Workstreams B, C
 
-| Task | Description | Output |
-|------|-------------|--------|
-| A.1 | [Task description] | [Concrete deliverable] |
-| A.2 | [Task description] | [Concrete deliverable] |
+| Task | Description        | Output                 |
+| ---- | ------------------ | ---------------------- |
+| A.1  | [Task description] | [Concrete deliverable] |
+| A.2  | [Task description] | [Concrete deliverable] |
 
 #### Workstream B: [Name]
+
 **Dependencies:** Phase 0
 **Can parallelize with:** Workstreams A, C
 
-| Task | Description | Output |
-|------|-------------|--------|
-| B.1 | [Task description] | [Concrete deliverable] |
+| Task | Description        | Output                 |
+| ---- | ------------------ | ---------------------- |
+| B.1  | [Task description] | [Concrete deliverable] |
 
 ---
 
@@ -156,11 +174,12 @@ These workstreams can be executed independently after Phase 0.
 After parallel workstreams complete, these tasks integrate the work.
 
 #### Phase N: Integration
+
 **Dependencies:** Workstreams A, B, C
 
-| Task | Description | Output |
-|------|-------------|--------|
-| N.1 | [Integration task] | [Concrete deliverable] |
+| Task | Description        | Output                 |
+| ---- | ------------------ | ---------------------- |
+| N.1  | [Integration task] | [Concrete deliverable] |
 
 ---
 
@@ -181,8 +200,8 @@ After parallel workstreams complete, these tasks integrate the work.
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
+| Risk               | Likelihood   | Impact       | Mitigation |
+| ------------------ | ------------ | ------------ | ---------- |
 | [Risk description] | Low/Med/High | Low/Med/High | [Strategy] |
 
 ## Open Questions
@@ -191,26 +210,30 @@ After parallel workstreams complete, these tasks integrate the work.
 
 ## Decision Log
 
-| Decision | Rationale | Alternatives Considered |
-|----------|-----------|------------------------|
-| [Decision made] | [Why] | [What else was considered] |
+| Decision        | Rationale | Alternatives Considered    |
+| --------------- | --------- | -------------------------- |
+| [Decision made] | [Why]     | [What else was considered] |
 ```
 
 ## Interview Flow Example
 
 Round 1: High-Level Architecture
+
 - "The spec mentions a sync engine. Is this push-based (webhooks), pull-based (polling), or event-driven (queue)?"
 - "What is the expected data volume and throughput?"
 
 Round 2: Edge Cases
+
 - "If a batch fails mid-run, do we retry the whole batch or resume from a checkpoint?"
 - "What happens when source data is deleted but still referenced downstream?"
 
 Round 3: Parallelization
+
 - "Can we process different categories independently, or are there cross-category dependencies?"
 - "Is there a natural partition key that allows sharding?"
 
 Round 4: Operational
+
 - "What is the acceptable latency for sync or processing?"
 - "How will operators debug failures and what visibility do they need?"
 
@@ -225,6 +248,7 @@ Round 4: Operational
 ## Completing the Interview
 
 After sufficient rounds of questions:
+
 1. Summarize your understanding back to the user
 2. Confirm the parallelization strategy
 3. Write the complete plan to the target file

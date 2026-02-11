@@ -6235,10 +6235,14 @@ name = "saya"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "cairo-lang-starknet-classes",
+ "celestia-rpc",
+ "celestia-types",
  "clap",
  "dojo-utils",
  "env_logger",
+ "hex",
  "log",
  "saya-core",
  "serde_json",
@@ -6254,6 +6258,7 @@ name = "saya-core"
 version = "0.2.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "bigdecimal",
  "cainome",
  "cairo-vm",

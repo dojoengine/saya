@@ -2,6 +2,7 @@
 name: create-pr
 description: Create or update a PR from current branch to main, watch CI, and address feedback
 ---
+
 The user likes the state of the code.
 
 There are $`git status --porcelain | wc -l | tr -d ' '` uncommitted changes.
@@ -31,12 +32,13 @@ Follow these exact steps:
 8. Push to origin.
 9. Use `git diff origin/main...` to review the full PR diff
 10. Check if a PR already exists for this branch:
-   - **If PR exists**:
-     - Draft/update the description in a temp file (e.g. `/tmp/pr-body.txt`).
-     - Update the PR body using the non-deprecated script:
-       - `./.agents/skills/create-pr/scripts/pr-body-update.sh --file /tmp/pr-body.txt`
-     - Re-fetch the body with `gh pr view --json body --jq .body` to confirm it changed.
-   - **If no PR exists**: Use `gh pr create --base main` to create a new PR. Keep the title under 80 characters and the description under five sentences.
+
+- **If PR exists**:
+  - Draft/update the description in a temp file (e.g. `/tmp/pr-body.txt`).
+  - Update the PR body using the non-deprecated script:
+    - `./.agents/skills/create-pr/scripts/pr-body-update.sh --file /tmp/pr-body.txt`
+  - Re-fetch the body with `gh pr view --json body --jq .body` to confirm it changed.
+- **If no PR exists**: Use `gh pr create --base main` to create a new PR. Keep the title under 80 characters and the description under five sentences.
 
 The PR description should summarize ALL commits in the PR, not just the latest changes.
 
@@ -45,26 +47,29 @@ The PR description should summarize ALL commits in the PR, not just the latest c
 Note: Keep commands CI-safe and avoid interactive `gh` prompts. Ensure `GH_TOKEN` or `GITHUB_TOKEN` is set in CI.
 
 11. Watch CI status and feedback using the polling script (instead of running `gh` in a loop):
-   - Run `./.agents/skills/create-pr/scripts/poll-pr.sh --triage-on-change --exit-when-green` (polls every 30s for 10 mins).
-   - If checks fail, use `gh pr checks` or `gh run list` to find the failing run id, then:
-     - Fetch the failed check logs using `gh run view <run-id> --log-failed`
-     - Analyze the failure and fix the issue
-     - Commit and push the fix
-     - Continue polling until all checks pass
+
+- Run `./.agents/skills/create-pr/scripts/poll-pr.sh --triage-on-change --exit-when-green` (polls every 30s for 10 mins).
+- If checks fail, use `gh pr checks` or `gh run list` to find the failing run id, then:
+  - Fetch the failed check logs using `gh run view <run-id> --log-failed`
+  - Analyze the failure and fix the issue
+  - Commit and push the fix
+  - Continue polling until all checks pass
 
 12. Check for merge conflicts:
-   - Run `git fetch origin main && git merge origin/main`
-   - If conflicts exist, resolve them sensibly
-   - Commit the merge resolution and push
+
+- Run `git fetch origin main && git merge origin/main`
+- If conflicts exist, resolve them sensibly
+- Commit the merge resolution and push
 
 13. Use the polling script output to notice new reviews and comments (avoid direct polling via `gh`):
-   - If you need a full snapshot, run `./.agents/skills/create-pr/scripts/triage-pr.sh` once.
-   - If you need full context after the script reports a new item, fetch details once with `gh pr view --comments` or `gh api ...`.
-   - **Address feedback**:
-     - For bot reviews, read the review body and any inline comments carefully
-     - Address comments that are clearly actionable (bug fixes, typos, simple improvements)
-     - Skip comments that require design decisions or user input
-     - For addressed feedback, commit fixes with a message referencing the review/comment
+
+- If you need a full snapshot, run `./.agents/skills/create-pr/scripts/triage-pr.sh` once.
+- If you need full context after the script reports a new item, fetch details once with `gh pr view --comments` or `gh api ...`.
+- **Address feedback**:
+  - For bot reviews, read the review body and any inline comments carefully
+  - Address comments that are clearly actionable (bug fixes, typos, simple improvements)
+  - Skip comments that require design decisions or user input
+  - For addressed feedback, commit fixes with a message referencing the review/comment
 
 ## Phase 4: Merge and Cleanup
 
@@ -81,6 +86,7 @@ Note: Keep commands CI-safe and avoid interactive `gh` prompts. Ensure `GH_TOKEN
 ## Completion
 
 Report the final PR status to the user, including:
+
 - PR URL
 - CI status (passed/merged)
 - Any unresolved review comments that need user attention

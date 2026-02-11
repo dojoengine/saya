@@ -8,6 +8,7 @@ description = "Saya core implementation."
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
 bigdecimal.workspace = true
 celestia-rpc.workspace = true
 celestia-types.workspace = true

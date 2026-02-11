@@ -3,7 +3,12 @@ use starknet::{core::types::Felt, macros::felt};
 pub const SEPOLIA_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/sepolia";
 pub const MAINNET_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/mainnet";
 
-pub const DEFAULT_PILTOVER_PATH: &str = "contracts/core_contract.json";
+// Embed contract files into the binary
+pub const PILTOVER_CONTRACT_BYTES: &[u8] =
+    include_bytes!("../../../../contracts/core_contract.json");
+pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
+    include_bytes!("../../../../contracts/fact_registry_mock.json");
+
 /// The default class hash of the piltover core contract.
 /// This class hash corresponds to the piltover contract compiled from
 /// the source code at:
