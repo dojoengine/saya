@@ -16,15 +16,13 @@ Instead, deployment is handled by **Saya**.
 ### Correct flow
 
 1. Use Saya to:
-
-   * declare (or use the predeclared) core contract,
-   * deploy the contract,
-   * set the program info and fact registry.
+   - declare (or use the predeclared) core contract,
+   - deploy the contract,
+   - set the program info and fact registry.
 
 2. From this process, obtain:
-
-   * the **core contract address**,
-   * the **block number** where it was deployed.
+   - the **core contract address**,
+   - the **block number** where it was deployed.
 
 3. Use these values when running `katana init`.
 
@@ -34,9 +32,9 @@ Instead, deployment is handled by **Saya**.
 
 The `core-contract` subcommand manages the Piltover core contract:
 
-* declaring the class,
-* deploying the contract,
-* setting program info and fact registry.
+- declaring the class,
+- deploying the contract,
+- setting program info and fact registry.
 
 ### Required environment variables
 
@@ -102,8 +100,8 @@ cargo run core-contract deploy --salt 0x5
 
 The output contains two important values:
 
-* **block number**,
-* **contract address**.
+- **block number**,
+- **contract address**.
 
 So save them for future use.
 
@@ -161,8 +159,8 @@ Example output:
 
 `katana init` generates:
 
-* a configuration file,
-* a genesis block.
+- a configuration file,
+- a genesis block.
 
 Example:
 
@@ -171,8 +169,8 @@ katana init \
   --settlement-chain sepolia \
   --id example-chain \
   --settlement-contract 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
-  --settlement-contract-deployed-block 6180778 
-  
+  --settlement-contract-deployed-block 6180778
+
 ```
 
 Use `katana config` to list all the local configuration and `katana config <CHAIN_ID>` to display the configuration and the file path if you want to inspect it.
@@ -192,18 +190,18 @@ Use `katana config` to list all the local configuration and `katana config <CHAI
 
 ## Requirements
 
-* Katana up and running in provable mode.
-* Herodotus Dev account with API key, which can be obtained from <https://herodotus.cloud>.
+- Katana up and running in provable mode.
+- Herodotus Dev account with API key, which can be obtained from <https://herodotus.cloud>.
 
 ### Sovereign mode
 
-* Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
-* An account to send the blobs (usually configured with the light node you are running).
+- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
+- An account to send the blobs (usually configured with the light node you are running).
 
 ### Persistent mode
 
-* Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
-* An account on the settlement chain with funds to verify the proof.
+- Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
+- An account on the settlement chain with funds to verify the proof.
 
 ## Cairo programs
 
@@ -263,15 +261,15 @@ Before running Saya, you must first change the fact registry address for the pil
 
 > **_NOTE:_** `0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867` is a deployed mock fact registry address on Sepolia that returns the expected fact confirmation for any fact.
 
-```
+````
 cargo run core-contract --settlement-chain-id sepolia setup-program   --core-contract-address <PILTOVER_ADDRESS>   --chain-id example-chain  --fact-registry-address 0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867```
 
 Then you can run Saya with:
 
-```
+````
 
 saya persistent start \
-    --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
+ --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
 
 ```
 
@@ -282,9 +280,10 @@ In order to also mock the SNOS proof, you can use the following command:
 ```
 
 saya persistent start \
-    --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
-    --mock-snos-from-pie
+ --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
+ --mock-snos-from-pie
 
 ```
 
 This will generates the SNOS's PIE, and mock the proof from it.
+```

@@ -135,7 +135,7 @@ pub async fn deploy_contract(
     let deployer = Deployer::new(account.clone(), txn_config);
 
     match deployer
-        .deploy_via_udc(class_hash, salt, &constructor_calldata, Felt::ZERO)
+        .deploy_via_udc(class_hash, salt, constructor_calldata, Felt::ZERO)
         .await
     {
         Ok((contract_address, transaction_result)) => {

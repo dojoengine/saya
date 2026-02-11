@@ -1,22 +1,27 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
+
 - Describe top-level modules/directories and how they relate.
 
 ## Build, Test, and Development Commands
+
 - `cargo fmt --all -- --check`
 - `cargo clippy --workspace --all-targets --all-features`
 - `cargo test --workspace --all-features`
 
 ## Coding Style & Naming Conventions
+
 - Run the repo formatters/linters; do not hand-format.
 - Match existing naming and module layout.
 
 ## Testing Guidelines
+
 - Add tests for behavior changes and regressions.
 - Prefer fast unit tests; add integration tests for cross-module behavior.
 
 ## Commit & Pull Request Guidelines
+
 - Use concise, imperative commit subjects; link issues where applicable.
 - PRs must include: summary, rationale, and testing notes.
 

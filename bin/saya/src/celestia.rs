@@ -77,7 +77,9 @@ async fn blob_get(args: BlobGetArgs) -> Result<()> {
         .commitment
         .strip_prefix("0x")
         .unwrap_or(&args.commitment);
-    let commitment_bytes: [u8; 32] = hex::decode(commitment_hex)?.try_into().expect("Invalid commitment");
+    let commitment_bytes: [u8; 32] = hex::decode(commitment_hex)?
+        .try_into()
+        .expect("Invalid commitment");
     let commitment = Commitment::new(commitment_bytes);
 
     info!(
