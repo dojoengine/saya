@@ -1,0 +1,90 @@
+services:
+  katana_bootstrap:
+    image: ghcr.io/dojoengine/katana:latest
+    container_name: katana_bootstrap
+    command: ["katana", "--http.addr", "0.0.0.0"]
+    ports:
+      - "5050:5050"
+    networks: [saya_net]
+
+  saya_setup:
+    image: saya-runner:latest
+    container_name: saya_setup
+    depends_on:
+      - katana_bootstrap
+    environment:
+      SETTLEMENT_RPC_URL: http://katana_bootstrap:5050
+      OUT_JSON: /shared/out.json
+      PRIVATE_KEY_KATANA0: ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
+      ADDRESS_KATANA0: ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec}
+      SALT: ${SALT:-0x0}
+      CHAIN_ID: ${CHAIN_ID:-SN_SEPOLIA}
+    volumes:
+      - shared:/shared
+    networks: [saya_net]
+    restart: "no"
+  
+  katana_init:
+    image: ghcr.io/dojoengine/katana:v1.7.0-snos.4
+    container_name: katana_init
+    depends_on:
+      saya_setup:
+        condition: service_completed_successfully
+    volumes:
+      - shared:/shared
+    networks: [saya_net]
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        katana init \
+          --settlement-chain http://katana_bootstrap:5050 \
+          --output-path /shared/katana_config \
+          --id custom \
+          --settlement-contract 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --settlement-contract-deployed-block 4 \
+          --settlement-facts-registry 0x038ed8d01ce9ec815ac960183283bcfef1cf0ca3400369d7e27778508f591352
+  katana_l3:
+    image: ghcr.io/dojoengine/katana:v1.7.0-snos.4
+    container_name: katana_l3
+    depends_on:
+      katana_init:
+        condition: service_completed_successfully
+    volumes:
+      - shared:/shared
+    networks: [saya_net]
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    ports:
+      - "5051:5050"
+    command:
+      - |
+        katana --chain /shared/katana_config --http.addr 0.0.0.0
+
+  saya:
+    image: ghcr.io/dojoengine/saya:v0.2.2
+    container_name: saya
+    depends_on:
+      katana_bootstrap:
+        condition: service_started
+      katana_l3:
+        condition: service_started
+    networks: [saya_net]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sleep 5
+        saya persistent start \
+          --rollup-rpc http://katana_l3:5050 \
+          --settlement-rpc http://katana_bootstrap:5050  \
+          --settlement-piltover-address 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --settlement-account-private-key 0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912 \
+          --settlement-account-address 0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec \
+          --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
+          --mock-snos-from-pie
+
+networks:
+  saya_net: {}
+
+volumes:
+  shared: {}
