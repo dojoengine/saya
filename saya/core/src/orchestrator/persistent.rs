@@ -20,7 +20,7 @@ use crate::{
 const BLOCK_INGESTOR_BUFFER_SIZE: usize = 4;
 
 /// Size of the `StarkProof` channel.
-const PROOF_BUFFER_SIZE: usize = 4;
+const OUTPUT_BUFFER_SIZE: usize = 4;
 
 /// Size of the `DataAvailabilityCursor` channel.
 const DA_CURSOR_BUFFER_SIZE: usize = 4;
@@ -94,7 +94,7 @@ where
     ) -> Result<PersistentOrchestrator<I::Ingestor, P::Stage, D::Backend, S::Backend>> {
         let (new_block_tx, new_block_rx) =
             tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
-        let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<BlockInfo>(PROOF_BUFFER_SIZE);
+        let (output_tx, output_rx) = tokio::sync::mpsc::channel::<BlockInfo>(OUTPUT_BUFFER_SIZE);
         let (da_cursor_tx, da_cursor_rx) =
             tokio::sync::mpsc::channel::<DataAvailabilityCursor<BlockInfo>>(DA_CURSOR_BUFFER_SIZE);
         let (settle_cursor_tx, settle_cursor_rx) =
@@ -128,13 +128,13 @@ where
             .pipeline_builder
             .start_block(start_block)
             .input_channel(new_block_rx)
-            .output_channel(proof_tx)
+            .output_channel(output_tx)
             .build()
             .unwrap();
 
         let da = self
             .da_builder
-            .proof_channel(proof_rx)
+            .proof_channel(output_rx)
             .cursor_channel(da_cursor_tx)
             .build()
             .unwrap();

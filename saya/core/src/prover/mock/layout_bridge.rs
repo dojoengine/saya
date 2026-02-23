@@ -95,7 +95,7 @@ where
                 )
                 .await
                 .unwrap();
-            let new_proof = RecursiveProof {
+            let recursive_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
                 snos_output,
                 layout_bridge_proof: mock_proof,
@@ -105,14 +105,14 @@ where
                 "Mock proof generated for block #{}",
                 new_snos_proof.block_number
             );
-            let new_proof = BlockInfo {
-                number: new_proof.block_number,
+            let output = BlockInfo {
+                number: recursive_proof.block_number,
                 status: crate::storage::BlockStatus::BridgeProofGenerated,
                 state_update: Some(state_update),
             };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.output_channel.send(new_proof) => {},
+                _ = self.output_channel.send(output) => {},
             }
         }
 

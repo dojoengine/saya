@@ -23,7 +23,7 @@ use crate::{
 const BLOCK_INGESTOR_BUFFER_SIZE: usize = 1;
 
 /// Size of the `StarkProof` channel.
-const PROOF_BUFFER_SIZE: usize = 1;
+const OUTPUT_BUFFER_SIZE: usize = 1;
 
 /// Size of the `DataAvailabilityCursor` channel.
 const CURSOR_BUFFER_SIZE: usize = 1;
@@ -93,8 +93,8 @@ where
     ) -> Result<SovereignOrchestrator<I::Ingestor, P::Stage, D::Backend, S>> {
         let (new_block_tx, new_block_rx) =
             tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
-        let (proof_tx, proof_rx) =
-            tokio::sync::mpsc::channel::<SnosProof<StarkProof>>(PROOF_BUFFER_SIZE);
+        let (output_tx, output_rx) =
+            tokio::sync::mpsc::channel::<SnosProof<StarkProof>>(OUTPUT_BUFFER_SIZE);
         let (cursor_tx, cursor_rx) = tokio::sync::mpsc::channel::<
             DataAvailabilityCursor<SnosProof<StarkProof>>,
         >(CURSOR_BUFFER_SIZE);
@@ -134,12 +134,12 @@ where
             .pipeline_builder
             .start_block(start_block)
             .input_channel(new_block_rx)
-            .output_channel(proof_tx)
+            .output_channel(output_tx)
             .build()
             .unwrap();
 
         let da = da_builder
-            .proof_channel(proof_rx)
+            .proof_channel(output_rx)
             .cursor_channel(cursor_tx)
             .build()
             .unwrap();

@@ -156,13 +156,13 @@ where
                     )
                     .await?;
 
-                    let new_proof = BlockInfo {
+                    let output = BlockInfo {
                         number: new_snos_proof.block_number,
                         status: crate::storage::BlockStatus::SnosProofGenerated,
                         state_update: Some(state_update.clone()),
                     };
 
-                    task_tx.send(new_proof).await.unwrap();
+                    task_tx.send(output).await.unwrap();
                     continue;
                 }
                 Err(_) => {
@@ -327,7 +327,7 @@ where
                 "Atlantic layout bridge proof generation finished",
             );
 
-            let new_proof = BlockInfo {
+            let output = BlockInfo {
                 number: new_snos_proof.block_number,
                 status: crate::storage::BlockStatus::SnosProofGenerated,
                 state_update: Some(state_update.clone()),
@@ -335,7 +335,7 @@ where
 
             tokio::select! {
                 _ = finish_handle.shutdown_requested() => break,
-                _ = task_tx.send(new_proof) => {},
+                _ = task_tx.send(output) => {},
             }
         }
         Ok(())
