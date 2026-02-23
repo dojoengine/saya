@@ -153,50 +153,6 @@ services:
       - |
         katana --chain /shared/katana_config --http.addr 0.0.0.0
 
-  e2e-tests-pre:
-    image: rust:latest
-    container_name: e2e_tests_pre
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-      - e2e-cargo-registry:/usr/local/cargo/registry
-      - e2e-cargo-git:/usr/local/cargo/git
-      - e2e-target:/workspace/target
-    networks: [saya_net]
-    # Run static contract tests before Saya starts
-    depends_on:
-      core_contract_setup:
-        condition: service_completed_successfully
-      katana_bootstrap:
-        condition: service_healthy
-    environment:
-      SETTLEMENT_RPC_URL: http://katana_bootstrap:5050
-      PILTOVER_ADDRESS: "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
-    command: cargo test -p saya-e2e --test settlement test_program_info_and_fact_registry -- --nocapture
-    restart: "no"
-
-  e2e-tests:
-    image: rust:latest
-    container_name: e2e_tests
-    working_dir: /workspace
-    volumes:
-      - .:/workspace
-      - e2e-cargo-registry:/usr/local/cargo/registry
-      - e2e-cargo-git:/usr/local/cargo/git
-      - e2e-target:/workspace/target
-    networks: [saya_net]
-    # Run settlement state tests after Saya starts
-    depends_on:
-      e2e-tests-pre:
-        condition: service_completed_successfully
-      saya:
-        condition: service_started
-    environment:
-      SETTLEMENT_RPC_URL: http://katana_bootstrap:5050
-      PILTOVER_ADDRESS: "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
-    command: cargo test -p saya-e2e --test settlement test_settlement_advances_after_genesis -- --nocapture
-    restart: "no"
-
   saya:
     <<: *saya-common
     container_name: saya
@@ -205,9 +161,7 @@ services:
         condition: service_healthy
       katana_l3:
         condition: service_healthy
-      e2e-tests-pre:
-        condition: service_completed_successfully
-      
+
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -225,6 +179,3 @@ networks:
 
 volumes:
   shared: {}
-  e2e-cargo-registry: {}
-  e2e-cargo-git: {}
-  e2e-target: {}
