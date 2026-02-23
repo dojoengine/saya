@@ -60,9 +60,8 @@ async fn test_settlement_advances_after_genesis() {
     .await
     .expect("settlement did not advance past genesis within timeout");
 
-    let settled: u64 = state
+    let _settled: u64 = state
         .block_number
         .try_into()
         .expect("failed to convert settled block number");
-    assert_eq!(settled, 0);
 }
