@@ -22,7 +22,7 @@ use crate::{
             AtlanticProof,
         },
         error::ProverError,
-        Prover, ProverBuilder, SnosProof,
+        PipelineStage, PipelineStageBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
@@ -33,8 +33,8 @@ use crate::{
 #[derive(Debug)]
 pub struct AtlanticSnosProver<P, DB> {
     client: AtlanticClient,
-    statement_channel: Receiver<BlockInfo>,
-    proof_channel: Sender<SnosProof<P>>,
+    input_channel: Receiver<BlockInfo>,
+    output_channel: Sender<SnosProof<P>>,
     finish_handle: FinishHandle,
     /// Whether to extract the output and compute the program hash from the PIE or use the one from the SHARP bootloader returned by the prover service.
     mock_snos_from_pie: bool,
@@ -45,8 +45,8 @@ pub struct AtlanticSnosProver<P, DB> {
 #[derive(Debug)]
 pub struct AtlanticSnosProverBuilder<P, DB> {
     api_key: String,
-    statement_channel: Option<Receiver<BlockInfo>>,
-    proof_channel: Option<Sender<SnosProof<P>>>,
+    input_channel: Option<Receiver<BlockInfo>>,
+    output_channel: Option<Sender<SnosProof<P>>>,
     mock_snos_from_pie: bool,
     db: DB,
     worker_count: usize,
@@ -249,9 +249,9 @@ where
 
     async fn run(self) {
         let mut workers = Vec::new();
-        let task_rx = Arc::new(Mutex::new(self.statement_channel));
+        let task_rx = Arc::new(Mutex::new(self.input_channel));
         for _ in 0..self.worker_count {
-            let worker_task_tx = self.proof_channel.clone();
+            let worker_task_tx = self.output_channel.clone();
             workers.push(task::spawn(Self::worker(
                 task_rx.clone(),
                 worker_task_tx,
@@ -297,8 +297,8 @@ impl<P, DB> AtlanticSnosProverBuilder<P, DB> {
     pub fn new(api_key: String, mock_snos_from_pie: bool, db: DB, worker_count: usize) -> Self {
         Self {
             api_key,
-            statement_channel: None,
-            proof_channel: None,
+            input_channel: None,
+            output_channel: None,
             mock_snos_from_pie,
             db,
             worker_count,
@@ -306,22 +306,22 @@ impl<P, DB> AtlanticSnosProverBuilder<P, DB> {
     }
 }
 
-impl<P, DB> ProverBuilder for AtlanticSnosProverBuilder<P, DB>
+impl<P, DB> PipelineStageBuilder for AtlanticSnosProverBuilder<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AtlanticSnosProver<P, DB>;
+    type Stage = AtlanticSnosProver<P, DB>;
 
-    fn build(self) -> Result<Self::Prover> {
+    fn build(self) -> Result<Self::Stage> {
         Ok(AtlanticSnosProver {
             client: AtlanticClient::new(self.api_key),
-            statement_channel: self
-                .statement_channel
-                .ok_or_else(|| anyhow::anyhow!("`statement_channel` not set"))?,
-            proof_channel: self
-                .proof_channel
-                .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
+            input_channel: self
+                .input_channel
+                .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
+            output_channel: self
+                .output_channel
+                .ok_or_else(|| anyhow::anyhow!("`output_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             mock_snos_from_pie: self.mock_snos_from_pie,
             db: self.db,
@@ -329,24 +329,24 @@ where
         })
     }
 
-    fn statement_channel(mut self, statement_channel: Receiver<BlockInfo>) -> Self {
-        self.statement_channel = Some(statement_channel);
+    fn input_channel(mut self, input_channel: Receiver<BlockInfo>) -> Self {
+        self.input_channel = Some(input_channel);
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<SnosProof<P>>) -> Self {
-        self.proof_channel = Some(proof_channel);
+    fn output_channel(mut self, output_channel: Sender<SnosProof<P>>) -> Self {
+        self.output_channel = Some(output_channel);
         self
     }
 }
 
-impl<P, DB> Prover for AtlanticSnosProver<P, DB>
+impl<P, DB> PipelineStage for AtlanticSnosProver<P, DB>
 where
     P: AtlanticProof + Send + Sync + 'static,
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = BlockInfo;
-    type BlockInfo = SnosProof<P>;
+    type Input = BlockInfo;
+    type Output = SnosProof<P>;
 }
 
 impl<P, DB> Daemon for AtlanticSnosProver<P, DB>

@@ -8,16 +8,16 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::storage::PersistantStorage;
 use crate::{
-    prover::{Prover, ProverBuilder, RecursiveProof, SnosProof},
+    prover::{PipelineStage, PipelineStageBuilder, RecursiveProof, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
     utils::calculate_output,
 };
-/// Prover implementation as a client to the hosted [Mock Prover](https://atlanticprover.com/)
+/// Prover implementation as a client to the hosted [Mock Prover](https://docs.herodotus.cloud/atlantic-api/introduction)
 /// service.
 #[derive(Debug)]
 pub struct MockLayoutBridgeProver<DB> {
-    statement_channel: Receiver<SnosProof<String>>,
-    block_info_channel: Sender<BlockInfo>,
+    input_channel: Receiver<SnosProof<String>>,
+    output_channel: Sender<BlockInfo>,
     layout_bridge_program_hash: Felt,
     finish_handle: FinishHandle,
     db: DB,
@@ -25,8 +25,8 @@ pub struct MockLayoutBridgeProver<DB> {
 
 #[derive(Debug, Default)]
 pub struct MockLayoutBridgeProverBuilder<DB> {
-    statement_channel: Option<Receiver<SnosProof<String>>>,
-    block_info_channel: Option<Sender<BlockInfo>>,
+    input_channel: Option<Receiver<SnosProof<String>>>,
+    output_channel: Option<Sender<BlockInfo>>,
     layout_bridge_program_hash: Felt,
     db: DB,
 }
@@ -39,7 +39,7 @@ where
         loop {
             let new_snos_proof = tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
-                new_snos_proof = self.statement_channel.recv() => new_snos_proof,
+                new_snos_proof = self.input_channel.recv() => new_snos_proof,
             };
             // This should be fine for now as block ingestors wouldn't drop senders. This might
             // change in the future.
@@ -95,7 +95,7 @@ where
                 )
                 .await
                 .unwrap();
-            let new_proof = RecursiveProof {
+            let recursive_proof = RecursiveProof {
                 block_number: new_snos_proof.block_number,
                 snos_output,
                 layout_bridge_proof: mock_proof,
@@ -105,14 +105,14 @@ where
                 "Mock proof generated for block #{}",
                 new_snos_proof.block_number
             );
-            let new_proof = BlockInfo {
-                number: new_proof.block_number,
+            let output = BlockInfo {
+                number: recursive_proof.block_number,
                 status: crate::storage::BlockStatus::BridgeProofGenerated,
                 state_update: Some(state_update),
             };
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.block_info_channel.send(new_proof) => {},
+                _ = self.output_channel.send(output) => {},
             }
         }
 
@@ -124,51 +124,51 @@ where
 impl<DB> MockLayoutBridgeProverBuilder<DB> {
     pub fn new(layout_bridge_program_hash: Felt, db: DB) -> Self {
         Self {
-            statement_channel: None,
-            block_info_channel: None,
+            input_channel: None,
+            output_channel: None,
             layout_bridge_program_hash,
             db,
         }
     }
 }
 
-impl<DB> ProverBuilder for MockLayoutBridgeProverBuilder<DB>
+impl<DB> PipelineStageBuilder for MockLayoutBridgeProverBuilder<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = MockLayoutBridgeProver<DB>;
+    type Stage = MockLayoutBridgeProver<DB>;
 
-    fn build(self) -> Result<Self::Prover> {
+    fn build(self) -> Result<Self::Stage> {
         Ok(MockLayoutBridgeProver {
-            statement_channel: self
-                .statement_channel
-                .ok_or_else(|| anyhow::anyhow!("`statement_channel` not set"))?,
-            block_info_channel: self
-                .block_info_channel
-                .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
+            input_channel: self
+                .input_channel
+                .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
+            output_channel: self
+                .output_channel
+                .ok_or_else(|| anyhow::anyhow!("`output_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             layout_bridge_program_hash: self.layout_bridge_program_hash,
             db: self.db,
         })
     }
 
-    fn statement_channel(mut self, statement_channel: Receiver<SnosProof<String>>) -> Self {
-        self.statement_channel = Some(statement_channel);
+    fn input_channel(mut self, input_channel: Receiver<SnosProof<String>>) -> Self {
+        self.input_channel = Some(input_channel);
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
-        self.block_info_channel = Some(proof_channel);
+    fn output_channel(mut self, output_channel: Sender<BlockInfo>) -> Self {
+        self.output_channel = Some(output_channel);
         self
     }
 }
 
-impl<DB> Prover for MockLayoutBridgeProver<DB>
+impl<DB> PipelineStage for MockLayoutBridgeProver<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = SnosProof<String>;
-    type BlockInfo = BlockInfo;
+    type Input = SnosProof<String>;
+    type Output = BlockInfo;
 }
 
 impl<DB> Daemon for MockLayoutBridgeProver<DB>

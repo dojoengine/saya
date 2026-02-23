@@ -21,28 +21,60 @@ pub use atlantic::{
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
 mod recursive;
+
+mod snos_pie_generator;
+pub use snos_pie_generator::{SnosPieGenerator, SnosPieGeneratorBuilder};
+
+mod block_orderer;
+pub use block_orderer::{BlockOrderer, BlockOrdererBuilder};
+
 pub use atlantic::compress_pie;
 pub use atlantic::AtlanticClient;
-pub use recursive::{RecursiveProver, RecursiveProverBuilder};
+pub use recursive::{PipelineChain, PipelineChainBuilder};
 
 pub mod error;
 
-pub trait ProverBuilder {
-    type Prover: Prover;
-
-    fn build(self) -> Result<Self::Prover>;
-
-    fn statement_channel(
-        self,
-        block_channel: Receiver<<Self::Prover as Prover>::Statement>,
-    ) -> Self;
-
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self;
+/// Implemented by pipeline items that carry a block number.
+pub trait HasBlockNumber {
+    fn block_number(&self) -> u64;
 }
 
-pub trait Prover: Daemon {
-    type Statement;
-    type BlockInfo;
+impl HasBlockNumber for BlockInfo {
+    fn block_number(&self) -> u64 {
+        self.number
+    }
+}
+
+impl<P> HasBlockNumber for SnosProof<P> {
+    fn block_number(&self) -> u64 {
+        self.block_number
+    }
+}
+
+pub trait PipelineStageBuilder {
+    type Stage: PipelineStage;
+
+    fn build(self) -> Result<Self::Stage>;
+
+    fn input_channel(self, block_channel: Receiver<<Self::Stage as PipelineStage>::Input>) -> Self;
+
+    fn output_channel(self, output_channel: Sender<<Self::Stage as PipelineStage>::Output>)
+        -> Self;
+
+    /// Propagate the starting block number to interested stages (e.g. `BlockOrderer`).
+    ///
+    /// The default implementation is a no-op; stages that need `start_block` should override it.
+    fn start_block(self, _start_block: u64) -> Self
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
+
+pub trait PipelineStage: Daemon {
+    type Input;
+    type Output;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -9,7 +9,7 @@ use saya_core::{
     },
     prover::{
         AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, MockLayoutBridgeProver,
-        MockLayoutBridgeProverBuilder, Prover, ProverBuilder, SnosProof,
+        MockLayoutBridgeProverBuilder, PipelineStage, PipelineStageBuilder, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
     storage::PersistantStorage,
@@ -109,12 +109,12 @@ where
     }
 }
 
-impl<DB> Prover for AnyLayoutBridgeProver<DB>
+impl<DB> PipelineStage for AnyLayoutBridgeProver<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = SnosProof<String>;
-    type BlockInfo = BlockInfo;
+    type Input = SnosProof<String>;
+    type Output = BlockInfo;
 }
 
 impl<DB> Daemon for AnyLayoutBridgeProver<DB>
@@ -136,33 +136,33 @@ where
     }
 }
 
-impl<DB> ProverBuilder for AnyLayoutBridgeProverBuilder<DB>
+impl<DB> PipelineStageBuilder for AnyLayoutBridgeProverBuilder<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AnyLayoutBridgeProver<DB>;
+    type Stage = AnyLayoutBridgeProver<DB>;
 
-    fn build(self) -> Result<Self::Prover> {
+    fn build(self) -> Result<Self::Stage> {
         Ok(match self {
             Self::Atlantic(inner) => AnyLayoutBridgeProver::Atlantic(inner.build()?),
             Self::Mock(inner) => AnyLayoutBridgeProver::Mock(inner.build()?),
         })
     }
 
-    fn statement_channel(
-        self,
-        block_channel: Receiver<<Self::Prover as Prover>::Statement>,
-    ) -> Self {
+    fn input_channel(self, block_channel: Receiver<<Self::Stage as PipelineStage>::Input>) -> Self {
         match self {
-            Self::Atlantic(inner) => Self::Atlantic(inner.statement_channel(block_channel)),
-            Self::Mock(inner) => Self::Mock(inner.statement_channel(block_channel)),
+            Self::Atlantic(inner) => Self::Atlantic(inner.input_channel(block_channel)),
+            Self::Mock(inner) => Self::Mock(inner.input_channel(block_channel)),
         }
     }
 
-    fn proof_channel(self, proof_channel: Sender<<Self::Prover as Prover>::BlockInfo>) -> Self {
+    fn output_channel(
+        self,
+        output_channel: Sender<<Self::Stage as PipelineStage>::Output>,
+    ) -> Self {
         match self {
-            Self::Atlantic(inner) => Self::Atlantic(inner.proof_channel(proof_channel)),
-            Self::Mock(inner) => Self::Mock(inner.proof_channel(proof_channel)),
+            Self::Atlantic(inner) => Self::Atlantic(inner.output_channel(output_channel)),
+            Self::Mock(inner) => Self::Mock(inner.output_channel(output_channel)),
         }
     }
 }
