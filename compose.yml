@@ -40,7 +40,7 @@ services:
     command:
       - |
         WAITED=0; until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do
-          WAITED=$((WAITED+1)); [ "$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
+          WAITED=$$((WAITED+1)); [ "$$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
         done
         saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
@@ -60,7 +60,7 @@ services:
     command:
       - |
         WAITED=0; until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do
-          WAITED=$((WAITED+1)); [ "$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
+          WAITED=$$((WAITED+1)); [ "$$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
         done
         saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
