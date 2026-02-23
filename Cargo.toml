@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "saya/core",
     "bin/saya",
+    "tests/e2e",
 ]
 
 [workspace.package]

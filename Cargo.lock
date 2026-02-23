@@ -6294,6 +6294,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "saya-e2e"
+version = "0.2.2"
+dependencies = [
+ "anyhow",
+ "piltover",
+ "starknet 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "starknet-types-core 0.2.4",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
