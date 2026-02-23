@@ -162,7 +162,6 @@ services:
       - e2e-cargo-registry:/usr/local/cargo/registry
       - e2e-cargo-git:/usr/local/cargo/git
       - e2e-target:/workspace/target
-    dns: 127.0.0.11
     networks: [saya_net]
     # Run static contract tests before Saya starts
     depends_on:
@@ -185,7 +184,6 @@ services:
       - e2e-cargo-registry:/usr/local/cargo/registry
       - e2e-cargo-git:/usr/local/cargo/git
       - e2e-target:/workspace/target
-    dns: 127.0.0.11
     networks: [saya_net]
     # Run settlement state tests after Saya starts
     depends_on:
