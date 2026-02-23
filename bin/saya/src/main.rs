@@ -12,6 +12,9 @@ use sovereign::Sovereign;
 mod persistent;
 use persistent::Persistent;
 
+mod persistent_tee;
+use persistent_tee::PersistentTee;
+
 mod sharding;
 use sharding::Sharding;
 
@@ -41,6 +44,9 @@ enum Subcommands {
     /// Run and manage Saya in persistent L3 mode where proofs are settled in a "base layer"
     /// network.
     Persistent(Persistent),
+    /// Run and manage Saya in persistent TEE mode where blocks are proved inside a trusted
+    /// execution environment and settled in a "base layer" network.
+    PersistentTee(PersistentTee),
     /// Run and manage Saya in sharding mode.
     Sharding(Sharding),
     /// Core contract utilities for deployment and management.
@@ -63,6 +69,7 @@ async fn main() -> Result<()> {
     match cli.command {
         Subcommands::Sovereign(cmd) => cmd.run().await,
         Subcommands::Persistent(cmd) => cmd.run().await,
+        Subcommands::PersistentTee(cmd) => cmd.run().await,
         Subcommands::Sharding(cmd) => cmd.run().await,
         Subcommands::CoreContract(cmd) => cmd.run().await,
         Subcommands::Celestia(cmd) => cmd.run().await,

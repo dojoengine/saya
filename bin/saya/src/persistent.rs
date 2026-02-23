@@ -10,7 +10,7 @@ use saya_core::{
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
         AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
-        MockLayoutBridgeProverBuilder, RecursiveProverBuilder,
+        MockLayoutBridgeProverBuilder, RecursiveProverBuilder, SnosPieGeneratorBuilder,
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
@@ -189,6 +189,12 @@ impl Start {
         // TODO: make impls of these providers configurable
 
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.rollup_rpc.clone(),
+            db.clone(),
+            ingestor_worker_count,
+        );
+
+        let pie_gen_builder = SnosPieGeneratorBuilder::new(
             self.rollup_rpc,
             db.clone(),
             ingestor_worker_count,
@@ -201,13 +207,16 @@ impl Start {
         );
 
         let prover_builder = RecursiveProverBuilder::new(
-            AtlanticSnosProverBuilder::new(
-                atlantic_key,
-                self.mock_snos_from_pie,
-                db.clone(),
-                snos_worker_count,
+            pie_gen_builder,
+            RecursiveProverBuilder::new(
+                AtlanticSnosProverBuilder::new(
+                    atlantic_key,
+                    self.mock_snos_from_pie,
+                    db.clone(),
+                    snos_worker_count,
+                ),
+                layout_bridge_prover_builder,
             ),
-            layout_bridge_prover_builder,
         );
 
         let da_builder = if let (Some(celestia_rpc), Some(celestia_token)) =

@@ -21,6 +21,9 @@ pub use atlantic::{
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
 mod recursive;
+
+mod snos_pie_generator;
+pub use snos_pie_generator::{SnosPieGenerator, SnosPieGeneratorBuilder};
 pub use atlantic::compress_pie;
 pub use atlantic::AtlanticClient;
 pub use recursive::{RecursiveProver, RecursiveProverBuilder};
