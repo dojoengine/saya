@@ -27,7 +27,8 @@ services:
       test: ["CMD-SHELL", "curl -sf http://localhost:5050 || exit 1"]
       interval: 2s
       timeout: 5s
-      retries: 10
+      retries: 30
+      start_period: 10s
 
   fact-registry-setup:
     <<: *saya-common
@@ -38,7 +39,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do sleep 1; done
+        WAITED=0; until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do
+          WAITED=$((WAITED+1)); [ "$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
+        done
         saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
@@ -56,7 +59,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do sleep 1; done
+        WAITED=0; until curl -sf http://katana_bootstrap:5050 >/dev/null 2>&1; do
+          WAITED=$((WAITED+1)); [ "$WAITED" -ge 60 ] && echo "ERROR: katana_bootstrap not reachable after 60s" && exit 1; sleep 1
+        done
         saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
