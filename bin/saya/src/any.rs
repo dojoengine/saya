@@ -149,17 +149,17 @@ where
         })
     }
 
-    fn input_channel(
-        self,
-        block_channel: Receiver<<Self::Stage as PipelineStage>::Input>,
-    ) -> Self {
+    fn input_channel(self, block_channel: Receiver<<Self::Stage as PipelineStage>::Input>) -> Self {
         match self {
             Self::Atlantic(inner) => Self::Atlantic(inner.input_channel(block_channel)),
             Self::Mock(inner) => Self::Mock(inner.input_channel(block_channel)),
         }
     }
 
-    fn output_channel(self, output_channel: Sender<<Self::Stage as PipelineStage>::Output>) -> Self {
+    fn output_channel(
+        self,
+        output_channel: Sender<<Self::Stage as PipelineStage>::Output>,
+    ) -> Self {
         match self {
             Self::Atlantic(inner) => Self::Atlantic(inner.output_channel(output_channel)),
             Self::Mock(inner) => Self::Mock(inner.output_channel(output_channel)),

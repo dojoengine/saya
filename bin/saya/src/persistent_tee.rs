@@ -3,11 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
-    block_ingestor::PollingBlockIngestorBuilder,
-    orchestrator::PersistentTeeOrchestratorBuilder,
-    service::Daemon,
-    settlement::PiltoverSettlementBackendBuilder,
-    storage::SqliteDb,
+    block_ingestor::PollingBlockIngestorBuilder, orchestrator::PersistentTeeOrchestratorBuilder,
+    service::Daemon, settlement::PiltoverSettlementBackendBuilder, storage::SqliteDb,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -71,11 +68,8 @@ impl Start {
 
         let db = SqliteDb::new(&saya_path).await?;
 
-        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
-            self.rollup_rpc,
-            db.clone(),
-            self.ingestor_workers,
-        );
+        let block_ingestor_builder =
+            PollingBlockIngestorBuilder::new(self.rollup_rpc, db.clone(), self.ingestor_workers);
 
         // In TEE mode the proof is attested inside the enclave; on-chain fact registration via
         // the integrity verifier is not required.

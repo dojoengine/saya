@@ -50,31 +50,23 @@ where
         let (bridge_tx, bridge_rx) = tokio::sync::mpsc::channel::<I>(BRIDGE_BUFFER_SIZE);
 
         Ok(PipelineChain {
-            upstream: self
-                .upstream_builder
-                .output_channel(bridge_tx)
-                .build()?,
-            downstream: self
-                .downstream_builder
-                .input_channel(bridge_rx)
-                .build()?,
+            upstream: self.upstream_builder.output_channel(bridge_tx).build()?,
+            downstream: self.downstream_builder.input_channel(bridge_rx).build()?,
             finish_handle: FinishHandle::new(),
         })
     }
 
-    fn input_channel(
-        self,
-        block_channel: Receiver<<Self::Stage as PipelineStage>::Input>,
-    ) -> Self {
+    fn input_channel(self, block_channel: Receiver<<Self::Stage as PipelineStage>::Input>) -> Self {
         Self {
-            upstream_builder: self
-                .upstream_builder
-                .input_channel(block_channel),
+            upstream_builder: self.upstream_builder.input_channel(block_channel),
             downstream_builder: self.downstream_builder,
         }
     }
 
-    fn output_channel(self, output_channel: Sender<<Self::Stage as PipelineStage>::Output>) -> Self {
+    fn output_channel(
+        self,
+        output_channel: Sender<<Self::Stage as PipelineStage>::Output>,
+    ) -> Self {
         Self {
             upstream_builder: self.upstream_builder,
             downstream_builder: self.downstream_builder.output_channel(output_channel),

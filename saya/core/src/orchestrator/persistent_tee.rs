@@ -59,7 +59,10 @@ struct PersistentTeeOrchestratorState {
 
 impl<I, S> PersistentTeeOrchestratorBuilder<I, S> {
     pub fn new(ingestor_builder: I, settlement_builder: S) -> Self {
-        Self { ingestor_builder, settlement_builder }
+        Self {
+            ingestor_builder,
+            settlement_builder,
+        }
     }
 }
 

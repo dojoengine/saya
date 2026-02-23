@@ -159,8 +159,7 @@ where
             match self.get_latest_block().await {
                 Some(latest_block) if latest_block >= self.current_block => {
                     if let Ok(mut failed_blocks) = self.db.get_failed_blocks().await {
-                        let block_ids: Vec<u32> =
-                            failed_blocks.iter().map(|(id, _)| *id).collect();
+                        let block_ids: Vec<u32> = failed_blocks.iter().map(|(id, _)| *id).collect();
                         for (block_id, _) in failed_blocks.drain(..) {
                             if task_tx.send(block_id as u64).await.is_err() {
                                 return;

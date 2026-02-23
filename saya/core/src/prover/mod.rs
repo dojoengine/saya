@@ -56,12 +56,10 @@ pub trait PipelineStageBuilder {
 
     fn build(self) -> Result<Self::Stage>;
 
-    fn input_channel(
-        self,
-        block_channel: Receiver<<Self::Stage as PipelineStage>::Input>,
-    ) -> Self;
+    fn input_channel(self, block_channel: Receiver<<Self::Stage as PipelineStage>::Input>) -> Self;
 
-    fn output_channel(self, output_channel: Sender<<Self::Stage as PipelineStage>::Output>) -> Self;
+    fn output_channel(self, output_channel: Sender<<Self::Stage as PipelineStage>::Output>)
+        -> Self;
 
     /// Propagate the starting block number to interested stages (e.g. `BlockOrderer`).
     ///

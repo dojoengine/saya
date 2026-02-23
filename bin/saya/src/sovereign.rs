@@ -6,7 +6,10 @@ use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
-    prover::{AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder, SnosPieGeneratorBuilder},
+    prover::{
+        AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder,
+        SnosPieGeneratorBuilder,
+    },
     service::Daemon,
     storage::{InMemoryStorageBackend, SqliteDb},
     ChainId, OsHintsConfiguration,
