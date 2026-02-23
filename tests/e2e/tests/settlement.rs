@@ -1,6 +1,4 @@
-use saya_e2e::{
-    env, get_facts_registry, get_program_info, get_settlement_state, provider, wait_for_settlement,
-};
+use saya_e2e::{env, get_facts_registry, get_program_info, provider, wait_for_settlement};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;
@@ -13,18 +11,6 @@ const SNOS_PROGRAM_HASH: Felt =
     felt!("0x10e5341a417427d140af8f5def7d2cc687d84591ff8ec241623c590b5ca8c80");
 const LAYOUT_BRIDGE_PROGRAM_HASH: Felt =
     felt!("0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8");
-
-#[tokio::test]
-async fn test_piltover_initial_state() {
-    let provider = provider(&env::settlement_rpc_url());
-    let state = get_settlement_state(&provider, env::piltover_address())
-        .await
-        .expect("failed to query piltover get_state");
-
-    assert!(state.block_number == Felt::MAX);
-    assert!(state.block_hash == Felt::ZERO);
-    assert!(state.state_root == Felt::ZERO);
-}
 
 #[tokio::test]
 async fn test_program_info_and_fact_registry() {

@@ -32,9 +32,7 @@ jobs:
 
       - name: Wait for saya to start
         run: |
-          echo "Waiting for saya container to start..."
           timeout 120 bash -c 'until docker ps --filter name=^saya$ --filter status=running --format "{{.Names}}" | grep -q saya; do sleep 2; done'
-          echo "saya is running"
 
       - name: Run E2E tests
         run: cargo test -p saya-e2e --test settlement -- --nocapture
