@@ -38,7 +38,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        sleep 2 && saya core-contract \
+        sleep 10 && saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
           --settlement-chain-id ${CHAIN_ID:-KATANA} \
@@ -55,7 +55,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        sleep 2 && saya core-contract \
+        sleep 10 && saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
           --settlement-chain-id ${CHAIN_ID:-KATANA} \
@@ -71,7 +71,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        sleep 2 && saya core-contract \
+        sleep 10 && saya core-contract \
           --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
           --settlement-chain-id ${CHAIN_ID:-KATANA} \
@@ -87,24 +87,18 @@ services:
         condition: service_completed_successfully
       fact-registry-setup:
         condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - saya
-      - core-contract
-      - --private-key
-      - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
-      - --account-address
-      - ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec}
-      - --settlement-chain-id
-      - ${CHAIN_ID:-KATANA}
-      - --settlement-rpc-url
-      - http://katana_bootstrap:5050
-      - setup-program
-      - --core-contract-address
-      - "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
-      - --chain-id
-      - custom
-      - --fact-registry-address
-      - "0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd"
+      - |
+        saya core-contract \
+          --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
+          --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
+          --settlement-chain-id ${CHAIN_ID:-KATANA} \
+          --settlement-rpc-url http://katana_bootstrap:5050 \
+          setup-program \
+          --core-contract-address 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --chain-id custom \
+          --fact-registry-address 0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd
 
   katana_init:
     <<: *katana-common
