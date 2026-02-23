@@ -35,20 +35,16 @@ services:
     depends_on:
       katana_bootstrap:
         condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - saya
-      - core-contract
-      - --private-key
-      - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
-      - --account-address
-      - ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec}
-      - --settlement-chain-id
-      - ${CHAIN_ID:-KATANA}
-      - --settlement-rpc-url
-      - http://katana_bootstrap:5050
-      - declare-and-deploy-fact-registry-mock
-      - --salt
-      - "0x0"
+      - |
+        sleep 2 && saya core-contract \
+          --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
+          --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
+          --settlement-chain-id ${CHAIN_ID:-KATANA} \
+          --settlement-rpc-url http://katana_bootstrap:5050 \
+          declare-and-deploy-fact-registry-mock \
+          --salt 0x0
 
   core_contract_declare:
     <<: *saya-common
@@ -56,18 +52,15 @@ services:
     depends_on:
       katana_bootstrap:
         condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - saya
-      - core-contract
-      - --private-key
-      - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
-      - --account-address
-      - ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec}
-      - --settlement-chain-id
-      - ${CHAIN_ID:-KATANA}
-      - --settlement-rpc-url
-      - http://katana_bootstrap:5050
-      - declare
+      - |
+        sleep 2 && saya core-contract \
+          --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
+          --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
+          --settlement-chain-id ${CHAIN_ID:-KATANA} \
+          --settlement-rpc-url http://katana_bootstrap:5050 \
+          declare
 
   core_contract_deploy:
     <<: *saya-common
@@ -75,20 +68,16 @@ services:
     depends_on:
       core_contract_declare:
         condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      - saya
-      - core-contract
-      - --private-key
-      - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
-      - --account-address
-      - ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec}
-      - --settlement-chain-id
-      - ${CHAIN_ID:-KATANA}
-      - --settlement-rpc-url
-      - http://katana_bootstrap:5050
-      - deploy
-      - --salt
-      - "0x0"
+      - |
+        sleep 2 && saya core-contract \
+          --private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
+          --account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
+          --settlement-chain-id ${CHAIN_ID:-KATANA} \
+          --settlement-rpc-url http://katana_bootstrap:5050 \
+          deploy \
+          --salt 0x0
 
   core_contract_setup:
     <<: *saya-common

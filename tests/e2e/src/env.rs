@@ -3,8 +3,7 @@ use starknet::core::types::Felt;
 /// RPC URL of the settlement (L2) chain.
 /// Defaults to the port exposed by `katana_bootstrap` in `compose.yml`.
 pub fn settlement_rpc_url() -> String {
-    std::env::var("SETTLEMENT_RPC_URL")
-        .unwrap_or_else(|_| "http://localhost:5050".to_string())
+    std::env::var("SETTLEMENT_RPC_URL").unwrap_or_else(|_| "http://localhost:5050".to_string())
 }
 
 /// Address of the deployed piltover core contract.

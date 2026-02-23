@@ -29,7 +29,11 @@ pub async fn get_settlement_state(
             .call()
             .await?;
 
-    Ok(AppchainState { state_root, block_number, block_hash })
+    Ok(AppchainState {
+        state_root,
+        block_number,
+        block_hash,
+    })
 }
 
 /// Query the piltover contract for the configured program info.
@@ -37,13 +41,11 @@ pub async fn get_program_info(
     provider: &JsonRpcClient<HttpTransport>,
     piltover_address: Felt,
 ) -> Result<ProgramInfo> {
-    Ok(
-        AppchainContractReader::new(piltover_address, provider)
-            .with_block(BlockId::Tag(BlockTag::Latest))
-            .get_program_info()
-            .call()
-            .await?,
-    )
+    Ok(AppchainContractReader::new(piltover_address, provider)
+        .with_block(BlockId::Tag(BlockTag::Latest))
+        .get_program_info()
+        .call()
+        .await?)
 }
 
 /// Query the piltover contract for the configured fact registry address.
@@ -95,5 +97,7 @@ pub async fn wait_for_settlement(
 
 /// Build a JSON-RPC provider from a URL string.
 pub fn provider(url: &str) -> JsonRpcClient<HttpTransport> {
-    JsonRpcClient::new(HttpTransport::new(url.parse::<url::Url>().expect("invalid RPC URL")))
+    JsonRpcClient::new(HttpTransport::new(
+        url.parse::<url::Url>().expect("invalid RPC URL"),
+    ))
 }

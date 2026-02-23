@@ -39,17 +39,22 @@ async fn test_program_info_and_fact_registry() {
         .await
         .expect("failed to query piltover get_facts_registry");
 
-    let chain_id = cairo_short_string_to_felt(&env::chain_id())
-        .expect("invalid chain id for test");
+    let chain_id = cairo_short_string_to_felt(&env::chain_id()).expect("invalid chain id for test");
     let snos_config_hash = compute_hash_on_elements(&[
         short_string!("StarknetOsConfig3"),
         chain_id,
         env::fee_token_address(),
     ]);
 
-    assert_eq!(program_info.bootloader_program_hash, BOOTLOADER_PROGRAM_HASH);
+    assert_eq!(
+        program_info.bootloader_program_hash,
+        BOOTLOADER_PROGRAM_HASH
+    );
     assert_eq!(program_info.snos_program_hash, SNOS_PROGRAM_HASH);
-    assert_eq!(program_info.layout_bridge_program_hash, LAYOUT_BRIDGE_PROGRAM_HASH);
+    assert_eq!(
+        program_info.layout_bridge_program_hash,
+        LAYOUT_BRIDGE_PROGRAM_HASH
+    );
     assert_eq!(program_info.snos_config_hash, snos_config_hash);
     assert_eq!(facts_registry, env::fact_registry_address());
 }
