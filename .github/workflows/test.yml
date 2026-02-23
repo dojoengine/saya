@@ -39,4 +39,4 @@ jobs:
 
       - name: "Cargo test"
         run: |
-          cargo test --workspace --all-features
+          cargo test --workspace --all-features --exclude saya-e2e

@@ -1,0 +1,59 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e-settlement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: "1.87"
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Start infrastructure
+        run: docker compose up -d
+        env:
+          PRIVATE_KEY_KATANA0: ${{ secrets.PRIVATE_KEY_KATANA0 || '0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912' }}
+          ADDRESS_KATANA0: ${{ secrets.ADDRESS_KATANA0 || '0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec' }}
+          CHAIN_ID: 'custom'
+
+      - name: Wait for saya to start
+        run: |
+          timeout 120 bash -c 'until docker ps --filter name=^saya$ --filter status=running --format "{{.Names}}" | grep -q saya; do sleep 2; done'
+
+      - name: Run E2E tests
+        run: cargo test -p saya-e2e --test settlement -- --nocapture
+        env:
+          SETTLEMENT_RPC_URL: http://localhost:5050
+          PILTOVER_ADDRESS: "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          docker compose logs > /tmp/compose-logs.txt
+          docker compose ps
+          cat /tmp/compose-logs.txt
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-logs
+          path: /tmp/compose-logs.txt
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
