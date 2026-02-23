@@ -1,5 +1,6 @@
 x-saya-common: &saya-common
   image: ghcr.io/dojoengine/saya:v0.2.2
+  dns: 127.0.0.11
   environment:
     OUT_JSON: /shared/out.json
   volumes:
@@ -9,6 +10,7 @@ x-saya-common: &saya-common
 
 x-katana-common: &katana-common
   image: ghcr.io/dojoengine/katana:v1.7.0-snos.4
+  dns: 127.0.0.11
   volumes:
     - shared:/shared
   networks: [saya_net]
@@ -22,6 +24,7 @@ services:
     command: ["katana", "--http.addr", "0.0.0.0"]
     ports:
       - "5050:5050"
+    dns: 127.0.0.11
     networks: [saya_net]
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:5050 || exit 1"]
@@ -159,6 +162,7 @@ services:
       - e2e-cargo-registry:/usr/local/cargo/registry
       - e2e-cargo-git:/usr/local/cargo/git
       - e2e-target:/workspace/target
+    dns: 127.0.0.11
     networks: [saya_net]
     # Run static contract tests before Saya starts
     depends_on:
@@ -181,6 +185,7 @@ services:
       - e2e-cargo-registry:/usr/local/cargo/registry
       - e2e-cargo-git:/usr/local/cargo/git
       - e2e-target:/workspace/target
+    dns: 127.0.0.11
     networks: [saya_net]
     # Run settlement state tests after Saya starts
     depends_on:
