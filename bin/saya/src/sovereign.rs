@@ -6,7 +6,7 @@ use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
-    prover::{AtlanticSnosProverBuilder, RecursiveProverBuilder, SnosPieGeneratorBuilder},
+    prover::{AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder, SnosPieGeneratorBuilder},
     service::Daemon,
     storage::{InMemoryStorageBackend, SqliteDb},
     ChainId, OsHintsConfiguration,
@@ -133,14 +133,17 @@ impl Start {
             ChainId::Other(chain_id),
         );
 
-        let prover_builder = RecursiveProverBuilder::new(
-            pie_gen_builder,
-            AtlanticSnosProverBuilder::new(
-                self.atlantic_key,
-                self.mock_snos_from_pie,
-                db.clone(),
-                snos_worker_count,
+        let pipeline_builder = PipelineChainBuilder::new(
+            PipelineChainBuilder::new(
+                pie_gen_builder,
+                AtlanticSnosProverBuilder::new(
+                    self.atlantic_key,
+                    self.mock_snos_from_pie,
+                    db.clone(),
+                    snos_worker_count,
+                ),
             ),
+            BlockOrdererBuilder::new(),
         );
         let da_builder = CelestiaDataAvailabilityBackendBuilder::new(
             self.celestia_rpc,
@@ -152,7 +155,7 @@ impl Start {
 
         let orchestrator = SovereignOrchestratorBuilder::new(
             block_ingestor_builder,
-            prover_builder,
+            pipeline_builder,
             da_builder,
             storage,
             self.genesis.into(),

@@ -9,7 +9,7 @@ use crate::{
             snos::compress_pie,
         },
         error::ProverError,
-        Prover, ProverBuilder, SnosProof,
+        PipelineStage, PipelineStageBuilder, SnosProof,
     },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
@@ -27,8 +27,8 @@ use tokio::sync::{
 pub struct AtlanticLayoutBridgeProver<DB> {
     client: AtlanticClient,
     layout_bridge: Cow<'static, [u8]>,
-    statement_channel: Receiver<SnosProof<String>>,
-    proof_channel: Sender<BlockInfo>,
+    input_channel: Receiver<SnosProof<String>>,
+    output_channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
     db: DB,
     workers_count: usize,
@@ -38,8 +38,8 @@ pub struct AtlanticLayoutBridgeProver<DB> {
 pub struct AtlanticLayoutBridgeProverBuilder<DB> {
     api_key: String,
     layout_bridge: Cow<'static, [u8]>,
-    statement_channel: Option<Receiver<SnosProof<String>>>,
-    proof_channel: Option<Sender<BlockInfo>>,
+    input_channel: Option<Receiver<SnosProof<String>>>,
+    output_channel: Option<Sender<BlockInfo>>,
     db: DB,
     workers_count: usize,
 }
@@ -343,10 +343,10 @@ where
 
     async fn run(self) {
         let mut workers = Vec::new();
-        let task_rx = Arc::new(Mutex::new(self.statement_channel));
+        let task_rx = Arc::new(Mutex::new(self.input_channel));
         for _ in 0..self.workers_count {
             let worker_task_rx = task_rx.clone();
-            let task_tx = self.proof_channel.clone();
+            let task_tx = self.output_channel.clone();
             let client = self.client.clone();
             let layout_bridge = self.layout_bridge.clone();
             let finish_handle = self.finish_handle.clone();
@@ -375,53 +375,53 @@ impl<DB> AtlanticLayoutBridgeProverBuilder<DB> {
         Self {
             api_key,
             layout_bridge: layout_bridge.into(),
-            statement_channel: None,
-            proof_channel: None,
+            input_channel: None,
+            output_channel: None,
             db,
             workers_count,
         }
     }
 }
 
-impl<DB> ProverBuilder for AtlanticLayoutBridgeProverBuilder<DB>
+impl<DB> PipelineStageBuilder for AtlanticLayoutBridgeProverBuilder<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = AtlanticLayoutBridgeProver<DB>;
+    type Stage = AtlanticLayoutBridgeProver<DB>;
 
-    fn build(self) -> Result<Self::Prover> {
+    fn build(self) -> Result<Self::Stage> {
         Ok(AtlanticLayoutBridgeProver {
             client: AtlanticClient::new(self.api_key),
             layout_bridge: self.layout_bridge,
-            statement_channel: self
-                .statement_channel
-                .ok_or_else(|| anyhow::anyhow!("`statement_channel` not set"))?,
-            proof_channel: self
-                .proof_channel
-                .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
+            input_channel: self
+                .input_channel
+                .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
+            output_channel: self
+                .output_channel
+                .ok_or_else(|| anyhow::anyhow!("`output_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             db: self.db,
             workers_count: self.workers_count,
         })
     }
 
-    fn statement_channel(mut self, statement_channel: Receiver<SnosProof<String>>) -> Self {
-        self.statement_channel = Some(statement_channel);
+    fn input_channel(mut self, input_channel: Receiver<SnosProof<String>>) -> Self {
+        self.input_channel = Some(input_channel);
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
-        self.proof_channel = Some(proof_channel);
+    fn output_channel(mut self, output_channel: Sender<BlockInfo>) -> Self {
+        self.output_channel = Some(output_channel);
         self
     }
 }
 
-impl<DB> Prover for AtlanticLayoutBridgeProver<DB>
+impl<DB> PipelineStage for AtlanticLayoutBridgeProver<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = SnosProof<String>;
-    type BlockInfo = BlockInfo;
+    type Input = SnosProof<String>;
+    type Output = BlockInfo;
 }
 
 impl<DB> Daemon for AtlanticLayoutBridgeProver<DB>

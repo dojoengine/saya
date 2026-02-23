@@ -9,8 +9,8 @@ use saya_core::{
     },
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
-        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder,
-        MockLayoutBridgeProverBuilder, RecursiveProverBuilder, SnosPieGeneratorBuilder,
+        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, BlockOrdererBuilder,
+        MockLayoutBridgeProverBuilder, PipelineChainBuilder, SnosPieGeneratorBuilder,
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
@@ -154,7 +154,7 @@ impl Start {
 
         let mut atlantic_key: String = String::new();
         let db = SqliteDb::new(&saya_path).await?;
-        let layout_bridge_prover_builder =
+        let layout_bridge_pipeline_builder =
             match (self.mock_layout_bridge_program_hash, self.layout_bridge_program) {
                 // We don't need the `layout_bridge` program in this case but it's okay if it's given.
                 (Some(mock_layout_bridge_program_hash), _) => {
@@ -206,17 +206,20 @@ impl Start {
             ChainId::Other(rollup_chain_id),
         );
 
-        let prover_builder = RecursiveProverBuilder::new(
-            pie_gen_builder,
-            RecursiveProverBuilder::new(
-                AtlanticSnosProverBuilder::new(
-                    atlantic_key,
-                    self.mock_snos_from_pie,
-                    db.clone(),
-                    snos_worker_count,
+        let pipeline_builder = PipelineChainBuilder::new(
+            PipelineChainBuilder::new(
+                pie_gen_builder,
+                PipelineChainBuilder::new(
+                    AtlanticSnosProverBuilder::new(
+                        atlantic_key,
+                        self.mock_snos_from_pie,
+                        db.clone(),
+                        snos_worker_count,
+                    ),
+                    layout_bridge_pipeline_builder,
                 ),
-                layout_bridge_prover_builder,
             ),
+            BlockOrdererBuilder::new(),
         );
 
         let da_builder = if let (Some(celestia_rpc), Some(celestia_token)) =
@@ -260,7 +263,7 @@ impl Start {
 
         let orchestrator = PersistentOrchestratorBuilder::new(
             block_ingestor_builder,
-            prover_builder,
+            pipeline_builder,
             da_builder,
             settlement_builder,
         )

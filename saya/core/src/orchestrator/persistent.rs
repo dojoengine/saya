@@ -7,7 +7,7 @@ use crate::{
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,
     },
-    prover::{Prover, ProverBuilder},
+    prover::{PipelineStage, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
 };
@@ -41,7 +41,7 @@ const SETTLE_CURSOR_BUFFER_SIZE: usize = 4;
 pub struct PersistentOrchestrator<I, P, D, S> {
     cursor_channel: Receiver<SettlementCursor>,
     ingestor: I,
-    prover: P,
+    pipeline: P,
     da: D,
     settlement: S,
     finish_handle: FinishHandle,
@@ -50,7 +50,7 @@ pub struct PersistentOrchestrator<I, P, D, S> {
 #[derive(Debug)]
 pub struct PersistentOrchestratorBuilder<I, P, D, S> {
     ingestor_builder: I,
-    prover_builder: P,
+    pipeline_builder: P,
     da_builder: D,
     settlement_builder: S,
 }
@@ -58,7 +58,7 @@ pub struct PersistentOrchestratorBuilder<I, P, D, S> {
 struct PersistentOrchestratorState {
     cursor_channel: Receiver<SettlementCursor>,
     ingestor_handle: ShutdownHandle,
-    prover_handle: ShutdownHandle,
+    pipeline_handle: ShutdownHandle,
     da_handle: ShutdownHandle,
     settlement_handle: ShutdownHandle,
     finish_handle: FinishHandle,
@@ -67,13 +67,13 @@ struct PersistentOrchestratorState {
 impl<I, P, D, S> PersistentOrchestratorBuilder<I, P, D, S> {
     pub fn new(
         ingestor_builder: I,
-        prover_builder: P,
+        pipeline_builder: P,
         da_builder: D,
         settlement_builder: S,
     ) -> Self {
         Self {
             ingestor_builder,
-            prover_builder,
+            pipeline_builder,
             da_builder,
             settlement_builder,
         }
@@ -83,15 +83,15 @@ impl<I, P, D, S> PersistentOrchestratorBuilder<I, P, D, S> {
 impl<I, P, PV, D, DB, S> PersistentOrchestratorBuilder<I, P, D, S>
 where
     I: BlockIngestorBuilder + Send,
-    P: ProverBuilder<Prover = PV> + Send,
-    PV: Prover<Statement = BlockInfo, BlockInfo = BlockInfo>,
+    P: PipelineStageBuilder<Stage = PV> + Send,
+    PV: PipelineStage<Input = BlockInfo, Output = BlockInfo>,
     D: DataAvailabilityBackendBuilder<Backend = DB> + Send,
     DB: DataAvailabilityBackend<Payload = BlockInfo>,
     S: SettlementBackendBuilder + Send,
 {
     pub async fn build(
         self,
-    ) -> Result<PersistentOrchestrator<I::Ingestor, P::Prover, D::Backend, S::Backend>> {
+    ) -> Result<PersistentOrchestrator<I::Ingestor, P::Stage, D::Backend, S::Backend>> {
         let (new_block_tx, new_block_rx) =
             tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
         let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<BlockInfo>(PROOF_BUFFER_SIZE);
@@ -124,10 +124,11 @@ where
             .build()
             .unwrap();
 
-        let prover = self
-            .prover_builder
-            .statement_channel(new_block_rx)
-            .proof_channel(proof_tx)
+        let pipeline = self
+            .pipeline_builder
+            .start_block(start_block)
+            .input_channel(new_block_rx)
+            .output_channel(proof_tx)
             .build()
             .unwrap();
 
@@ -141,7 +142,7 @@ where
         Ok(PersistentOrchestrator {
             cursor_channel: settle_cursor_rx,
             ingestor,
-            prover,
+            pipeline,
             da,
             settlement,
             finish_handle: FinishHandle::new(),
@@ -171,14 +172,14 @@ impl PersistentOrchestratorState {
 
         // Request graceful shutdown for all descendant services
         self.ingestor_handle.shutdown();
-        self.prover_handle.shutdown();
+        self.pipeline_handle.shutdown();
         self.da_handle.shutdown();
         self.settlement_handle.shutdown();
 
         // Wait for all descendant services to finish graceful shutdown
         futures_util::future::join_all([
             self.ingestor_handle.finished(),
-            self.prover_handle.finished(),
+            self.pipeline_handle.finished(),
             self.da_handle.finished(),
             self.settlement_handle.finished(),
         ])
@@ -192,7 +193,7 @@ impl PersistentOrchestratorState {
 impl<I, P, D, S> Daemon for PersistentOrchestrator<I, P, D, S>
 where
     I: BlockIngestor + Send,
-    P: Prover + Send,
+    P: PipelineStage + Send,
     D: DataAvailabilityBackend + Send,
     S: SettlementBackend + Send,
 {
@@ -204,14 +205,14 @@ where
         let state = PersistentOrchestratorState {
             cursor_channel: self.cursor_channel,
             ingestor_handle: self.ingestor.shutdown_handle(),
-            prover_handle: self.prover.shutdown_handle(),
+            pipeline_handle: self.pipeline.shutdown_handle(),
             da_handle: self.da.shutdown_handle(),
             settlement_handle: self.settlement.shutdown_handle(),
             finish_handle: self.finish_handle,
         };
 
         self.ingestor.start();
-        self.prover.start();
+        self.pipeline.start();
         self.da.start();
         self.settlement.start();
 

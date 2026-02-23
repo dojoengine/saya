@@ -19,7 +19,7 @@ use url::Url;
 
 use crate::{
     block_ingestor::BlockInfo,
-    prover::{compress_pie, Prover, ProverBuilder},
+    prover::{compress_pie, PipelineStage, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage, Step},
 };
@@ -36,8 +36,8 @@ const KATANA_DEFAULT_TOKEN_ADDRESS: &str =
 #[derive(Debug)]
 pub struct SnosPieGenerator<DB> {
     rpc_url: Url,
-    statement_channel: Receiver<BlockInfo>,
-    proof_channel: Sender<BlockInfo>,
+    input_channel: Receiver<BlockInfo>,
+    output_channel: Sender<BlockInfo>,
     finish_handle: FinishHandle,
     db: DB,
     workers_count: usize,
@@ -48,8 +48,8 @@ pub struct SnosPieGenerator<DB> {
 #[derive(Debug)]
 pub struct SnosPieGeneratorBuilder<DB> {
     rpc_url: Url,
-    statement_channel: Option<Receiver<BlockInfo>>,
-    proof_channel: Option<Sender<BlockInfo>>,
+    input_channel: Option<Receiver<BlockInfo>>,
+    output_channel: Option<Sender<BlockInfo>>,
     db: DB,
     workers_count: usize,
     os_hints_config: OsHintsConfiguration,
@@ -149,12 +149,12 @@ where
 
     async fn run(self) {
         let mut workers = Vec::new();
-        let task_rx = Arc::new(Mutex::new(self.statement_channel));
+        let task_rx = Arc::new(Mutex::new(self.input_channel));
 
         for _ in 0..self.workers_count {
             workers.push(task::spawn(Self::worker(
                 task_rx.clone(),
-                self.proof_channel.clone(),
+                self.output_channel.clone(),
                 self.rpc_url.clone(),
                 self.finish_handle.clone(),
                 self.db.clone(),
@@ -179,8 +179,8 @@ impl<DB> SnosPieGeneratorBuilder<DB> {
     ) -> Self {
         Self {
             rpc_url,
-            statement_channel: None,
-            proof_channel: None,
+            input_channel: None,
+            output_channel: None,
             db,
             workers_count,
             os_hints_config,
@@ -189,21 +189,21 @@ impl<DB> SnosPieGeneratorBuilder<DB> {
     }
 }
 
-impl<DB> ProverBuilder for SnosPieGeneratorBuilder<DB>
+impl<DB> PipelineStageBuilder for SnosPieGeneratorBuilder<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Prover = SnosPieGenerator<DB>;
+    type Stage = SnosPieGenerator<DB>;
 
-    fn build(self) -> Result<Self::Prover> {
+    fn build(self) -> Result<Self::Stage> {
         Ok(SnosPieGenerator {
             rpc_url: self.rpc_url,
-            statement_channel: self
-                .statement_channel
-                .ok_or_else(|| anyhow::anyhow!("`statement_channel` not set"))?,
-            proof_channel: self
-                .proof_channel
-                .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
+            input_channel: self
+                .input_channel
+                .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
+            output_channel: self
+                .output_channel
+                .ok_or_else(|| anyhow::anyhow!("`output_channel` not set"))?,
             finish_handle: FinishHandle::new(),
             db: self.db,
             workers_count: self.workers_count,
@@ -212,23 +212,23 @@ where
         })
     }
 
-    fn statement_channel(mut self, statement_channel: Receiver<BlockInfo>) -> Self {
-        self.statement_channel = Some(statement_channel);
+    fn input_channel(mut self, input_channel: Receiver<BlockInfo>) -> Self {
+        self.input_channel = Some(input_channel);
         self
     }
 
-    fn proof_channel(mut self, proof_channel: Sender<BlockInfo>) -> Self {
-        self.proof_channel = Some(proof_channel);
+    fn output_channel(mut self, output_channel: Sender<BlockInfo>) -> Self {
+        self.output_channel = Some(output_channel);
         self
     }
 }
 
-impl<DB> Prover for SnosPieGenerator<DB>
+impl<DB> PipelineStage for SnosPieGenerator<DB>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
 {
-    type Statement = BlockInfo;
-    type BlockInfo = BlockInfo;
+    type Input = BlockInfo;
+    type Output = BlockInfo;
 }
 
 impl<DB> Daemon for SnosPieGenerator<DB>

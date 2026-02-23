@@ -5,12 +5,16 @@ use tokio::sync::mpsc::Receiver;
 use crate::{
     block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     data_availability::DataAvailabilityCursor,
+    prover::{BlockOrderer, BlockOrdererBuilder, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
 };
 
-/// Size of the `BlockInfo` channel between ingestor and the bridge task.
+/// Size of the `BlockInfo` channel between ingestor and the orderer.
 const BLOCK_INGESTOR_BUFFER_SIZE: usize = 4;
+
+/// Size of the `BlockInfo` channel between orderer and the bridge task.
+const ORDERER_BUFFER_SIZE: usize = 4;
 
 /// Size of the `DataAvailabilityCursor` channel fed into settlement.
 const DA_CURSOR_BUFFER_SIZE: usize = 4;
@@ -34,6 +38,7 @@ const SETTLE_CURSOR_BUFFER_SIZE: usize = 4;
 pub struct PersistentTeeOrchestrator<I, S> {
     cursor_channel: Receiver<SettlementCursor>,
     ingestor: I,
+    orderer: BlockOrderer<BlockInfo>,
     settlement: S,
     finish_handle: FinishHandle,
 }
@@ -47,6 +52,7 @@ pub struct PersistentTeeOrchestratorBuilder<I, S> {
 struct PersistentTeeOrchestratorState {
     cursor_channel: Receiver<SettlementCursor>,
     ingestor_handle: ShutdownHandle,
+    orderer_handle: ShutdownHandle,
     settlement_handle: ShutdownHandle,
     finish_handle: FinishHandle,
 }
@@ -63,8 +69,10 @@ where
     S: SettlementBackendBuilder + Send,
 {
     pub async fn build(self) -> Result<PersistentTeeOrchestrator<I::Ingestor, S::Backend>> {
-        let (new_block_tx, mut new_block_rx) =
+        let (new_block_tx, new_block_rx) =
             tokio::sync::mpsc::channel::<BlockInfo>(BLOCK_INGESTOR_BUFFER_SIZE);
+        let (ordered_tx, mut ordered_rx) =
+            tokio::sync::mpsc::channel::<BlockInfo>(ORDERER_BUFFER_SIZE);
         let (da_cursor_tx, da_cursor_rx) =
             tokio::sync::mpsc::channel::<DataAvailabilityCursor<BlockInfo>>(DA_CURSOR_BUFFER_SIZE);
         let (settle_cursor_tx, settle_cursor_rx) =
@@ -90,10 +98,16 @@ where
             .build()
             .unwrap();
 
-        // Adapter task: wraps each `BlockInfo` in a `DataAvailabilityCursor` with no DA pointer
-        // so the settlement backend can remain unaware of the TEE-specific flow.
+        let orderer = BlockOrdererBuilder::new()
+            .start_block(start_block)
+            .input_channel(new_block_rx)
+            .output_channel(ordered_tx)
+            .build()?;
+
+        // Adapter task: wraps each in-order `BlockInfo` in a `DataAvailabilityCursor` with no DA
+        // pointer so the settlement backend can remain unaware of the TEE-specific flow.
         tokio::spawn(async move {
-            while let Some(block_info) = new_block_rx.recv().await {
+            while let Some(block_info) = ordered_rx.recv().await {
                 let cursor = DataAvailabilityCursor {
                     block_number: block_info.number,
                     pointer: None,
@@ -108,6 +122,7 @@ where
         Ok(PersistentTeeOrchestrator {
             cursor_channel: settle_cursor_rx,
             ingestor,
+            orderer,
             settlement,
             finish_handle: FinishHandle::new(),
         })
@@ -135,11 +150,13 @@ impl PersistentTeeOrchestratorState {
 
         // Request graceful shutdown for all descendant services.
         self.ingestor_handle.shutdown();
+        self.orderer_handle.shutdown();
         self.settlement_handle.shutdown();
 
         // Wait for all descendant services to finish.
         futures_util::future::join_all([
             self.ingestor_handle.finished(),
+            self.orderer_handle.finished(),
             self.settlement_handle.finished(),
         ])
         .await;
@@ -162,11 +179,13 @@ where
         let state = PersistentTeeOrchestratorState {
             cursor_channel: self.cursor_channel,
             ingestor_handle: self.ingestor.shutdown_handle(),
+            orderer_handle: self.orderer.shutdown_handle(),
             settlement_handle: self.settlement.shutdown_handle(),
             finish_handle: self.finish_handle,
         };
 
         self.ingestor.start();
+        self.orderer.start();
         self.settlement.start();
 
         tokio::spawn(state.run());
