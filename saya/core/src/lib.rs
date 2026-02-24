@@ -7,6 +7,9 @@
 /// Block ingestor abstraction and built-in implementations.
 pub mod block_ingestor;
 
+/// TEE (Trusted Execution Environment) pipeline stages and types.
+pub mod tee;
+
 /// Prover abstraction and built-in implementations.
 pub mod prover;
 

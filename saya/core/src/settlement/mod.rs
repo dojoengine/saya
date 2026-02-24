@@ -8,6 +8,11 @@ use crate::{
     block_ingestor::BlockInfo, data_availability::DataAvailabilityCursor, service::Daemon,
 };
 
+pub mod fact_registration;
+pub use fact_registration::{
+    FactRegistrar, IntegrityFactRegistrar, NoopFactRegistrar, SettlementCall, TeeFactRegistrar,
+};
+
 mod piltover;
 pub use piltover::{PiltoverSettlementBackend, PiltoverSettlementBackendBuilder};
 

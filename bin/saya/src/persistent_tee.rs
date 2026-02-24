@@ -4,7 +4,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder, orchestrator::PersistentTeeOrchestratorBuilder,
-    service::Daemon, settlement::PiltoverSettlementBackendBuilder, storage::SqliteDb,
+    service::Daemon,
+    settlement::{PiltoverSettlementBackendBuilder, TeeFactRegistrar},
+    storage::SqliteDb,
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
@@ -71,16 +73,14 @@ impl Start {
         let block_ingestor_builder =
             PollingBlockIngestorBuilder::new(self.rollup_rpc, db.clone(), self.ingestor_workers);
 
-        // In TEE mode the proof is attested inside the enclave; on-chain fact registration via
-        // the integrity verifier is not required.
         let settlement_builder = PiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
+            TeeFactRegistrar::new(self.settlement_piltover_address),
             db.clone(),
-        )
-        .skip_fact_registration(true);
+        );
 
         let orchestrator =
             PersistentTeeOrchestratorBuilder::new(block_ingestor_builder, settlement_builder)

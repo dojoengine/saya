@@ -20,6 +20,10 @@ pub use atlantic::{
 
 mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
+
+pub mod tee;
+pub use tee::{TeeProof, TeeProver, TeeProverBuilder};
+
 mod recursive;
 
 mod snos_pie_generator;

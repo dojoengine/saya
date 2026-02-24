@@ -12,6 +12,9 @@ use saya_core::{
         MockLayoutBridgeProverBuilder, PipelineStage, PipelineStageBuilder, SnosProof,
     },
     service::{Daemon, ShutdownHandle},
+    settlement::{
+        FactRegistrar, IntegrityFactRegistrar, NoopFactRegistrar, SettlementCall, TeeFactRegistrar,
+    },
     storage::PersistantStorage,
 };
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -163,6 +166,41 @@ where
         match self {
             Self::Atlantic(inner) => Self::Atlantic(inner.output_channel(output_channel)),
             Self::Mock(inner) => Self::Mock(inner.output_channel(output_channel)),
+        }
+    }
+}
+
+/// Erased [`FactRegistrar`] that selects between the available implementations at runtime.
+#[derive(Debug)]
+pub enum AnyFactRegistrar<DB> {
+    Integrity(IntegrityFactRegistrar<DB>),
+    Noop(NoopFactRegistrar<DB>),
+    Tee(TeeFactRegistrar),
+}
+
+impl<DB> FactRegistrar for AnyFactRegistrar<DB>
+where
+    DB: PersistantStorage + Send + Sync + 'static,
+{
+    fn build_settlement_call(
+        &self,
+        block_number: u64,
+        da_pointer: Option<DataAvailabilityPointer>,
+    ) -> impl std::future::Future<Output = anyhow::Result<Option<SettlementCall>>>
+           + Send
+           + '_ {
+        async move {
+            match self {
+                Self::Integrity(inner) => {
+                    inner.build_settlement_call(block_number, da_pointer).await
+                }
+                Self::Noop(inner) => {
+                    inner.build_settlement_call(block_number, da_pointer).await
+                }
+                Self::Tee(inner) => {
+                    inner.build_settlement_call(block_number, da_pointer).await
+                }
+            }
         }
     }
 }

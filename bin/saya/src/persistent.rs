@@ -13,7 +13,7 @@ use saya_core::{
         MockLayoutBridgeProverBuilder, PipelineChainBuilder, SnosPieGeneratorBuilder,
     },
     service::Daemon,
-    settlement::PiltoverSettlementBackendBuilder,
+    settlement::{IntegrityFactRegistrar, NoopFactRegistrar, PiltoverSettlementBackendBuilder},
     storage::SqliteDb,
     ChainId, OsHintsConfiguration,
 };
@@ -238,23 +238,41 @@ impl Start {
             AnyDataAvailabilityLayerBuilder::Noop(NoopDataAvailabilityBackendBuilder::new())
         };
 
-        let settlement_builder = PiltoverSettlementBackendBuilder::new(
-            self.settlement_rpc,
-            self.settlement_piltover_address,
-            self.settlement_account_address,
-            self.settlement_account_private_key,
-            db.clone(),
-        );
-
         let settlement_builder = match (
             self.mock_layout_bridge_program_hash,
             self.settlement_integrity_address,
         ) {
-            // We don't need `integrity` address but it's okay if it's given.
-            (Some(_), _) => settlement_builder.skip_fact_registration(true),
-            (None, Some(integrity_address)) => {
-                settlement_builder.integrity_address(integrity_address)
-            }
+            // Mock mode: skip on-chain integrity verification.
+            (Some(_), _) => PiltoverSettlementBackendBuilder::new(
+                self.settlement_rpc,
+                self.settlement_piltover_address,
+                self.settlement_account_address,
+                self.settlement_account_private_key,
+                crate::any::AnyFactRegistrar::Noop(NoopFactRegistrar::new(
+                    self.settlement_piltover_address,
+                    db.clone(),
+                )),
+                db.clone(),
+            ),
+            // Normal mode: on-chain integrity verifier.
+            (None, Some(integrity_address)) => PiltoverSettlementBackendBuilder::new(
+                self.settlement_rpc.clone(),
+                self.settlement_piltover_address,
+                self.settlement_account_address,
+                self.settlement_account_private_key,
+                crate::any::AnyFactRegistrar::Integrity(
+                    IntegrityFactRegistrar::new(
+                        self.settlement_rpc,
+                        integrity_address,
+                        self.settlement_piltover_address,
+                        self.settlement_account_address,
+                        self.settlement_account_private_key,
+                        db.clone(),
+                    )
+                    .await?,
+                ),
+                db.clone(),
+            ),
             (None, None) => anyhow::bail!(
                 "invalid config: `integrity` address must be \
                 provided unless `--mock-layout-bridge-program-hash` is used"
