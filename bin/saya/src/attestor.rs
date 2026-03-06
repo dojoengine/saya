@@ -144,8 +144,13 @@ impl TeeAttestor {
             .expect("non-empty batch")
             .number
             .saturating_sub(1);
+        let prev_block = if prev_block_number == 0 {
+            None
+        } else {
+            Some(prev_block_number)
+        };
         let attestation = rpc_client
-            .fetch_attestation(prev_block_number, block_number)
+            .fetch_attestation(prev_block, block_number)
             .await?;
         Ok(TeeAttestation {
             blocks,

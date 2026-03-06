@@ -63,8 +63,8 @@ fn build_tee_calldata(proof: &TeeProof) -> Result<Vec<Felt>> {
     calldata.push(to_felt(proof.state_root));
     calldata.push(to_felt(proof.prev_block_hash));
     calldata.push(to_felt(proof.block_hash));
-    calldata.push(Felt::from(proof.prev_block_number));
-    calldata.push(Felt::from(proof.block_number));
+    calldata.push(to_felt(proof.prev_block_number));
+    calldata.push(to_felt(proof.block_number));
 
     Ok(calldata)
 }
@@ -212,14 +212,12 @@ impl TeePiltoverSettlementBackend {
                 },
             };
 
-            debug!(block_number = proof.block_number; "Received TEE proof for settlement");
-
             let calldata = match build_tee_calldata(&proof) {
                 Ok(c) => c,
                 Err(e) => {
                     log::error!(
                         "Failed to build TEE calldata for block {}: {}",
-                        proof.block_number,
+                        proof.block_number.to_hex_string(),
                         e
                     );
                     continue;
@@ -239,14 +237,12 @@ impl TeePiltoverSettlementBackend {
                 Err(e) => {
                     log::error!(
                         "Fee estimation failed for block {}: {}",
-                        proof.block_number,
+                        proof.block_number.to_hex_string(),
                         e
                     );
                     continue;
                 }
             };
-            debug!(block_number = proof.block_number; "Estimated settlement cost: {} STRK", fees.overall_fee);
-
             let transaction = match execution.send().await {
                 Ok(t) => t,
                 Err(e) => {
@@ -258,11 +254,6 @@ impl TeePiltoverSettlementBackend {
                     continue;
                 }
             };
-            info!(
-                block_number = proof.block_number,
-                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
-                "Piltover TEE update_state transaction sent"
-            );
 
             match self.watch_tx(transaction.transaction_hash).await {
                 Ok(()) => {}
@@ -276,14 +267,13 @@ impl TeePiltoverSettlementBackend {
                 }
             }
 
-            info!(
-                block_number = proof.block_number,
-                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
-                "Piltover TEE update_state transaction confirmed"
-            );
-
             let new_cursor = SettlementCursor {
-                block_number: proof.block_number,
+                block_number: u64::try_from(proof.block_number).unwrap_or_else(|_| {
+                    panic!(
+                        "Block number {} does not fit in u64",
+                        proof.block_number.to_hex_string()
+                    )
+                }),
                 transaction_hash: {
                     // Convert from fork Felt to saya-core Felt via bytes.
                     let bytes = transaction.transaction_hash.to_bytes_be();

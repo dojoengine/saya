@@ -35,20 +35,17 @@ use alloy_primitives::Bytes;
 use amd_sev_snp_attestation_prover::{
     AmdSevSnpProver, ProverConfig as SdkProverConfig, RawProofType, SP1ProverConfig, KDS,
 };
-use amd_sev_snp_attestation_verifier::{
-    stub::{ProcessorType, VerifierInput},
-    AttestationReport,
+use amd_sev_snp_attestation_verifier::{stub::ProcessorType, AttestationReport};
+use amd_tee_registry_client::{
+    prepare_verifier_input_with_storage, report::AttestationReportBytes,
 };
-use amd_tee_registry_client::report::AttestationReportBytes;
 use x509_verifier_rust_crypto::CertChain;
 
 /// TEE attestation with proof generation capabilities.
 pub struct TeeAttestation {
     /// 1184 bytes for AMD SEV-SNP.
     quote_bytes: Vec<u8>,
-    state_root: Felt,
-    block_hash: Felt,
-    block_number: u64,
+    block_number: Felt,
 }
 
 impl TeeAttestation {
@@ -58,15 +55,8 @@ impl TeeAttestation {
         let quote_bytes = response
             .quote_bytes()
             .map_err(|e| AttestationError::InvalidReport(e.to_string()))?;
-        let state_root = Felt::from_hex(&response.state_root)
-            .map_err(|e| AttestationError::InvalidReport(format!("invalid state_root hex: {e}")))?;
-        let block_hash = Felt::from_hex(&response.block_hash)
-            .map_err(|e| AttestationError::InvalidReport(format!("invalid block_hash hex: {e}")))?;
-
         Ok(Self {
             quote_bytes,
-            state_root,
-            block_hash,
             block_number: response.block_number,
         })
     }
@@ -157,6 +147,7 @@ impl TeeAttestation {
                 let sp1_config = SP1ProverConfig {
                     private_key: prover_config.private_key.clone(),
                     rpc_url: prover_config.rpc_url.clone(),
+                    prover_mode: Some("network".to_string()),
                 };
                 let mut sdk_config = SdkProverConfig::sp1_with(sp1_config);
                 sdk_config.skip_time_validity_check = prover_config.skip_time_validity_check;
@@ -164,12 +155,14 @@ impl TeeAttestation {
                 tokio::task::spawn_blocking(move || {
                     let prover = AmdSevSnpProver::new(sdk_config, None);
                     let input: amd_sev_snp_attestation_verifier::stub::VerifierInput =
-                        VerifierInput {
+                        prepare_verifier_input_with_storage(
                             timestamp,
-                            rawReport: Bytes::from(report_bytes),
-                            vekDerChain: vek_der_chain,
-                            trustedCertsPrefixLen: trusted_prefix_len,
-                        };
+                            Bytes::from(report_bytes),
+                            vek_der_chain,
+                            trusted_prefix_len,
+                            None, // No storage proof for now; can be added in the future with a new prover config field
+                            None,
+                        );
                     log::debug!("{:?} {}", input, "SP1 Groth16 prover input");
                     let raw_proof = prover
                         .verifier

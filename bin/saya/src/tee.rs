@@ -101,8 +101,11 @@ impl Start {
             Duration::from_millis(self.attestor_poll_interval_ms),
         );
 
-        let prover_builder =
-            TeeProverBuilder::new(self.prover_rpc, self.tee_registry_address, self.prover_private_key);
+        let prover_builder = TeeProverBuilder::new(
+            self.prover_rpc,
+            self.tee_registry_address,
+            self.prover_private_key,
+        );
 
         let settlement_builder = TeePiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,

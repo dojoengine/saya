@@ -142,6 +142,7 @@ impl TeeProver {
             block_hash: attestation.block_hash.clone(),
             prev_block_number: attestation.prev_block_number,
             block_number: attestation.block_number,
+            events_commitment: None,
         };
 
         let tee = TeeAttestationProver::from_response(&response)?;

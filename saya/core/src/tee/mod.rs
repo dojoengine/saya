@@ -6,6 +6,8 @@
 //!                    → (TEE Prover — see [`crate::prover::tee`])
 //!                    → [`crate::prover::tee::TeeProof`]
 
+use starknet_types_core::felt::Felt;
+
 use crate::{block_ingestor::BlockInfo, prover::HasBlockNumber};
 
 /// Attestation data fetched from a Katana rollup node for a batch of blocks.
@@ -23,8 +25,8 @@ pub struct TeeAttestation {
     pub state_root: String,
     pub prev_block_hash: String,
     pub block_hash: String,
-    pub prev_block_number: u64,
-    pub block_number: u64,
+    pub prev_block_number: Felt,
+    pub block_number: Felt,
 }
 
 /// Execution trace produced by the offchain TEE verifier from a [`TeeAttestation`].

@@ -32,8 +32,8 @@ pub struct TeeProof {
     pub state_root: Felt,
     pub prev_block_hash: Felt,
     pub block_hash: Felt,
-    pub prev_block_number: u64,
-    pub block_number: u64,
+    pub prev_block_number: Felt,
+    pub block_number: Felt,
 }
 
 impl HasBlockNumber for TeeProof {
