@@ -1,32 +1,30 @@
 //! TEE (Trusted Execution Environment) types and pipeline stages.
 //!
 //! Pipeline flow:
-//!   [`BlockInfo`] → [`TeeAttestor`] → [`TeeAttestation`]
-//!                → [`OffchainTeeVerifier`] → [`TeeTrace`]
-//!                → (TEE Prover — see [`crate::prover::tee`])
-//!                → [`crate::prover::tee::TeeProof`]
-
-mod attestor;
-mod verifier;
-
-pub use attestor::{TeeAttestor, TeeAttestorBuilder};
-pub use verifier::{OffchainTeeVerifier, OffchainTeeVerifierBuilder};
+//!   `Vec<BlockInfo>` → [`TeeAttestor`] → [`TeeAttestation`]
+//!                    → [`OffchainTeeVerifier`] → [`TeeTrace`]
+//!                    → (TEE Prover — see [`crate::prover::tee`])
+//!                    → [`crate::prover::tee::TeeProof`]
 
 use crate::{block_ingestor::BlockInfo, prover::HasBlockNumber};
 
-/// Attestation data fetched from a Katana rollup node for a specific block.
+/// Attestation data fetched from a Katana rollup node for a batch of blocks.
 ///
-/// The `block_info` is threaded through the entire TEE pipeline so that downstream stages
-/// (particularly the settlement adapter) retain access to the original [`BlockInfo`] without
-/// needing an extra DB round-trip.
+/// The `blocks` are threaded through the entire TEE pipeline so that downstream stages
+/// (particularly the settlement adapter) retain access to the original [`BlockInfo`] range
+/// without needing an extra DB round-trip.
 #[derive(Debug, Clone)]
 pub struct TeeAttestation {
-    /// Original block info, carried through the pipeline.
-    pub block_info: BlockInfo,
-    /// Raw attestation bytes returned by Katana.
-    ///
-    /// TODO: replace with a concrete attestation struct once the Katana TEE API is stable.
-    pub raw: Vec<u8>,
+    /// The ordered batch of blocks covered by this attestation.
+    pub blocks: Vec<BlockInfo>,
+    /// Raw attestation bytes returned by Katana (hex-encoded AMD SEV-SNP quote).
+    pub quote: String,
+    pub prev_state_root: String,
+    pub state_root: String,
+    pub prev_block_hash: String,
+    pub block_hash: String,
+    pub prev_block_number: u64,
+    pub block_number: u64,
 }
 
 /// Execution trace produced by the offchain TEE verifier from a [`TeeAttestation`].
@@ -34,8 +32,8 @@ pub struct TeeAttestation {
 /// This trace is the input to the TEE prover service.
 #[derive(Debug, Clone)]
 pub struct TeeTrace {
-    /// Original block info, carried through the pipeline.
-    pub block_info: BlockInfo,
+    /// The ordered batch of blocks covered by this trace.
+    pub blocks: Vec<BlockInfo>,
     /// Raw trace bytes to be fed into the TEE prover.
     ///
     /// TODO: define concrete trace format once the verifier API is stable.
@@ -43,13 +41,18 @@ pub struct TeeTrace {
 }
 
 impl HasBlockNumber for TeeAttestation {
+    /// Returns the block number of the last block in the batch — used for pipeline ordering.
     fn block_number(&self) -> u64 {
-        self.block_info.number
+        self.blocks
+            .last()
+            .expect("non-empty attestation batch")
+            .number
     }
 }
 
 impl HasBlockNumber for TeeTrace {
+    /// Returns the block number of the last block in the batch — used for pipeline ordering.
     fn block_number(&self) -> u64 {
-        self.block_info.number
+        self.blocks.last().expect("non-empty trace batch").number
     }
 }

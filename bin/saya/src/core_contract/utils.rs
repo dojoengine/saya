@@ -16,7 +16,8 @@ use starknet::macros::{selector, short_string};
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::JsonRpcClient;
 use starknet::signers::LocalWallet;
-use starknet_api::contract_class::compiled_class_hash::{HashVersion, HashableCompiledClass};
+use starknet_api::contract_class::compiled_class_hash::HashVersion;
+use starknet_api::contract_class::compiled_class_hash::HashableCompiledClass;
 use std::{fs, path::Path};
 
 pub fn compute_starknet_os_config_hash(chain_id: Felt, fee_token: Felt) -> Felt {

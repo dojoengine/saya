@@ -2,7 +2,7 @@
 //!
 //! Saya is the proving orchestrator of the Dojo stack. The `saya-core` crate provides primitive
 //! types and other constructs for embedding Saya into other applications. Refer to the `saya` crate
-//! for the executable bindary.
+//! for the executable binary.
 
 /// Block ingestor abstraction and built-in implementations.
 pub mod block_ingestor;
@@ -16,9 +16,6 @@ pub mod prover;
 /// Storage backend abstraction and built-in implementations.
 pub mod storage;
 
-/// Data availability backend abstraction and built-in implementations.
-pub mod data_availability;
-
 /// Base layer settlement provider abstraction and built-in implementations.
 pub mod settlement;
 
@@ -28,8 +25,5 @@ pub mod orchestrator;
 /// Types related to handling long-running background services.
 pub mod service;
 
-/// Internal utilities.
-mod utils;
-
-pub use generate_pie::types::OsHintsConfiguration;
-pub use starknet_api::core::ChainId;
+/// Shared utilities (retry helpers).
+pub mod utils;

@@ -3,18 +3,16 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
-    block_ingestor::PollingBlockIngestorBuilder,
-    orchestrator::TeeOrchestratorBuilder,
-    prover::tee::TeeProverBuilder,
-    service::Daemon,
-    settlement::{PiltoverSettlementBackendBuilder, TeeFactRegistrar},
-    storage::SqliteDb,
-    tee::{OffchainTeeVerifierBuilder, TeeAttestorBuilder},
+    block_ingestor::PollingBlockIngestorBuilder, orchestrator::TeeOrchestratorBuilder,
+    service::Daemon, storage::SqliteDb,
 };
+
 use starknet_types_core::felt::Felt;
 use url::Url;
 
-use crate::common::SAYA_DB_PATH;
+use crate::prover::TeeProverBuilder;
+use crate::settlement::TeePiltoverSettlementBackendBuilder;
+use crate::{attestor::TeeAttestorBuilder, common::SAYA_DB_PATH};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -51,21 +49,27 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
-    /// URL of the offchain TEE verifier service
+    /// Starknet RPC URL used by the TEE prover for on-chain registry lookups
     #[clap(long, env)]
-    tee_verifier_url: Url,
-    /// URL of the TEE proving service
+    prover_rpc: String,
+    /// TEE registry contract address on the prover network
     #[clap(long, env)]
-    tee_prover_url: Url,
+    tee_registry_address: Felt,
+    /// Private key for the prover network account
+    #[clap(long, env)]
+    prover_private_key: String,
     /// Attestor poll interval in milliseconds
     #[clap(long, env, default_value_t = DEFAULT_ATTESTOR_POLL_INTERVAL_MS)]
     attestor_poll_interval_ms: u64,
+    /// Number of blocks to accumulate per TEE attestation batch
+    #[clap(long, env, default_value_t = 10)]
+    batch_size: usize,
+    /// Flush a partial batch after this many seconds without a new block
+    #[clap(long, env, default_value_t = 120)]
+    idle_timeout_secs: u64,
     /// Path to the database directory
     #[clap(long, env)]
     db_dir: Option<PathBuf>,
-    /// Number of block ingestor workers
-    #[clap(long, env, default_value_t = 4)]
-    ingestor_workers: usize,
 }
 
 impl Tee {
@@ -88,7 +92,8 @@ impl Start {
         let block_ingestor_builder = PollingBlockIngestorBuilder::new(
             self.rollup_rpc.clone(),
             db.clone(),
-            self.ingestor_workers,
+            self.batch_size,
+            Duration::from_secs(self.idle_timeout_secs),
         );
 
         let attestor_builder = TeeAttestorBuilder::new(
@@ -96,23 +101,19 @@ impl Start {
             Duration::from_millis(self.attestor_poll_interval_ms),
         );
 
-        let verifier_builder = OffchainTeeVerifierBuilder::new(self.tee_verifier_url);
+        let prover_builder =
+            TeeProverBuilder::new(self.prover_rpc, self.tee_registry_address, self.prover_private_key);
 
-        let prover_builder = TeeProverBuilder::new(self.tee_prover_url);
-
-        let settlement_builder = PiltoverSettlementBackendBuilder::new(
+        let settlement_builder = TeePiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
-            TeeFactRegistrar::new(self.settlement_piltover_address),
-            db.clone(),
         );
 
         let orchestrator = TeeOrchestratorBuilder::new(
             block_ingestor_builder,
             attestor_builder,
-            verifier_builder,
             prover_builder,
             settlement_builder,
         )
