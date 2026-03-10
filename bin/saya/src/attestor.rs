@@ -28,7 +28,7 @@ use saya_core::{
 #[derive(Debug)]
 pub struct TeeAttestor {
     katana_rpc: Url,
-    _poll_interval: Duration,
+    poll_interval: Duration,
     input_channel: Receiver<Vec<BlockInfo>>,
     output_channel: Sender<TeeAttestation>,
     finish_handle: FinishHandle,
@@ -37,7 +37,7 @@ pub struct TeeAttestor {
 #[derive(Debug)]
 pub struct TeeAttestorBuilder {
     katana_rpc: Url,
-    _poll_interval: Duration,
+    poll_interval: Duration,
     input_channel: Option<Receiver<Vec<BlockInfo>>>,
     output_channel: Option<Sender<TeeAttestation>>,
 }
@@ -139,14 +139,13 @@ impl TeeAttestor {
         let rpc_client = KatanaRpcClient::new(self.katana_rpc.clone());
         let block_number = blocks.last().expect("non-empty batch").number;
         // prev_block_number is the block immediately before the first block in the batch.
-        let prev_block_number = blocks
-            .first()
-            .expect("non-empty batch")
-            .number
-            .saturating_sub(1);
+        let prev_block_number = blocks.first().expect("non-empty batch").number;
         let prev_block = if prev_block_number == 0 {
             None
         } else {
+            let prev_block_number = prev_block_number
+                .saturating_sub(1);
+
             Some(prev_block_number)
         };
         let attestation = rpc_client
