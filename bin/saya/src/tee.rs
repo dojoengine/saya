@@ -3,26 +3,32 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
-    block_ingestor::PollingBlockIngestorBuilder, orchestrator::PersistentTeeOrchestratorBuilder,
-    service::Daemon, settlement::PiltoverSettlementBackendBuilder, storage::SqliteDb,
+    block_ingestor::PollingBlockIngestorBuilder, orchestrator::TeeOrchestratorBuilder,
+    service::Daemon, storage::SqliteDb,
 };
+
 use starknet_types_core::felt::Felt;
 use url::Url;
 
-use crate::common::SAYA_DB_PATH;
+use crate::prover::TeeProverBuilder;
+use crate::settlement::TeePiltoverSettlementBackendBuilder;
+use crate::{attestor::TeeAttestorBuilder, common::SAYA_DB_PATH};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// Default attestor poll interval.
+const DEFAULT_ATTESTOR_POLL_INTERVAL_MS: u64 = 1_000;
+
 #[derive(Debug, Parser)]
-pub struct PersistentTee {
+pub struct Tee {
     #[clap(subcommand)]
     command: Subcommands,
 }
 
 #[derive(Debug, Subcommand)]
 enum Subcommands {
-    /// Start Saya in persistent TEE mode.
+    /// Start Saya in TEE mode.
     Start(Start),
 }
 
@@ -43,15 +49,30 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
+    /// Starknet RPC URL used by the TEE prover for on-chain registry lookups
+    #[clap(long, env)]
+    prover_rpc: String,
+    /// TEE registry contract address on the prover network
+    #[clap(long, env)]
+    tee_registry_address: Felt,
+    /// Private key for the prover network account
+    #[clap(long, env)]
+    prover_private_key: String,
+    /// Attestor poll interval in milliseconds
+    #[clap(long, env, default_value_t = DEFAULT_ATTESTOR_POLL_INTERVAL_MS)]
+    attestor_poll_interval_ms: u64,
+    /// Number of blocks to accumulate per TEE attestation batch
+    #[clap(long, env, default_value_t = 10)]
+    batch_size: usize,
+    /// Flush a partial batch after this many seconds without a new block
+    #[clap(long, env, default_value_t = 120)]
+    idle_timeout_secs: u64,
     /// Path to the database directory
     #[clap(long, env)]
     db_dir: Option<PathBuf>,
-    /// Number of block ingestor workers
-    #[clap(long, env, default_value_t = 4)]
-    ingestor_workers: usize,
 }
 
-impl PersistentTee {
+impl Tee {
     pub async fn run(self) -> Result<()> {
         match self.command {
             Subcommands::Start(start) => start.run().await,
@@ -68,24 +89,39 @@ impl Start {
 
         let db = SqliteDb::new(&saya_path).await?;
 
-        let block_ingestor_builder =
-            PollingBlockIngestorBuilder::new(self.rollup_rpc, db.clone(), self.ingestor_workers);
+        let block_ingestor_builder = PollingBlockIngestorBuilder::new(
+            self.rollup_rpc.clone(),
+            db.clone(),
+            self.batch_size,
+            Duration::from_secs(self.idle_timeout_secs),
+        );
 
-        // In TEE mode the proof is attested inside the enclave; on-chain fact registration via
-        // the integrity verifier is not required.
-        let settlement_builder = PiltoverSettlementBackendBuilder::new(
+        let attestor_builder = TeeAttestorBuilder::new(
+            self.rollup_rpc,
+            Duration::from_millis(self.attestor_poll_interval_ms),
+        );
+
+        let prover_builder = TeeProverBuilder::new(
+            self.prover_rpc,
+            self.tee_registry_address,
+            self.prover_private_key,
+        );
+
+        let settlement_builder = TeePiltoverSettlementBackendBuilder::new(
             self.settlement_rpc,
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
-            db.clone(),
-        )
-        .skip_fact_registration(true);
+        );
 
-        let orchestrator =
-            PersistentTeeOrchestratorBuilder::new(block_ingestor_builder, settlement_builder)
-                .build()
-                .await?;
+        let orchestrator = TeeOrchestratorBuilder::new(
+            block_ingestor_builder,
+            attestor_builder,
+            prover_builder,
+            settlement_builder,
+        )
+        .build()
+        .await?;
 
         let orchestrator_shutdown = orchestrator.shutdown_handle();
         orchestrator.start();

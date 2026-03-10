@@ -16,7 +16,7 @@ pub trait BlockIngestorBuilder {
 
     fn start_block(self, start_block: u64) -> Self;
 
-    fn channel(self, channel: Sender<BlockInfo>) -> Self;
+    fn channel(self, channel: Sender<Vec<BlockInfo>>) -> Self;
 }
 
 pub trait BlockIngestor: Daemon {}

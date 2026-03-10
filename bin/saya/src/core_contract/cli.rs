@@ -67,7 +67,7 @@ pub struct SetupProgramArgs {
     fact_registry_address: Option<Felt>,
     #[clap(long, env = "CORE_CONTRACT_ADDRESS")]
     core_contract_address: Felt,
-    #[clap(long, env = "FEE_TOKEN_ADDRESS",default_value = KATANA_STRK_FEE_TOKEN.to_hex_string())]
+    #[clap(long, env = "FEE_TOKEN_ADDRESS", default_value_t = KATANA_STRK_FEE_TOKEN)]
     fee_token_address: Felt,
     #[clap(long, env = "CHAIN_ID")]
     chain_id: String,
@@ -75,7 +75,7 @@ pub struct SetupProgramArgs {
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
-    #[clap(long, env = "CLASS_HASH",default_value = DEFAULT_PILTOVER_CLASS_HASH.to_hex_string())]
+    #[clap(long, env = "CLASS_HASH", default_value_t = DEFAULT_PILTOVER_CLASS_HASH)]
     class_hash: Felt,
     #[clap(long, env = "SALT")]
     salt: Felt,

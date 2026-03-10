@@ -1,5 +1,7 @@
 /programs/
 /target/
+/bin/saya-tee/target
+/bin/saya/target
 .env
 .env.persistent
 .env.sovereign
