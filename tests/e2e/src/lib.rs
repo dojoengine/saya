@@ -5,7 +5,9 @@ use std::time::Duration;
 use anyhow::Result;
 use piltover::{AppchainContractReader, ProgramInfo};
 use starknet::{
-    core::types::{BlockId, BlockTag, Felt, MaybePreConfirmedBlockWithTxs, ReceiptBlock, Transaction},
+    core::types::{
+        BlockId, BlockTag, Felt, MaybePreConfirmedBlockWithTxs, ReceiptBlock, Transaction,
+    },
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
 };
 

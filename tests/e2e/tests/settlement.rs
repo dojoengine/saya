@@ -1,4 +1,7 @@
-use saya_e2e::{compose_up, env, get_facts_registry, get_program_info, provider, wait_for_settlement, ComposeGuard};
+use saya_e2e::{
+    compose_up, env, get_facts_registry, get_program_info, provider, wait_for_settlement,
+    ComposeGuard,
+};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;

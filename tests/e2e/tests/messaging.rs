@@ -25,8 +25,13 @@ fn build_account(
 ) -> SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet> {
     let signer = LocalWallet::from(SigningKey::from_secret_scalar(private_key));
     let chain_id = cairo_short_string_to_felt(chain_id_str).expect("invalid chain id string");
-    let mut account =
-        SingleOwnerAccount::new(rpc, signer, account_address, chain_id, ExecutionEncoding::New);
+    let mut account = SingleOwnerAccount::new(
+        rpc,
+        signer,
+        account_address,
+        chain_id,
+        ExecutionEncoding::New,
+    );
     account.set_block_id(BlockId::Tag(BlockTag::Latest));
     account
 }
