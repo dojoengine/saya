@@ -5,8 +5,8 @@ use std::time::Duration;
 use anyhow::Result;
 use piltover::{AppchainContractReader, ProgramInfo};
 use starknet::{
-    core::types::{BlockId, BlockTag, Felt},
-    providers::{jsonrpc::HttpTransport, JsonRpcClient},
+    core::types::{BlockId, BlockTag, Felt, MaybePreConfirmedBlockWithTxs, ReceiptBlock, Transaction},
+    providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
 };
 
 /// Decoded appchain state returned by the piltover `get_state` entry point.
@@ -95,9 +95,124 @@ pub async fn wait_for_settlement(
     }
 }
 
+/// Poll `get_transaction_receipt` until the tx is included in a confirmed block,
+/// then return that block number.
+///
+/// Use this after `execute_v3(...).send().await` to get the actual block number
+/// containing the transaction — `block_number()` alone can return a stale value
+/// if the tx hasn't been mined yet.
+pub async fn wait_for_tx_block(
+    provider: &JsonRpcClient<HttpTransport>,
+    tx_hash: Felt,
+    timeout: Duration,
+    poll_interval: Duration,
+) -> Result<u64> {
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    loop {
+        match provider.get_transaction_receipt(tx_hash).await {
+            Ok(receipt) => match receipt.block {
+                ReceiptBlock::Block { block_number, .. } => return Ok(block_number),
+                ReceiptBlock::PreConfirmed { .. } => {}
+            },
+            Err(_) => {}
+        }
+
+        if tokio::time::Instant::now() >= deadline {
+            anyhow::bail!("timeout waiting for tx {tx_hash:#x} to be included in a block");
+        }
+
+        tokio::time::sleep(poll_interval).await;
+    }
+}
+
 /// Build a JSON-RPC provider from a URL string.
 pub fn provider(url: &str) -> JsonRpcClient<HttpTransport> {
     JsonRpcClient::new(HttpTransport::new(
         url.parse::<url::Url>().expect("invalid RPC URL"),
     ))
+}
+
+/// Walk up from `CARGO_MANIFEST_DIR` until `compose.yml` is found.
+pub fn repo_root() -> std::path::PathBuf {
+    let mut dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    while !dir.join("compose.yml").exists() {
+        dir = dir
+            .parent()
+            .expect("reached filesystem root without finding compose.yml")
+            .to_path_buf();
+    }
+    dir
+}
+
+/// Start the full compose stack and block until all healthchecks pass.
+pub fn compose_up() {
+    let status = std::process::Command::new("docker")
+        .args(["compose", "up", "--build", "--wait"])
+        .current_dir(repo_root())
+        .status()
+        .expect("failed to run docker compose up");
+    assert!(status.success(), "docker compose up --wait failed");
+}
+
+/// Tear down the compose stack and remove volumes.
+pub fn compose_down() {
+    let _ = std::process::Command::new("docker")
+        .args(["compose", "down", "-v"])
+        .current_dir(repo_root())
+        .status();
+}
+
+/// RAII guard that calls [`compose_down`] when dropped.
+///
+/// Ensures the compose stack is torn down even if the test panics,
+/// which is important for CI where there is no manual cleanup.
+pub struct ComposeGuard;
+
+impl Drop for ComposeGuard {
+    fn drop(&mut self) {
+        compose_down();
+    }
+}
+
+/// Poll L3 blocks starting from `from_block` until an L1Handler transaction
+/// with the given `entry_point_selector` appears, then return its hash.
+pub async fn wait_for_l1_handler(
+    provider: &JsonRpcClient<HttpTransport>,
+    entry_point_selector: Felt,
+    from_block: u64,
+    timeout: Duration,
+    poll_interval: Duration,
+) -> Result<Felt> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let mut current = from_block;
+
+    loop {
+        match provider.get_block_with_txs(BlockId::Number(current)).await {
+            Ok(block) => {
+                let txs = match block {
+                    MaybePreConfirmedBlockWithTxs::Block(b) => b.transactions,
+                    MaybePreConfirmedBlockWithTxs::PreConfirmedBlock(b) => b.transactions,
+                };
+                for tx in txs {
+                    if let Transaction::L1Handler(l1tx) = tx {
+                        if l1tx.entry_point_selector == entry_point_selector {
+                            return Ok(l1tx.transaction_hash);
+                        }
+                    }
+                }
+                current += 1;
+            }
+            Err(_) => {
+                // Block not yet mined; check deadline then wait.
+                if tokio::time::Instant::now() >= deadline {
+                    anyhow::bail!(
+                        "timeout waiting for L1Handler with selector {entry_point_selector:#x} \
+                         from block {from_block}"
+                    );
+                }
+                tokio::time::sleep(poll_interval).await;
+            }
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use saya_e2e::{env, get_facts_registry, get_program_info, provider, wait_for_settlement};
+use saya_e2e::{compose_up, env, get_facts_registry, get_program_info, provider, wait_for_settlement, ComposeGuard};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;
@@ -14,6 +14,9 @@ const LAYOUT_BRIDGE_PROGRAM_HASH: Felt =
 
 #[tokio::test]
 async fn test_program_info_and_fact_registry() {
+    compose_up();
+    let _guard = ComposeGuard;
+
     let provider = provider(&env::settlement_rpc_url());
     let piltover_address = env::piltover_address();
 
@@ -47,6 +50,9 @@ async fn test_program_info_and_fact_registry() {
 
 #[tokio::test]
 async fn test_settlement_advances_after_genesis() {
+    compose_up();
+    let _guard = ComposeGuard;
+
     let provider = provider(&env::settlement_rpc_url());
     let piltover_address = env::piltover_address();
 
