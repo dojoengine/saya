@@ -112,12 +112,13 @@ pub async fn wait_for_tx_block(
     let deadline = tokio::time::Instant::now() + timeout;
 
     loop {
-        match provider.get_transaction_receipt(tx_hash).await {
-            Ok(receipt) => match receipt.block {
+        if let Ok(receipt) = provider.get_transaction_receipt(tx_hash).await {
+            match receipt.block {
                 ReceiptBlock::Block { block_number, .. } => return Ok(block_number),
                 ReceiptBlock::PreConfirmed { .. } => {}
-            },
-            Err(_) => {}
+            }
+        } else {
+            // Handle the error case if needed
         }
 
         if tokio::time::Instant::now() >= deadline {
