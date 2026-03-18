@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "settlement"
 path = "tests/settlement.rs"
 
+[[test]]
+name = "messaging"
+path = "tests/messaging.rs"
+
 [dependencies]
 anyhow.workspace = true
 piltover.workspace = true

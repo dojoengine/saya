@@ -1,9 +1,53 @@
 use starknet::core::types::Felt;
 
 /// RPC URL of the settlement (L2) chain.
-/// Defaults to the port exposed by `katana_bootstrap` in `compose.yml`.
 pub fn settlement_rpc_url() -> String {
     std::env::var("SETTLEMENT_RPC_URL").unwrap_or_else(|_| "http://localhost:5050".to_string())
+}
+
+/// RPC URL of the rollup (L3) chain.
+pub fn l3_rpc_url() -> String {
+    std::env::var("L3_RPC_URL").unwrap_or_else(|_| "http://localhost:5051".to_string())
+}
+
+/// L2 messaging contract (`sn_msg`).
+pub fn sn_msg_address() -> Felt {
+    Felt::from_hex(&std::env::var("SN_MSG_ADDRESS").unwrap_or_else(|_| {
+        "0x05caadeae8dae02b47180f7e26a999d35e63be5f0fe773c7ebf93461fa25a513".to_string()
+    }))
+    .expect("invalid SN_MSG_ADDRESS")
+}
+
+/// L3 messaging contract (`appc_msg_sn`).
+pub fn appc_msg_sn_address() -> Felt {
+    Felt::from_hex(&std::env::var("APPC_MSG_SN_ADDRESS").unwrap_or_else(|_| {
+        "0x00be8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429".to_string()
+    }))
+    .expect("invalid APPC_MSG_SN_ADDRESS")
+}
+
+/// L2 katana0 account address.
+pub fn l2_account_address() -> Felt {
+    Felt::from_hex("0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec")
+        .expect("invalid L2 account address")
+}
+
+/// L2 katana0 private key.
+pub fn l2_private_key() -> Felt {
+    Felt::from_hex("0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912")
+        .expect("invalid L2 private key")
+}
+
+/// L3 prefunded account address.
+pub fn appc_account_address() -> Felt {
+    Felt::from_hex("0x1f401c745d3dba9b9da11921d1fb006c96f571e9039a0ece3f3b0dc14f04c3d")
+        .expect("invalid L3 account address")
+}
+
+/// L3 prefunded account private key.
+pub fn appc_private_key() -> Felt {
+    Felt::from_hex("0x7230b49615d175307d580c33d6fda61fc7b9aec91df0f5c1a5ebe3b8cbfee02")
+        .expect("invalid L3 private key")
 }
 
 /// Address of the deployed piltover core contract.
