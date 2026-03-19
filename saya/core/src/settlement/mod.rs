@@ -6,6 +6,9 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{prover::TeeProof, service::Daemon};
 
+mod piltover_tee;
+pub use piltover_tee::{TeePiltoverSettlementBackend, TeePiltoverSettlementBackendBuilder};
+
 /// Settlement backend builder for the TEE pipeline.
 ///
 /// Receives [`TeeProof`] directly — all calldata fields are carried on the proof so no

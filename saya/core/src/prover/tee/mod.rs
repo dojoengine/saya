@@ -14,7 +14,7 @@ use crate::{
     block_ingestor::BlockInfo,
     prover::{HasBlockNumber, PipelineStage, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
-    tee::TeeAttestation,
+    tee::{L1ToL2Message, L2ToL1Message, TeeAttestation},
 };
 
 /// A proof produced by the TEE proving service for a batch of blocks.
@@ -34,6 +34,12 @@ pub struct TeeProof {
     pub block_hash: Felt,
     pub prev_block_number: Felt,
     pub block_number: Felt,
+    /// Poseidon commitment over all L1↔L2 messages in the attested block range.
+    pub messages_commitment: Felt,
+    /// All L2→L1 messages emitted in the attested block range.
+    pub l2_to_l1_messages: Vec<L2ToL1Message>,
+    /// All L1→L2 messages processed in the attested block range.
+    pub l1_to_l2_messages: Vec<L1ToL2Message>,
 }
 
 impl HasBlockNumber for TeeProof {
@@ -51,7 +57,7 @@ pub struct TeeProver {
     finish_handle: FinishHandle,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TeeProverBuilder {
     input_channel: Option<Receiver<TeeAttestation>>,
     output_channel: Option<Sender<TeeProof>>,
@@ -59,10 +65,7 @@ pub struct TeeProverBuilder {
 
 impl TeeProverBuilder {
     pub fn new() -> Self {
-        Self {
-            input_channel: None,
-            output_channel: None,
-        }
+        Self::default()
     }
 }
 
@@ -164,6 +167,9 @@ impl TeeProver {
             block_hash,
             prev_block_number: attestation.prev_block_number,
             block_number: attestation.block_number,
+            messages_commitment: attestation.messages_commitment,
+            l2_to_l1_messages: attestation.l2_to_l1_messages,
+            l1_to_l2_messages: attestation.l1_to_l2_messages,
         })
     }
 }

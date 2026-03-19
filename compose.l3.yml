@@ -1,0 +1,84 @@
+# L3 (Appchain) infrastructure
+#
+# Deploys appc_msg_sn to an existing L3 Katana TEE node.
+#
+# Prerequisites:
+#   - compose.l2.yml must be running (katana_l2 reachable on saya_net)
+#   - A katana-tee node must be reachable at KATANA_L3_URL (TEE hardware required)
+#   - cd cairo && scarb build  (compile contracts before first run)
+#
+# Usage:
+#   KATANA_L3_URL=http://<tee-host>:5050 docker compose -f compose.l3.yml up
+#
+# Appchain addresses are written to .state/l3.env for use by compose.e2e.yml.
+
+x-sozo-common: &sozo-common
+  build:
+    context: docker
+    dockerfile: Dockerfile.sozo
+    args:
+      SOZO_VERSION: "1.8.6"
+  dns: 127.0.0.11
+  networks: [saya_net]
+  restart: "no"
+  volumes:
+    - ./cairo/target/dev:/artifacts:ro
+
+services:
+  appc_msg_sn_deploy:
+    <<: *sozo-common
+    container_name: appc_msg_sn_deploy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until curl -sf ${KATANA_L3_URL:-http://katana_l3:5050} > /dev/null 2>&1; do
+          echo "Waiting for L3 katana at ${KATANA_L3_URL:-http://katana_l3:5050}..."; sleep 2
+        done
+
+        sozo declare /artifacts/sn_msg_dev_appc_msg_sn.contract_class.json \
+                --katana-account katana0 \
+          --l1-data-gas 20000000000 \
+          --l1-gas 20000000000 \
+          --l1-gas-price 20000000000 \
+          --l2-gas-price 20000000000 \
+          --l1-data-gas-price 20000000000 \
+          --l2-gas 20000000000 \
+          --rpc-url ${KATANA_L3_URL:-http://katana_l3:5050}
+
+        sozo deploy 0x03653979a4d0bcd57a755a32a182d0650d9cd45cd3ff3be28a20c972e1c9c29c \
+          --katana-account katana0 \
+          --salt 0x1234 \
+          --l1-data-gas 20000000000 \
+          --l1-gas 20000000000 \
+          --l1-gas-price 20000000000 \
+          --l2-gas-price 20000000000 \
+          --l1-data-gas-price 20000000000 \
+          --l2-gas 20000000000 \
+          --rpc-url ${KATANA_L3_URL:-http://katana_l3:5050}
+
+  # Writes deterministic appchain addresses to .state/l3.env.
+  # Account is generated from the chain config (same config → same accounts).
+  # Contract address is deterministic: same deployer, same class hash, same salt.
+  write_state:
+    image: alpine:3
+    container_name: l3_write_state
+    depends_on:
+      appc_msg_sn_deploy:
+        condition: service_completed_successfully
+    volumes:
+      - ./.state:/state
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /state
+        cat > /state/l3.env << 'EOF'
+        APPC_ACCOUNT_ADDRESS=0x1f401c745d3dba9b9da11921d1fb006c96f571e9039a0ece3f3b0dc14f04c3d
+        APPC_PRIVATE_KEY=0x7230b49615d175307d580c33d6fda61fc7b9aec91df0f5c1a5ebe3b8cbfee02
+        APPC_MSG_SN_ADDRESS=0x00be8c1b5ddc2edacb375bc8734b8a96d618f8213df8bd531e60fa338c0aa429
+        EOF
+        echo "L3 state written to .state/l3.env:"
+        cat /state/l3.env
+
+networks:
+  saya_net:
+    name: saya_net

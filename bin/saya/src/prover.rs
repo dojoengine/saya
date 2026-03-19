@@ -142,7 +142,9 @@ impl TeeProver {
             block_hash: attestation.block_hash.clone(),
             prev_block_number: attestation.prev_block_number,
             block_number: attestation.block_number,
-            events_commitment: None,
+            messages_commitment: attestation.messages_commitment,
+            l2_to_l1_messages: vec![],
+            l1_to_l2_messages: vec![],
         };
 
         let tee = TeeAttestationProver::from_response(&response)?;
@@ -171,6 +173,9 @@ impl TeeProver {
             block_hash,
             prev_block_number: attestation.prev_block_number,
             block_number: attestation.block_number,
+            messages_commitment: attestation.messages_commitment,
+            l2_to_l1_messages: attestation.l2_to_l1_messages,
+            l1_to_l2_messages: attestation.l1_to_l2_messages,
         })
     }
 }

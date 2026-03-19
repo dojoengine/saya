@@ -11,8 +11,8 @@ use starknet_types_core::felt::Felt;
 use url::Url;
 
 use crate::prover::TeeProverBuilder;
-use crate::settlement::TeePiltoverSettlementBackendBuilder;
 use crate::{attestor::TeeAttestorBuilder, common::SAYA_DB_PATH};
+use saya_core::settlement::TeePiltoverSettlementBackendBuilder;
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
@@ -49,9 +49,9 @@ struct Start {
     /// Settlement network account private key
     #[clap(long, env)]
     settlement_account_private_key: Felt,
-    /// Starknet RPC URL used by the TEE prover for on-chain registry lookups
-    #[clap(long, env)]
-    prover_rpc: String,
+    // /// Starknet RPC URL used by the TEE prover for on-chain registry lookups
+    // #[clap(long, env)]
+    // prover_rpc: String,
     /// TEE registry contract address on the prover network
     #[clap(long, env)]
     tee_registry_address: Felt,
@@ -97,12 +97,12 @@ impl Start {
         );
 
         let attestor_builder = TeeAttestorBuilder::new(
-            self.rollup_rpc,
+            self.rollup_rpc.clone(),
             Duration::from_millis(self.attestor_poll_interval_ms),
         );
 
         let prover_builder = TeeProverBuilder::new(
-            self.prover_rpc,
+            self.settlement_rpc.to_string(),
             self.tee_registry_address,
             self.prover_private_key,
         );

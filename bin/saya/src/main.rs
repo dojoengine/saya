@@ -19,7 +19,6 @@ mod attestor;
 mod common;
 mod prover;
 mod prover_impl;
-mod settlement;
 
 #[derive(Debug, Parser)]
 #[clap(about, version)]

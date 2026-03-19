@@ -32,7 +32,7 @@ tokio-util = { version = "0.7.13", default-features = false }
 url = { version = "2.5.4", features = ["serde"] }
 sqlx = { version = "0.8.2", features = ["chrono", "macros", "regexp", "runtime-async-std", "runtime-tokio", "sqlite", "uuid"] }
 alloy-consensus = "1.0.41"
-piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "3567340003c4a7151fcf8a9887093a2b2b4ba3eb" }
+piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "dc86b13de0713c172153c4833fd7b3d14a855351" }
 
 
 [patch.crates-io]

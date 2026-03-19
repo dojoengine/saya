@@ -17,7 +17,7 @@ use saya_core::{
     block_ingestor::BlockInfo,
     prover::{PipelineStage, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
-    tee::TeeAttestation,
+    tee::{L1ToL2Message, L2ToL1Message, TeeAttestation},
 };
 
 /// Fetches TEE attestation from the Katana rollup node for each incoming batch of
@@ -28,7 +28,7 @@ use saya_core::{
 #[derive(Debug)]
 pub struct TeeAttestor {
     katana_rpc: Url,
-    poll_interval: Duration,
+    _poll_interval: Duration,
     input_channel: Receiver<Vec<BlockInfo>>,
     output_channel: Sender<TeeAttestation>,
     finish_handle: FinishHandle,
@@ -46,7 +46,7 @@ impl TeeAttestorBuilder {
     pub fn new(katana_rpc: Url, poll_interval: Duration) -> Self {
         Self {
             katana_rpc,
-            _poll_interval: poll_interval,
+            poll_interval,
             input_channel: None,
             output_channel: None,
         }
@@ -59,7 +59,7 @@ impl PipelineStageBuilder for TeeAttestorBuilder {
     fn build(self) -> Result<Self::Stage> {
         Ok(TeeAttestor {
             katana_rpc: self.katana_rpc,
-            _poll_interval: self._poll_interval,
+            _poll_interval: self.poll_interval,
             input_channel: self
                 .input_channel
                 .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
@@ -143,14 +143,35 @@ impl TeeAttestor {
         let prev_block = if prev_block_number == 0 {
             None
         } else {
-            let prev_block_number = prev_block_number
-                .saturating_sub(1);
+            let prev_block_number = prev_block_number.saturating_sub(1);
 
             Some(prev_block_number)
         };
         let attestation = rpc_client
             .fetch_attestation(prev_block, block_number)
             .await?;
+        let l2_to_l1_messages = attestation
+            .l2_to_l1_messages
+            .into_iter()
+            .map(|m| L2ToL1Message {
+                from_address: m.from_address,
+                to_address: m.to_address,
+                payload: m.payload,
+            })
+            .collect();
+
+        let l1_to_l2_messages = attestation
+            .l1_to_l2_messages
+            .into_iter()
+            .map(|m| L1ToL2Message {
+                from_address: m.from_address,
+                to_address: m.to_address,
+                selector: m.selector,
+                payload: m.payload,
+                nonce: m.nonce,
+            })
+            .collect();
+
         Ok(TeeAttestation {
             blocks,
             quote: attestation.quote,
@@ -160,6 +181,9 @@ impl TeeAttestor {
             block_hash: attestation.block_hash,
             prev_block_number: attestation.prev_block_number,
             block_number: attestation.block_number,
+            messages_commitment: attestation.messages_commitment,
+            l2_to_l1_messages,
+            l1_to_l2_messages,
         })
     }
 }

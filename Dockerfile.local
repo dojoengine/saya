@@ -1,0 +1,12 @@
+# Local development image — copies a pre-built saya binary.
+# Build the binary first: cargo build --release
+# Then: docker build -f Dockerfile.local -t saya-local .
+
+FROM alpine:3
+
+RUN apk add --no-cache tini
+
+COPY target/release/saya /usr/bin/saya
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["saya"]

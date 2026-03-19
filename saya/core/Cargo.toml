@@ -20,3 +20,7 @@ tokio.workspace = true
 tokio-util.workspace = true
 url.workspace = true
 sqlx.workspace = true
+piltover.workspace = true
+cainome-cairo-serde = "0.4.1"
+katana_tee_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
+sha3 = "0.10"

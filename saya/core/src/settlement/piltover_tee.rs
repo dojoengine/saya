@@ -1,22 +1,18 @@
 //! TEE settlement backend — submits `PiltoverInput::TeeInput` to the Piltover contract.
 //!
-//! Receives a [`TeeProof`] from the prover stage, decodes the SP1 proof, builds the
-//! `TEEInput` calldata, and calls `update_state` on the Piltover contract.
-//!
-//! Calldata format for `PiltoverInput::TeeInput(TEEInput)` (Cairo enum variant 2):
-//!   [2, sp1_proof_len, sp1_proof_felt_0, ..., prev_state_root, state_root,
-//!    prev_block_hash, block_hash, prev_block_number, block_number]
+//! Uses the piltover bindgen types directly for calldata serialization; this is possible because
+//! both piltover and saya-core depend on the same `starknet = "0.17.0"` (crates.io) crate, so
+//! their `Felt` types resolve to the same `starknet-types-core 0.2.x` instance.
 
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
+// use cainome_cairo_serde::ContractAddress;
+use cainome_cairo_serde::{CairoSerde, ContractAddress};
 use katana_tee_client::{OnchainProof, StarknetCalldata};
-use log::{debug, info};
-use saya_core::{
-    prover::TeeProof,
-    service::{Daemon, FinishHandle, ShutdownHandle},
-    settlement::{SettlementBackend, SettlementCursor, TeeSettlementBackendBuilder},
-};
+use log::debug;
+use piltover::{MessageToAppchain, MessageToStarknet, PiltoverInput, TEEInput};
+use sha3::{Digest, Keccak256};
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
     core::types::{BlockId, BlockTag, Call, Felt, FunctionCall, TransactionReceipt},
@@ -27,46 +23,90 @@ use starknet::{
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
 
+use crate::{
+    prover::TeeProof,
+    service::{Daemon, FinishHandle, ShutdownHandle},
+    settlement::{SettlementBackend, SettlementCursor, TeeSettlementBackendBuilder},
+    tee::{L1ToL2Message, L2ToL1Message},
+};
+
 const POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Builds `PiltoverInput::TeeInput(TEEInput)` calldata manually, avoiding a direct dependency on
-/// the `piltover` crate which pulls in a conflicting version of `starknet-types-core`.
+/// Computes the Starknet L1→L2 message hash using keccak256.
 ///
-/// Cairo enum serialization: `[variant_index, ...payload]`
-/// Variant 2 = `TeeInput`.
-/// `TEEInput` serialization: `[sp1_proof_len, ...sp1_proof, prev_state_root, state_root,
-///                              prev_block_hash, block_hash, prev_block_number, block_number]`
+/// Matches the Ethereum StarknetMessaging.sol formula:
+/// `keccak256(abi.encodePacked(from_address, to_address, nonce, selector, payload.length, payload))`
+/// where `from_address` is a 20-byte Ethereum address (lower 20 bytes of the felt252).
+fn compute_l1_to_l2_msg_hash(msg: &L1ToL2Message) -> Felt {
+    let mut hasher = Keccak256::new();
+    // from_address: Ethereum address — lower 20 bytes of the felt252 big-endian representation.
+    hasher.update(&msg.from_address.to_bytes_be()[12..]);
+    hasher.update(msg.to_address.to_bytes_be());
+    hasher.update(msg.nonce.to_bytes_be());
+    hasher.update(msg.selector.to_bytes_be());
+    hasher.update(Felt::from(msg.payload.len() as u64).to_bytes_be());
+    for p in &msg.payload {
+        hasher.update(p.to_bytes_be());
+    }
+    Felt::from_bytes_be(&hasher.finalize().into())
+}
+
+fn messages_to_starknet(msgs: &[L2ToL1Message]) -> Vec<MessageToStarknet> {
+    msgs.iter()
+        .map(|m| MessageToStarknet {
+            from_address: ContractAddress(m.from_address),
+            to_address: ContractAddress(m.to_address),
+            payload: m.payload.clone(),
+        })
+        .collect()
+}
+
+fn messages_to_appchain(msgs: &[L1ToL2Message]) -> Vec<MessageToAppchain> {
+    msgs.iter()
+        .map(|m| MessageToAppchain {
+            from_address: ContractAddress(m.from_address),
+            to_address: ContractAddress(m.to_address),
+            nonce: m.nonce,
+            selector: m.selector,
+            payload: m.payload.clone(),
+        })
+        .collect()
+}
+
+/// Builds `PiltoverInput::TeeInput` calldata using the piltover bindgen.
 fn build_tee_calldata(proof: &TeeProof) -> Result<Vec<Felt>> {
     let onchain_proof = OnchainProof::decode_json(&proof.data)?;
-    let sp1_felts_raw = StarknetCalldata::from_proof(&onchain_proof)?.to_felts()?;
-
-    // Convert from katana-tee's starknet Felt to bin/saya-tee's starknet Felt via bytes.
-    let sp1_proof: Vec<Felt> = sp1_felts_raw
+    // katana-tee's Felt is starknet_rust_core::types::Felt which also resolves to
+    // starknet-types-core 0.2.x, so to_bytes_be()/from_bytes_be() round-trip is safe.
+    let sp1_proof: Vec<Felt> = StarknetCalldata::from_proof(&onchain_proof)?
+        .to_felts()?
         .iter()
-        .map(|f| {
-            let bytes = f.to_bytes_be();
-            Felt::from_bytes_be(&bytes)
-        })
+        .map(|f| Felt::from_bytes_be(&f.to_bytes_be()))
         .collect();
 
-    // Convert saya-core Felt (starknet-types-core v0.2.1) to bin/saya-tee Felt (fork) via bytes.
-    let to_felt =
-        |f: starknet_types_core::felt::Felt| -> Felt { Felt::from_bytes_be(&f.to_bytes_be()) };
+    let l1_to_l2_msg_hashes: Vec<Felt> = proof
+        .l1_to_l2_messages
+        .iter()
+        .map(compute_l1_to_l2_msg_hash)
+        .collect();
 
-    let mut calldata: Vec<Felt> = Vec::with_capacity(2 + 1 + sp1_proof.len() + 6);
-    // Enum variant index 2 = TeeInput
-    calldata.push(Felt::from(2u64));
-    // Vec<Felt> is serialised as [len, elem0, elem1, ...]
-    calldata.push(Felt::from(sp1_proof.len() as u64));
-    calldata.extend(sp1_proof);
-    calldata.push(to_felt(proof.prev_state_root));
-    calldata.push(to_felt(proof.state_root));
-    calldata.push(to_felt(proof.prev_block_hash));
-    calldata.push(to_felt(proof.block_hash));
-    calldata.push(to_felt(proof.prev_block_number));
-    calldata.push(to_felt(proof.block_number));
+    let tee_input = TEEInput {
+        sp1_proof,
+        prev_state_root: proof.prev_state_root,
+        state_root: proof.state_root,
+        prev_block_hash: proof.prev_block_hash,
+        block_hash: proof.block_hash,
+        prev_block_number: proof.prev_block_number,
+        block_number: proof.block_number,
+        messages_commitment: proof.messages_commitment,
+        messages_to_starknet: messages_to_starknet(&proof.l2_to_l1_messages),
+        messages_to_appchain: messages_to_appchain(&proof.l1_to_l2_messages),
+        l1_to_l2_msg_hashes,
+    };
 
-    Ok(calldata)
+    Ok(PiltoverInput::cairo_serialize(&PiltoverInput::TeeInput(
+        tee_input,
+    )))
 }
 
 /// Settlement backend that submits TEE proofs to the Piltover contract via `update_state`.
@@ -83,28 +123,25 @@ pub struct TeePiltoverSettlementBackend {
 #[derive(Debug)]
 pub struct TeePiltoverSettlementBackendBuilder {
     rpc_url: Url,
-    // Stored as raw bytes to avoid starknet-types-core version mismatch between
-    // the CLI (saya-core v0.2.1) and the dojoengine fork used in settlement.
-    piltover_address: [u8; 32],
-    account_address: [u8; 32],
-    account_private_key: [u8; 32],
+    piltover_address: Felt,
+    account_address: Felt,
+    account_private_key: Felt,
     proof_channel: Option<Receiver<TeeProof>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
 }
 
 impl TeePiltoverSettlementBackendBuilder {
-    /// Accepts `starknet_types_core::felt::Felt` from the CLI and converts via bytes.
     pub fn new(
         rpc_url: Url,
-        piltover_address: starknet_types_core::felt::Felt,
-        account_address: starknet_types_core::felt::Felt,
-        account_private_key: starknet_types_core::felt::Felt,
+        piltover_address: Felt,
+        account_address: Felt,
+        account_private_key: Felt,
     ) -> Self {
         Self {
             rpc_url,
-            piltover_address: piltover_address.to_bytes_be(),
-            account_address: account_address.to_bytes_be(),
-            account_private_key: account_private_key.to_bytes_be(),
+            piltover_address,
+            account_address,
+            account_private_key,
             proof_channel: None,
             cursor_channel: None,
         }
@@ -118,14 +155,10 @@ impl TeeSettlementBackendBuilder for TeePiltoverSettlementBackendBuilder {
         let provider = Arc::new(JsonRpcClient::new(HttpTransport::new(self.rpc_url)));
         let chain_id = provider.chain_id().await?;
 
-        let piltover_address = Felt::from_bytes_be(&self.piltover_address);
-        let account_address = Felt::from_bytes_be(&self.account_address);
-        let account_private_key = Felt::from_bytes_be(&self.account_private_key);
-
         let mut account = SingleOwnerAccount::new(
             provider.clone(),
-            LocalWallet::from_signing_key(SigningKey::from_secret_scalar(account_private_key)),
-            account_address,
+            LocalWallet::from_signing_key(SigningKey::from_secret_scalar(self.account_private_key)),
+            self.account_address,
             chain_id,
             ExecutionEncoding::New,
         );
@@ -134,7 +167,7 @@ impl TeeSettlementBackendBuilder for TeePiltoverSettlementBackendBuilder {
         Ok(TeePiltoverSettlementBackend {
             provider,
             account,
-            piltover_address,
+            piltover_address: self.piltover_address,
             proof_channel: self
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
@@ -232,7 +265,7 @@ impl TeePiltoverSettlementBackend {
 
             let execution = self.account.execute_v3(vec![call]);
 
-            let fees = match execution.estimate_fee().await {
+            let _fees = match execution.estimate_fee().await {
                 Ok(f) => f,
                 Err(e) => {
                     log::error!(
@@ -274,11 +307,7 @@ impl TeePiltoverSettlementBackend {
                         proof.block_number.to_hex_string()
                     )
                 }),
-                transaction_hash: {
-                    // Convert from fork Felt to saya-core Felt via bytes.
-                    let bytes = transaction.transaction_hash.to_bytes_be();
-                    starknet_types_core::felt::Felt::from_bytes_be(&bytes)
-                },
+                transaction_hash: transaction.transaction_hash,
             };
 
             tokio::select! {
@@ -293,10 +322,8 @@ impl TeePiltoverSettlementBackend {
 }
 
 impl SettlementBackend for TeePiltoverSettlementBackend {
-    async fn get_block_number(&self) -> Result<starknet_types_core::felt::Felt> {
-        let felt = self.get_piltover_block_number().await?;
-        let bytes = felt.to_bytes_be();
-        Ok(starknet_types_core::felt::Felt::from_bytes_be(&bytes))
+    async fn get_block_number(&self) -> Result<Felt> {
+        self.get_piltover_block_number().await
     }
 }
 
