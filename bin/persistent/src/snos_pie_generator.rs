@@ -6,7 +6,14 @@ use generate_pie::{
     generate_pie,
     types::{ChainConfig, OsHintsConfiguration},
 };
+
 use log::{debug, error, info, trace};
+use saya_core::{
+    block_ingestor::BlockInfo,
+    prover::{compress_pie, PipelineStage, PipelineStageBuilder},
+    service::{Daemon, FinishHandle, ShutdownHandle},
+    storage::{BlockStatus, PersistantStorage, Step},
+};
 use starknet_api::{contract_address, core::ChainId};
 use tokio::{
     sync::{
@@ -16,13 +23,6 @@ use tokio::{
     task,
 };
 use url::Url;
-
-use crate::{
-    block_ingestor::BlockInfo,
-    prover::{compress_pie, PipelineStage, PipelineStageBuilder},
-    service::{Daemon, FinishHandle, ShutdownHandle},
-    storage::{BlockStatus, PersistantStorage, Step},
-};
 
 const KATANA_DEFAULT_TOKEN_ADDRESS: &str =
     "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea";

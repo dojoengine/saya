@@ -37,7 +37,17 @@ url.workspace = true
 zip.workspace = true
 sqlx.workspace = true
 cairo-vm.workspace = true
-generate-pie.workspace = true
 starknet_api.workspace = true
 piltover.workspace = true
 cainome.workspace = true
+# Snos
+
+# TEE clients and dependencies
+# katana_tee_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263",optional = true }
+
+# katana_tee_client.workspace = true
+# amd-sev-snp-attestation-prover.workspace = true
+# amd-sev-snp-attestation-verifier.workspace = true
+# amd_tee_registry_client.workspace = true
+# x509-verifier-rust-crypto.workspace = true
+# alloy-primitives.workspace = true

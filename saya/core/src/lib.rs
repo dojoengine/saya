@@ -28,5 +28,4 @@ pub mod service;
 /// Internal utilities.
 mod utils;
 
-pub use generate_pie::types::OsHintsConfiguration;
 pub use starknet_api::core::ChainId;

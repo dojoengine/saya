@@ -2,9 +2,9 @@ use std::path::Path;
 use std::str::FromStr;
 
 use crate::core_contract::constants::{
-    ATLANTIC_FACT_REGISTRY_MAINNET, ATLANTIC_FACT_REGISTRY_SEPOLIA, DEFAULT_PILTOVER_CLASS_HASH,
-    FACT_REGISTRY_MOCK_BYTES, KATANA_STRK_FEE_TOKEN, MAINNET_RPC_URL, PILTOVER_CONTRACT_BYTES,
-    SEPOLIA_RPC_URL,
+    ATLANTIC_FACT_REGISTRY_MAINNET, ATLANTIC_FACT_REGISTRY_SEPOLIA,
+    DEFAULT_PILTOVER_CLASS_HASH, FACT_REGISTRY_MOCK_BYTES, KATANA_STRK_FEE_TOKEN,
+    MAINNET_RPC_URL, PILTOVER_CONTRACT_BYTES, SEPOLIA_RPC_URL,
 };
 use crate::core_contract::utils::{
     compute_starknet_os_config_hash, declare_contract, declare_contract_from_bytes,
@@ -67,7 +67,7 @@ pub struct SetupProgramArgs {
     fact_registry_address: Option<Felt>,
     #[clap(long, env = "CORE_CONTRACT_ADDRESS")]
     core_contract_address: Felt,
-    #[clap(long, env = "FEE_TOKEN_ADDRESS",default_value = KATANA_STRK_FEE_TOKEN.to_hex_string())]
+    #[clap(long, env = "FEE_TOKEN_ADDRESS", default_value = KATANA_STRK_FEE_TOKEN)]
     fee_token_address: Felt,
     #[clap(long, env = "CHAIN_ID")]
     chain_id: String,
@@ -75,7 +75,7 @@ pub struct SetupProgramArgs {
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
-    #[clap(long, env = "CLASS_HASH",default_value = DEFAULT_PILTOVER_CLASS_HASH.to_hex_string())]
+    #[clap(long, env = "CLASS_HASH", default_value = DEFAULT_PILTOVER_CLASS_HASH)]
     class_hash: Felt,
     #[clap(long, env = "SALT")]
     salt: Felt,

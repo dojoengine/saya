@@ -22,8 +22,6 @@ mod mock;
 pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
 mod recursive;
 
-mod snos_pie_generator;
-pub use snos_pie_generator::{SnosPieGenerator, SnosPieGeneratorBuilder};
 
 mod block_orderer;
 pub use block_orderer::{BlockOrderer, BlockOrdererBuilder};

@@ -6,3 +6,4 @@
 saya.db
 config.toml
 sequencer_venv
+/bin/*/target/

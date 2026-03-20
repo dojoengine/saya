@@ -2,6 +2,7 @@ use std::{io::Read, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use generate_pie::types::OsHintsConfiguration;
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::{
@@ -10,13 +11,15 @@ use saya_core::{
     orchestrator::PersistentOrchestratorBuilder,
     prover::{
         AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, BlockOrdererBuilder,
-        MockLayoutBridgeProverBuilder, PipelineChainBuilder, SnosPieGeneratorBuilder,
+        MockLayoutBridgeProverBuilder, PipelineChainBuilder,
     },
     service::Daemon,
     settlement::PiltoverSettlementBackendBuilder,
     storage::SqliteDb,
-    ChainId, OsHintsConfiguration,
+    ChainId,
 };
+
+use crate::snos_pie_generator::SnosPieGeneratorBuilder;
 use starknet::{
     core::utils::parse_cairo_short_string,
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},

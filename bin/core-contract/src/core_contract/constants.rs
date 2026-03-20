@@ -13,8 +13,8 @@ pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
 /// This class hash corresponds to the piltover contract compiled from
 /// the source code at:
 /// https://github.com/cartridge-gg/piltover/tree/67e65b8928b7ee3c2c188bf36c6b9eddc14addb2
-pub const DEFAULT_PILTOVER_CLASS_HASH: Felt =
-    felt!("0x1d7927de261ef86b08e58f850b47a1ed93587f87167b512cded4c1a1b3391a3");
+pub const DEFAULT_PILTOVER_CLASS_HASH: &str =
+    "0x1d7927de261ef86b08e58f850b47a1ed93587f87167b512cded4c1a1b3391a3";
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.
@@ -79,5 +79,5 @@ pub const ATLANTIC_FACT_REGISTRY_SEPOLIA: Felt =
     felt!("0x4ce7851f00b6c3289674841fd7a1b96b6fd41ed1edc248faccd672c26371b8c");
 
 /// Token address for paying fees on Katana in provable mode.
-pub const KATANA_STRK_FEE_TOKEN: Felt =
-    felt!("0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea");
+pub const KATANA_STRK_FEE_TOKEN: &str =
+    "0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea";

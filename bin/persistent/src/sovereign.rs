@@ -2,18 +2,18 @@ use std::{path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use generate_pie::types::OsHintsConfiguration;
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
     orchestrator::{Genesis, SovereignOrchestratorBuilder},
-    prover::{
-        AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder,
-        SnosPieGeneratorBuilder,
-    },
+    prover::{AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder},
     service::Daemon,
     storage::{InMemoryStorageBackend, SqliteDb},
-    ChainId, OsHintsConfiguration,
+    ChainId,
 };
+
+use crate::snos_pie_generator::SnosPieGeneratorBuilder;
 use starknet::{
     core::utils::parse_cairo_short_string,
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},

@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+
+[workspace.package]
+version = "0.2.2"
+edition = "2021"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/dojoengine/saya"
+
+[workspace.dependencies]
+
+[package]
+name = "core-contract"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { version = "1.0.95", default-features = false }
+base64 = { version = "0.22.1" }
+cairo-lang-starknet-classes = "2.12.3"
+celestia-rpc = { version = "0.16.2", default-features = false }
+celestia-types = { version = "0.20.0", default-features = false }
+clap = { version = "4.5.23", default-features = false, features = [
+    "derive",
+    "env",
+    "std",
+] }
+dojo-utils = { git = "https://github.com/dojoengine/dojo", branch = "main" }
+env_logger = { version = "0.11.6", features = ["unstable-kv"] }
+log = { version = "0.4.22", features = ["kv"] }
+serde_json = { version = "1.0.134", default-features = false }
+starknet = { git = "https://github.com/dojoengine/starknet-rs", branch = "feat/types-rs-100-blake2s" }
+starknet_api = { git = "https://github.com/karnotxyz/sequencer", rev = "e04617e0581d5ec93a035ec0e15419b4c201b629" }
+tokio = { version = "1.42.0", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+    "signal",
+    "time",
+] }
+url = { version = "2.5.4", default-features = false }
+hex = { version = "0.4.3", default-features = false }

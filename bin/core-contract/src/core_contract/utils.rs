@@ -266,7 +266,13 @@ fn prepare_class_from_bytes(
 
 fn casm_class_hash_from_bytes(data: &[u8], use_blake2s: bool) -> Result<Felt> {
     let sierra_class: ContractClass = serde_json::from_slice(data)?;
-    let casm_class = CasmContractClass::from_contract_class(sierra_class, false, usize::MAX)?;
+    let extraced_sierra_class = sierra_class.extract_sierra_program(false)?;
+    let casm_class = CasmContractClass::from_contract_class(
+        sierra_class,
+        extraced_sierra_class,
+        false,
+        usize::MAX,
+    )?;
 
     let hash_version = if use_blake2s {
         HashVersion::V2
