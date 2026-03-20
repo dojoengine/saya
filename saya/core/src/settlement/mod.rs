@@ -8,9 +8,6 @@ use crate::{
     block_ingestor::BlockInfo, data_availability::DataAvailabilityCursor, service::Daemon,
 };
 
-mod piltover;
-pub use piltover::{PiltoverSettlementBackend, PiltoverSettlementBackendBuilder};
-
 pub trait SettlementBackendBuilder {
     type Backend: SettlementBackend;
 

@@ -1,36 +1,23 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use starknet_types_core::felt::Felt;
-use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
     block_ingestor::BlockInfo,
-    data_availability::{
-        DataAvailabilityPacketContext, DataAvailabilityPayload, PersistentPacket, SovereignPacket,
-    },
+    data_availability::{DataAvailabilityPacketContext, DataAvailabilityPayload, PersistentPacket},
     service::Daemon,
 };
 
-mod atlantic;
-pub use atlantic::{
-    AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, AtlanticSnosProver,
-    AtlanticSnosProverBuilder,
-};
-
-mod mock;
-pub use mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder};
 mod recursive;
-
+pub use recursive::{PipelineChain, PipelineChainBuilder};
 
 mod block_orderer;
 pub use block_orderer::{BlockOrderer, BlockOrdererBuilder};
 
-pub use atlantic::compress_pie;
-pub use atlantic::AtlanticClient;
-pub use recursive::{PipelineChain, PipelineChainBuilder};
-
-pub mod error;
+#[cfg(feature = "snos")]
+use crate::data_availability::SovereignPacket;
+#[cfg(feature = "snos")]
+use swiftness_stark::types::StarkProof;
 
 /// Implemented by pipeline items that carry a block number.
 pub trait HasBlockNumber {
@@ -81,13 +68,7 @@ pub struct SnosProof<P> {
     pub proof: P,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RecursiveProof {
-    pub block_number: u64,
-    pub snos_output: Vec<Felt>,
-    pub layout_bridge_proof: StarkProof,
-}
-
+#[cfg(feature = "snos")]
 impl DataAvailabilityPayload for SnosProof<StarkProof> {
     type Packet = SovereignPacket;
 

@@ -8,9 +8,10 @@ use generate_pie::{
 };
 
 use log::{debug, error, info, trace};
+use crate::atlantic::compress_pie;
 use saya_core::{
     block_ingestor::BlockInfo,
-    prover::{compress_pie, PipelineStage, PipelineStageBuilder},
+    prover::{PipelineStage, PipelineStageBuilder},
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage, Step},
 };

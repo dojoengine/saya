@@ -6,48 +6,30 @@ license.workspace = true
 repository.workspace = true
 description = "Saya core implementation."
 
+[features]
+snos = ["dep:swiftness_stark"]
+
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true
-bigdecimal.workspace = true
 celestia-rpc.workspace = true
 celestia-types.workspace = true
 ciborium.workspace = true
 futures-util.workspace = true
 hex.workspace = true
-integrity.workspace = true
 log.workspace = true
 num-traits.workspace = true
-reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 starknet.workspace = true
 starknet-crypto.workspace = true
 starknet-types-core.workspace = true
-swiftness.workspace = true
-swiftness_air.workspace = true
-swiftness_commitment.workspace = true
-swiftness_fri.workspace = true
-swiftness_pow.workspace = true
-swiftness_stark.workspace = true
+swiftness_stark = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d185", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"], optional = true }
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 url.workspace = true
-zip.workspace = true
 sqlx.workspace = true
-cairo-vm.workspace = true
 starknet_api.workspace = true
 piltover.workspace = true
 cainome.workspace = true
-# Snos
-
-# TEE clients and dependencies
-# katana_tee_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263",optional = true }
-
-# katana_tee_client.workspace = true
-# amd-sev-snp-attestation-prover.workspace = true
-# amd-sev-snp-attestation-verifier.workspace = true
-# amd_tee_registry_client.workspace = true
-# x509-verifier-rust-crypto.workspace = true
-# alloy-primitives.workspace = true

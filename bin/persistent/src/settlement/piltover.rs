@@ -1,10 +1,10 @@
-use crate::{
+use crate::utils::{calculate_output, felt_to_bigdecimal, retry_with_backoff, split_calls, watch_tx};
+use saya_core::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
     service::{Daemon, FinishHandle},
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
     storage::PersistantStorage,
-    utils::{calculate_output, felt_to_bigdecimal, split_calls, watch_tx},
 };
 use anyhow::Result;
 use integrity::{split_proof, VerifierConfiguration};
@@ -108,7 +108,7 @@ where
                 .db
                 .get_proof(
                     new_da.block_number.try_into().unwrap(),
-                    crate::storage::Step::Bridge,
+                    saya_core::storage::Step::Bridge,
                 )
                 .await
                 .unwrap();
@@ -121,7 +121,7 @@ where
                 .await
                 .unwrap()
             {
-                crate::storage::BlockStatus::BridgeProofGenerated => {
+                saya_core::storage::BlockStatus::BridgeProofGenerated => {
                     match self.fact_registration {
                         FactRegistrationConfig::Integrity(integrity_address) => {
                             let layout_bridge_proof =
@@ -162,7 +162,7 @@ where
                             for (ind, chunk) in integrity_call_chunks.iter().enumerate() {
                                 let execution =
                                     self.account.execute_v3(chunk.to_owned()).nonce(nonce);
-                                let tx = crate::utils::retry_with_backoff(
+                                let tx = retry_with_backoff(
                                     || execution.send(),
                                     "integrity_verification",
                                     3,
@@ -246,7 +246,7 @@ where
                         }
                     }
                 }
-                crate::storage::BlockStatus::VerifiedProof => {
+                saya_core::storage::BlockStatus::VerifiedProof => {
                     info!(
                         block_number = new_da.block_number;
                         "Block already verified, skipping verification",
@@ -303,7 +303,7 @@ where
 
             let execution = self.account.execute_v3(vec![update_state_call]);
             // TODO: error handling
-            let fees = crate::utils::retry_with_backoff(
+            let fees = retry_with_backoff(
                 || execution.estimate_fee(),
                 "estimate_fee",
                 3,
@@ -319,7 +319,7 @@ where
 
             // TODO: wait for transaction to confirm
             // TODO: error handling
-            let transaction = crate::utils::retry_with_backoff(
+            let transaction = retry_with_backoff(
                 || execution.send(),
                 "settlement",
                 3,
@@ -469,7 +469,7 @@ impl<DB> Daemon for PiltoverSettlementBackend<DB>
 where
     DB: PersistantStorage + Send + Sync + 'static,
 {
-    fn shutdown_handle(&self) -> crate::service::ShutdownHandle {
+    fn shutdown_handle(&self) -> saya_core::service::ShutdownHandle {
         self.finish_handle.shutdown_handle()
     }
 

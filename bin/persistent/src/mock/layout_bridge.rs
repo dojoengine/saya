@@ -1,4 +1,3 @@
-use crate::block_ingestor::BlockInfo;
 use anyhow::Result;
 use integrity::Felt;
 use log::{debug, info};
@@ -6,11 +5,12 @@ use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::storage::PersistantStorage;
-use crate::{
-    prover::{PipelineStage, PipelineStageBuilder, RecursiveProof, SnosProof},
+use crate::utils::{calculate_output, stark_proof_mock};
+use saya_core::{
+    block_ingestor::BlockInfo,
+    prover::{PipelineStage, PipelineStageBuilder, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
-    utils::calculate_output,
+    storage::PersistantStorage,
 };
 /// Prover implementation as a client to the hosted [Mock Prover](https://docs.herodotus.cloud/atlantic-api/introduction)
 /// service.
@@ -82,7 +82,7 @@ where
             ];
             bootloader_output.extend_from_slice(&snos_output);
 
-            let mock_proof = crate::utils::stark_proof_mock(&bootloader_output);
+            let mock_proof = stark_proof_mock(&bootloader_output);
 
             let string_proof = serde_json::to_string(&mock_proof).unwrap();
             let bytes_proof = string_proof.as_bytes();
@@ -91,23 +91,18 @@ where
                 .add_proof(
                     new_snos_proof.block_number.try_into().unwrap(),
                     bytes_proof.to_vec(),
-                    crate::storage::Step::Bridge,
+                    saya_core::storage::Step::Bridge,
                 )
                 .await
                 .unwrap();
-            let recursive_proof = RecursiveProof {
-                block_number: new_snos_proof.block_number,
-                snos_output,
-                layout_bridge_proof: mock_proof,
-            };
 
             info!(
                 "Mock proof generated for block #{}",
                 new_snos_proof.block_number
             );
             let output = BlockInfo {
-                number: recursive_proof.block_number,
-                status: crate::storage::BlockStatus::BridgeProofGenerated,
+                number: new_snos_proof.block_number,
+                status: saya_core::storage::BlockStatus::BridgeProofGenerated,
                 state_update: Some(state_update),
             };
             tokio::select! {

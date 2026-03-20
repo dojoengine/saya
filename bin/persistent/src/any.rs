@@ -1,4 +1,8 @@
 use anyhow::Result;
+use crate::{
+    atlantic::{AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder},
+    mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder},
+};
 use saya_core::{
     block_ingestor::BlockInfo,
     data_availability::{
@@ -7,10 +11,7 @@ use saya_core::{
         DataAvailabilityPayload, DataAvailabilityPointer, NoopDataAvailabilityBackend,
         NoopDataAvailabilityBackendBuilder,
     },
-    prover::{
-        AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder, MockLayoutBridgeProver,
-        MockLayoutBridgeProverBuilder, PipelineStage, PipelineStageBuilder, SnosProof,
-    },
+    prover::{PipelineStage, PipelineStageBuilder, SnosProof},
     service::{Daemon, ShutdownHandle},
     storage::PersistantStorage,
 };

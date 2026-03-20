@@ -14,19 +14,19 @@ use tokio::{
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
-    block_ingestor::BlockInfo,
-    prover::{
-        atlantic::{
-            client::{AtlanticClient, Layout},
-            shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
-            AtlanticProof,
-        },
-        error::ProverError,
-        PipelineStage, PipelineStageBuilder, SnosProof,
+    atlantic::{
+        client::{AtlanticClient, Layout},
+        shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
+        AtlanticProof,
     },
+    error::ProverError,
+    utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
+};
+use saya_core::{
+    block_ingestor::BlockInfo,
+    prover::{PipelineStage, PipelineStageBuilder, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
-    utils::{compute_program_hash_from_pie, extract_pie_output, stark_proof_mock},
 };
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
@@ -80,7 +80,7 @@ where
             })?;
 
             match db
-                .get_proof(block_number_u32, crate::storage::Step::Snos)
+                .get_proof(block_number_u32, saya_core::storage::Step::Snos)
                 .await
             {
                 Ok(proof) => {
@@ -110,7 +110,7 @@ where
             }
 
             match db
-                .get_query_id(block_number_u32, crate::storage::Query::SnosProof)
+                .get_query_id(block_number_u32, saya_core::storage::Query::SnosProof)
                 .await
             {
                 Ok(atlantic_query_id) => {
@@ -164,7 +164,7 @@ where
             // TODO: error handling
 
             let compressed_pie: Vec<u8> = db
-                .get_pie(block_number_u32, crate::storage::Step::Snos)
+                .get_pie(block_number_u32, saya_core::storage::Step::Snos)
                 .await
                 .unwrap();
 
@@ -193,7 +193,7 @@ where
             db.add_query_id(
                 new_block.number.try_into().unwrap(),
                 atlantic_query_id.clone(),
-                crate::storage::Query::SnosProof,
+                saya_core::storage::Query::SnosProof,
             )
             .await
             .unwrap();
@@ -270,7 +270,7 @@ where
         let pie = db
             .get_pie(
                 new_block.number.try_into().unwrap(),
-                crate::storage::Step::Snos,
+                saya_core::storage::Step::Snos,
             )
             .await
             .unwrap();

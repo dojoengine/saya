@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::{debug, info};
 use tokio::sync::mpsc::Receiver;
 
-use crate::{
+use saya_core::{
     block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
     data_availability::{
         DataAvailabilityBackend, DataAvailabilityBackendBuilder, DataAvailabilityCursor,

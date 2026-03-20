@@ -1,16 +1,16 @@
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use crate::{
-    block_ingestor::BlockInfo,
-    prover::{
-        atlantic::{
-            client::{AtlanticClient, Layout},
-            shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
-            snos::compress_pie,
-        },
-        error::ProverError,
-        PipelineStage, PipelineStageBuilder, SnosProof,
+    atlantic::{
+        client::{AtlanticClient, Layout},
+        shared::{calculate_job_size, parse_and_store_proof, wait_for_query},
+        snos::compress_pie,
     },
+    error::ProverError,
+};
+use saya_core::{
+    block_ingestor::BlockInfo,
+    prover::{PipelineStage, PipelineStageBuilder, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
 };
@@ -72,7 +72,7 @@ where
                 .await
                 .map_err(|e| ProverError::MetadataFetch(e.to_string()))?;
             match db
-                .get_proof(block_number_u32, crate::storage::Step::Bridge)
+                .get_proof(block_number_u32, saya_core::storage::Step::Bridge)
                 .await
             {
                 Ok(proof) => {
@@ -87,7 +87,7 @@ where
                         );
                         let block_info = BlockInfo {
                             number: new_snos_proof.block_number,
-                            status: crate::storage::BlockStatus::SnosProofGenerated,
+                            status: saya_core::storage::BlockStatus::SnosProofGenerated,
                             state_update: Some(state_update.clone()),
                         };
 
@@ -110,7 +110,7 @@ where
             }
 
             match db
-                .get_query_id(block_number_u32, crate::storage::Query::BridgeProof)
+                .get_query_id(block_number_u32, saya_core::storage::Query::BridgeProof)
                 .await
             {
                 Ok(atlantic_query_id) => {
@@ -158,7 +158,7 @@ where
 
                     let output = BlockInfo {
                         number: new_snos_proof.block_number,
-                        status: crate::storage::BlockStatus::SnosProofGenerated,
+                        status: saya_core::storage::BlockStatus::SnosProofGenerated,
                         state_update: Some(state_update.clone()),
                     };
 
@@ -182,7 +182,7 @@ where
                     let label = format!("layout-trace-{}", new_snos_proof.block_number);
 
                     let atlantic_query_id = match db
-                        .get_query_id(block_number_u32, crate::storage::Query::BridgeTrace)
+                        .get_query_id(block_number_u32, saya_core::storage::Query::BridgeTrace)
                         .await
                     {
                         Ok(query_id) => query_id,
@@ -205,7 +205,7 @@ where
                             db.add_query_id(
                                 block_number_u32,
                                 atlantic_query_id.clone(),
-                                crate::storage::Query::BridgeTrace,
+                                saya_core::storage::Query::BridgeTrace,
                             )
                             .await
                             .unwrap();
@@ -279,7 +279,7 @@ where
             db.add_query_id(
                 new_snos_proof.block_number.try_into().unwrap(),
                 atlantic_query_id.clone(),
-                crate::storage::Query::BridgeProof,
+                saya_core::storage::Query::BridgeProof,
             )
             .await
             .unwrap();
@@ -329,7 +329,7 @@ where
 
             let output = BlockInfo {
                 number: new_snos_proof.block_number,
-                status: crate::storage::BlockStatus::SnosProofGenerated,
+                status: saya_core::storage::BlockStatus::SnosProofGenerated,
                 state_update: Some(state_update.clone()),
             };
 

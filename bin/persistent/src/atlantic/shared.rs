@@ -2,8 +2,9 @@ use super::{
     client::{AtlanticJobSize, AtlanticQueryResponse, AtlanticQueryStatus},
     AtlanticClient, AtlanticProof,
 };
-use crate::{
-    prover::{error::ProverError, SnosProof},
+use crate::error::ProverError;
+use saya_core::{
+    prover::SnosProof,
     service::FinishHandle,
     storage::{PersistantStorage, Step},
 };

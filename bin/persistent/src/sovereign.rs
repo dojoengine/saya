@@ -6,21 +6,24 @@ use generate_pie::types::OsHintsConfiguration;
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
     data_availability::CelestiaDataAvailabilityBackendBuilder,
-    orchestrator::{Genesis, SovereignOrchestratorBuilder},
-    prover::{AtlanticSnosProverBuilder, BlockOrdererBuilder, PipelineChainBuilder},
+    orchestrator::Genesis,
+    prover::{BlockOrdererBuilder, PipelineChainBuilder},
     service::Daemon,
     storage::{InMemoryStorageBackend, SqliteDb},
     ChainId,
 };
 
-use crate::snos_pie_generator::SnosPieGeneratorBuilder;
+use crate::{
+    atlantic::AtlanticSnosProverBuilder,
+    orchestrator::SovereignOrchestratorBuilder,
+    snos_pie_generator::SnosPieGeneratorBuilder,
+    common::{calculate_workers_per_stage, SAYA_DB_PATH},
+};
 use starknet::{
     core::utils::parse_cairo_short_string,
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
 };
 use url::Url;
-
-use crate::common::{calculate_workers_per_stage, SAYA_DB_PATH};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);

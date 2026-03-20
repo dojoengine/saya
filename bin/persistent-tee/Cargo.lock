@@ -741,7 +741,7 @@ dependencies = [
  "alloy-sol-types",
  "amd-sev-snp-attestation-verifier",
  "anyhow",
- "bincode 1.3.3",
+ "bincode",
  "boundless-market",
  "crossbeam",
  "lazy_static",
@@ -909,9 +909,6 @@ name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
-dependencies = [
- "derive_arbitrary",
-]
 
 [[package]]
 name = "ark-bn254"
@@ -2322,16 +2319,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bincode"
-version = "2.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36eaf5d7b090263e8150820482d5d93cd964a81e4019913c972f4edcc6edb740"
-dependencies = [
- "serde",
- "unty",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3117,7 +3104,7 @@ dependencies = [
  "cairo-lang-sierra-to-casm",
  "cairo-lang-sierra-type-size",
  "cairo-lang-utils",
- "cairo-vm 3.2.0",
+ "cairo-vm",
  "thiserror 2.0.18",
 ]
 
@@ -3138,7 +3125,7 @@ dependencies = [
  "cairo-lang-sierra-to-casm",
  "cairo-lang-starknet",
  "cairo-lang-utils",
- "cairo-vm 3.2.0",
+ "cairo-vm",
  "clap",
  "itertools 0.14.0",
  "keccak",
@@ -3420,38 +3407,6 @@ dependencies = [
 
 [[package]]
 name = "cairo-vm"
-version = "2.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c21cacdf4e290ab5f0018f24d6bf97f8d3a8809bd09568550669270e7f9ed534"
-dependencies = [
- "anyhow",
- "bincode 2.0.1",
- "bitvec",
- "generic-array 0.14.7",
- "hashbrown 0.15.5",
- "hex",
- "indoc",
- "keccak",
- "lazy_static",
- "nom",
- "num-bigint 0.4.6",
- "num-integer",
- "num-prime",
- "num-traits",
- "rand 0.8.5",
- "rust_decimal",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sha3",
- "starknet-crypto 0.8.1",
- "starknet-types-core 0.2.4",
- "thiserror 2.0.18",
- "zip 0.6.6",
-]
-
-[[package]]
-name = "cairo-vm"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38fb2559063ab5f35c1596b6b79a8a18809306a419a3cbd141c2149639386da9"
@@ -3477,7 +3432,7 @@ dependencies = [
  "starknet-types-core 0.2.4",
  "thiserror 2.0.18",
  "tracing",
- "zip 0.6.6",
+ "zip",
 ]
 
 [[package]]
@@ -4496,17 +4451,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "derive_arbitrary"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -6415,22 +6359,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "integrity"
-version = "0.1.0"
-source = "git+https://github.com/chudkowsky/integrity-rs.git?rev=9729be1#9729be155b7103a4643260c10708c4a9d0e41cf0"
-dependencies = [
- "starknet-core",
- "starknet-crypto 0.8.1",
- "swiftness",
- "swiftness_air",
- "swiftness_commitment",
- "swiftness_fri",
- "swiftness_pow",
- "swiftness_stark",
- "swiftness_transcript",
-]
-
-[[package]]
 name = "intrusive-collections"
 version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6835,18 +6763,6 @@ dependencies = [
 
 [[package]]
 name = "lambdaworks-crypto"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbc2a4da0d9e52ccfe6306801a112e81a8fc0c76aa3e4449fefeda7fef72bb34"
-dependencies = [
- "lambdaworks-math 0.10.0",
- "serde",
- "sha2 0.10.9",
- "sha3",
-]
-
-[[package]]
-name = "lambdaworks-crypto"
 version = "0.11.0"
 source = "git+https://github.com/lambdaclass/lambdaworks.git?rev=be4a329#be4a329dad5c847a37ab3831b6fdee546b2d0af9"
 dependencies = [
@@ -6868,16 +6784,6 @@ dependencies = [
  "serde",
  "sha2 0.10.9",
  "sha3",
-]
-
-[[package]]
-name = "lambdaworks-math"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1bd2632acbd9957afc5aeec07ad39f078ae38656654043bf16e046fa2730e23"
-dependencies = [
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -9367,7 +9273,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22b7eafb5d85be59cbd9da83f662cf47d834f1b836e14f675d1530b12c666867"
 dependencies = [
  "anyhow",
- "bincode 1.3.3",
+ "bincode",
  "bonsai-sdk",
  "borsh",
  "bytemuck",
@@ -9824,19 +9730,15 @@ version = "0.2.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
- "bigdecimal",
  "cainome",
- "cairo-vm 2.5.0",
  "celestia-rpc",
  "celestia-types",
  "ciborium",
  "futures-util",
  "hex",
- "integrity",
  "log",
  "num-traits",
  "piltover",
- "reqwest",
  "serde",
  "serde_json",
  "sqlx",
@@ -9844,17 +9746,10 @@ dependencies = [
  "starknet-crypto 0.8.1",
  "starknet-types-core 0.2.4",
  "starknet_api",
- "swiftness",
- "swiftness_air",
- "swiftness_commitment",
- "swiftness_fri",
- "swiftness_pow",
- "swiftness_stark",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "url",
- "zip 2.4.2",
 ]
 
 [[package]]
@@ -10447,12 +10342,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9fed904c7fb2856d868b92464fc8fa597fce366edea1a9cbfaa8cb5fe080bd6d"
 
 [[package]]
-name = "size-of"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4e36eca171fddeda53901b0a436573b3f2391eaa9189d439b2bd8ea8cebd7e3"
-
-[[package]]
 name = "sizeof"
 version = "0.16.0-rc.0"
 source = "git+https://github.com/karnotxyz/sequencer?rev=e04617e0581d5ec93a035ec0e15419b4c201b629#e04617e0581d5ec93a035ec0e15419b4c201b629"
@@ -10588,7 +10477,7 @@ version = "5.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca2363566d0d4213d0ffd93cfcc1a5e413e2af8682213d3e65b90ac0af5623e3"
 dependencies = [
- "bincode 1.3.3",
+ "bincode",
  "bytemuck",
  "clap",
  "elf",
@@ -10627,7 +10516,7 @@ version = "5.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bd3ff75c100e24b89a7b513e082ec3e040c4c9f1cd779b6ba475c5bdc1aa7ad"
 dependencies = [
- "bincode 1.3.3",
+ "bincode",
  "cbindgen",
  "cc",
  "cfg-if",
@@ -10683,7 +10572,7 @@ version = "5.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e7d3b98d9dd20856176aa7048e2da05d0c3e497f500ea8590292ffbd25002ec1"
 dependencies = [
- "bincode 1.3.3",
+ "bincode",
  "ctrlc",
  "prost",
  "serde",
@@ -10732,7 +10621,7 @@ version = "5.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b73b8ff343f2405d5935440e56b7aba5cee6d87303f0051974cbd6f5de502f57"
 dependencies = [
- "bincode 1.3.3",
+ "bincode",
  "elliptic-curve 0.13.8",
  "serde",
  "sp1-primitives",
@@ -10754,7 +10643,7 @@ version = "5.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e69a03098f827102c54c31a5e57280eb45b2c085de433b3f702e4f9e3ec1641"
 dependencies = [
- "bincode 1.3.3",
+ "bincode",
  "blake3",
  "cfg-if",
  "hex",
@@ -10775,7 +10664,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b66f439f716cfc44c38d2aea975f1c4a9ed2cc40074ca7e4df8a37a3ff3795eb"
 dependencies = [
  "anyhow",
- "bincode 1.3.3",
+ "bincode",
  "clap",
  "dirs 5.0.1",
  "enum-map",
@@ -10931,7 +10820,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "933ef703fb1c7a25e987a76ad705e60bb53730469766363b771baf3082a50fa0"
 dependencies = [
  "anyhow",
- "bincode 1.3.3",
+ "bincode",
  "bindgen",
  "cc",
  "cfg-if",
@@ -10966,7 +10855,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-kms",
  "backoff",
- "bincode 1.3.3",
+ "bincode",
  "cfg-if",
  "dirs 5.0.1",
  "eventsource-stream",
@@ -11412,25 +11301,6 @@ dependencies = [
 
 [[package]]
 name = "starknet-crypto"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "039a3bad70806b494c9e6b21c5238a6c8a373d66a26071859deb0ccca6f93634"
-dependencies = [
- "crypto-bigint 0.5.5",
- "hex",
- "hmac 0.12.1",
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
- "rfc6979 0.4.0",
- "sha2 0.10.9",
- "starknet-curve 0.5.1",
- "starknet-types-core 0.1.9",
- "zeroize",
-]
-
-[[package]]
-name = "starknet-crypto"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1004a16c25dc6113c19d4f9d0c19ff97d85804829894bba22c0d0e9e7b249812"
@@ -11466,15 +11336,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84be6079d3060fdbd8b5335574fef3d3783fa2f7ee6474d08ae0c1e4b0a29ba4"
 dependencies = [
  "starknet-ff",
-]
-
-[[package]]
-name = "starknet-curve"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcde6bd74269b8161948190ace6cf069ef20ac6e79cd2ba09b320efa7500b6de"
-dependencies = [
- "starknet-types-core 0.1.9",
 ]
 
 [[package]]
@@ -11629,24 +11490,6 @@ dependencies = [
  "starknet-core",
  "starknet-crypto 0.8.1",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "starknet-types-core"
-version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87af771d7f577931913089f9ca9a9f85d8a6238d59b2977f4c383d133c8abd3b"
-dependencies = [
- "blake2",
- "digest 0.10.7",
- "lambdaworks-crypto 0.10.0",
- "lambdaworks-math 0.10.0",
- "num-bigint 0.4.6",
- "num-integer",
- "num-traits",
- "serde",
- "size-of",
- "zeroize",
 ]
 
 [[package]]
@@ -11874,130 +11717,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734676eb262c623cec13c3155096e08d1f8f29adce39ba17948b18dad1e54142"
 
 [[package]]
-name = "swiftness"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "clap",
- "starknet-core",
- "swiftness_air",
- "swiftness_commitment",
- "swiftness_fri",
- "swiftness_pow",
- "swiftness_proof_parser",
- "swiftness_stark",
-]
-
-[[package]]
-name = "swiftness_air"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "num-bigint 0.4.6",
- "serde",
- "serde_with 3.18.0",
- "starknet-core",
- "starknet-crypto 0.8.1",
- "starknet-types-core 0.2.4",
- "swiftness_commitment",
- "swiftness_transcript",
- "thiserror 1.0.69",
- "thiserror-no-std",
-]
-
-[[package]]
-name = "swiftness_commitment"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "blake2",
- "num-bigint 0.4.6",
- "serde",
- "serde_with 3.18.0",
- "sha3",
- "starknet-core",
- "starknet-crypto 0.8.1",
- "starknet-types-core 0.2.4",
- "swiftness_transcript",
- "thiserror 1.0.69",
- "thiserror-no-std",
-]
-
-[[package]]
-name = "swiftness_fri"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "num-bigint 0.4.6",
- "serde",
- "serde_with 3.18.0",
- "sha3",
- "starknet-core",
- "starknet-crypto 0.8.1",
- "swiftness_commitment",
- "swiftness_transcript",
- "thiserror 1.0.69",
- "thiserror-no-std",
-]
-
-[[package]]
-name = "swiftness_pow"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "blake2",
- "serde",
- "sha3",
- "starknet-crypto 0.8.1",
- "starknet-types-core 0.2.4",
- "swiftness_transcript",
- "thiserror 1.0.69",
- "thiserror-no-std",
-]
-
-[[package]]
-name = "swiftness_proof_parser"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "anyhow",
- "clap",
- "num-bigint 0.4.6",
- "regex",
- "serde",
- "serde_json",
- "starknet-crypto 0.7.4",
- "starknet-types-core 0.1.9",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "swiftness_stark"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "serde",
- "serde_with 3.18.0",
- "starknet-core",
- "starknet-crypto 0.8.1",
- "swiftness_air",
- "swiftness_commitment",
- "swiftness_fri",
- "swiftness_pow",
- "swiftness_transcript",
- "thiserror 1.0.69",
- "thiserror-no-std",
-]
-
-[[package]]
-name = "swiftness_transcript"
-version = "1.0.0"
-source = "git+https://github.com/chudkowsky/swiftness?rev=e07d185#e07d18596d410546c582eb25c8101100956a3229"
-dependencies = [
- "starknet-crypto 0.8.1",
-]
-
-[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12215,26 +11934,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "thiserror-impl-no-std"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e6318948b519ba6dc2b442a6d0b904ebfb8d411a3ad3e07843615a72249758"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "thiserror-no-std"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3ad459d94dd517257cc96add8a43190ee620011bb6e6cdc82dafd97dfafafea"
-dependencies = [
- "thiserror-impl-no-std",
 ]
 
 [[package]]
@@ -12923,12 +12622,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "unty"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d49784317cd0d1ee7ec5c716dd598ec5b4483ea832a2dced265471cc0f690ae"
 
 [[package]]
 name = "unzip-n"
@@ -13989,23 +13682,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zip"
-version = "2.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50"
-dependencies = [
- "arbitrary",
- "crc32fast",
- "crossbeam-utils",
- "displaydoc",
- "flate2",
- "indexmap 2.13.0",
- "memchr",
- "thiserror 2.0.18",
- "zopfli",
-]
-
-[[package]]
 name = "zkhash"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14037,15 +13713,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[package]]
-name = "zopfli"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f05cd8797d63865425ff89b5c4a48804f35ba0ce8d125800027ad6017d2b5249"
-dependencies = [
- "bumpalo",
- "crc32fast",
- "log",
- "simd-adler32",
-]

@@ -8,30 +8,28 @@ use saya_core::{
     data_availability::{
         CelestiaDataAvailabilityBackendBuilder, NoopDataAvailabilityBackendBuilder,
     },
-    orchestrator::PersistentOrchestratorBuilder,
-    prover::{
-        AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder, BlockOrdererBuilder,
-        MockLayoutBridgeProverBuilder, PipelineChainBuilder,
-    },
+    prover::{BlockOrdererBuilder, PipelineChainBuilder},
     service::Daemon,
-    settlement::PiltoverSettlementBackendBuilder,
     storage::SqliteDb,
     ChainId,
 };
 
-use crate::snos_pie_generator::SnosPieGeneratorBuilder;
+use crate::{
+    atlantic::{AtlanticLayoutBridgeProverBuilder, AtlanticSnosProverBuilder},
+    mock::MockLayoutBridgeProverBuilder,
+    orchestrator::PersistentOrchestratorBuilder,
+    settlement::PiltoverSettlementBackendBuilder,
+    snos_pie_generator::SnosPieGeneratorBuilder,
+    any::{AnyDataAvailabilityLayerBuilder, AnyLayoutBridgeProverBuilder},
+    common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
+    sovereign::validate_non_empty,
+};
 use starknet::{
     core::utils::parse_cairo_short_string,
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
 };
 use starknet_types_core::felt::Felt;
 use url::Url;
-
-use crate::{
-    any::{AnyDataAvailabilityLayerBuilder, AnyLayoutBridgeProverBuilder},
-    common::{calculate_workers_per_stage, NUMBER_OF_STAGES, SAYA_DB_PATH},
-    sovereign::validate_non_empty,
-};
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);

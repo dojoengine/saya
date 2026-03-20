@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use crate::prover::error::ProverError;
+use crate::error::ProverError;
 use reqwest::{
     multipart::{Form, Part},
     Client, ClientBuilder,
