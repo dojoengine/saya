@@ -1,9 +1,7 @@
-# Consider compiling the cairo programs before building the image to embed them.
-
 # Stage 1
 FROM rust:alpine AS build
 
-RUN apk add --update alpine-sdk linux-headers openssl-dev openssl-libs-static tini python3 python3-dev py3-pip gmp-dev
+RUN apk add --update alpine-sdk linux-headers openssl-dev openssl-libs-static tini python3 python3-dev py3-pip gmp-dev git
 
 WORKDIR /src
 COPY ./rust-toolchain.toml /src/
@@ -40,6 +38,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 RUN --mount=type=cache,target=/src/bin/ops/target \
     cp ./bin/ops/target/release/ops ./build/
 
+# Generate layout_bridge program from cairo-lang source
+ARG CAIRO_VERSION=0.14.0.1
+RUN git clone --recursive https://github.com/starkware-libs/cairo-lang \
+        -b v${CAIRO_VERSION} --depth 1 /cairo-lang-src && \
+    sed -i s/all_cairo/dynamic/g \
+        /cairo-lang-src/src/starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo && \
+    mkdir -p /programs && \
+    . /cairo_venv/bin/activate && \
+    cd /cairo-lang-src/src && \
+    cairo-compile --no_debug_info --proof_mode \
+        --output /programs/layout_bridge.json \
+        starkware/cairo/cairo_verifier/layouts/all_cairo/cairo_verifier.cairo
+
 # Stage 2
 FROM alpine
 
@@ -48,9 +59,8 @@ LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 COPY --from=build /sbin/tini /tini
 COPY --from=build /src/build/persistent /usr/bin/
 COPY --from=build /src/build/ops /usr/bin/
-COPY ./programs /programs
+COPY --from=build /programs /programs
 
-ENV SNOS_PROGRAM=/programs/snos.json
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
 
 ENTRYPOINT ["/tini", "--"]

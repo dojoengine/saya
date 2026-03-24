@@ -2,6 +2,20 @@
 
 Saya is a settlement service for Katana.
 
+## Binaries
+
+Saya is split into three independent binaries, each in its own Cargo workspace under `bin/`:
+
+| Binary | Workspace | Purpose |
+|--------|-----------|---------|
+| `persistent` | `bin/persistent/` | Settlement daemon — STARK/Atlantic proof pipeline, Piltover on-chain settlement, and sovereign (Celestia DA) mode |
+| `ops` | `bin/ops/` | Ops utilities — Piltover contract deployment and management, Celestia helpers |
+| `persistent-tee` | `bin/persistent-tee/` | TEE settlement daemon — AMD SEV-SNP attestation → SP1 proof → Piltover on-chain settlement |
+
+`saya/core` is a shared infrastructure library (no STARK or TEE-specific deps) used by all binaries.
+
+---
+
 ## Katana provable mode
 
 Katana must be running in **provable mode** to be proven by Saya.
@@ -10,12 +24,12 @@ All commands described below are available starting from **Dojo `1.3.0`**.
 ### Important limitation
 
 Provable Katana currently supports only **Starknet v14.0.1**.
-Because of this, Katana’s built-in logic for deploying the core contract **cannot be used**.
-Instead, deployment is handled by **Saya**.
+Because of this, Katana's built-in logic for deploying the core contract **cannot be used**.
+Instead, deployment is handled by the **`ops` binary**.
 
 ### Correct flow
 
-1. Use Saya to:
+1. Use the `ops` binary to:
    - declare (or use the predeclared) core contract,
    - deploy the contract,
    - set the program info and fact registry.
@@ -28,47 +42,28 @@ Instead, deployment is handled by **Saya**.
 
 ---
 
-## Core contract (Piltover)
-
-The `core-contract` subcommand manages the Piltover core contract:
-
-- declaring the class,
-- deploying the contract,
-- setting program info and fact registry.
+## Ops binary (`bin/ops`)
 
 ### Required environment variables
 
 ```bash
 export SETTLEMENT_ACCOUNT_PRIVATE_KEY=<PRIVATE_KEY_IN_HEX>
 export SETTLEMENT_ACCOUNT_ADDRESS=<ACCOUNT_ADDRESS_IN_HEX>
-export SETTLEMENT_CHAIN_ID=<STRING_CHAIN_ID>
+export SETTLEMENT_CHAIN_ID=<sepolia|mainnet|CUSTOM_CHAIN_ID>
 ```
 
-> This step is optional if you rely on the default class hash used by the `deploy` command (latest compatible Piltover).
+`SETTLEMENT_RPC_URL` is optional — if `SETTLEMENT_CHAIN_ID` is `sepolia` or `mainnet` the default public RPC is used automatically.
 
----
-
-## Declare the core contract
-
-The only argument is the path to the core contract definition.
-By default, it points to the contract in the repository:
-
-```
---core-contract-path <CORE_CONTRACT_PATH>
-    [env: CORE_CONTRACT_PATH=]
-    [default: contracts/core_contract.json]
-```
-
-Command:
+### Declare the core contract
 
 ```bash
-cargo run core-contract declare
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare
 ```
 
-or:
+Or with a custom contract path:
 
 ```bash
-cargo run core-contract declare --core-contract-path <PATH>
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare --core-contract-path <PATH>
 ```
 
 Expected output for the unmodified core contract:
@@ -78,34 +73,13 @@ Expected output for the unmodified core contract:
 [INFO  saya::core_contract::cli] Core contract class hash: 0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5
 ```
 
----
-
-## Deploy the core contract
-
-The deploy command accepts the following options:
-
-```
---class-hash <CLASS_HASH>  [env: CLASS_HASH=]
-                           [default: latest Piltover hash]
---salt <SALT>             [env: SALT=]
-```
-
-By default, the class hash is set to the latest compatible Piltover core contract.
-
-Example:
+### Deploy the core contract
 
 ```bash
-cargo run core-contract deploy --salt 0x5
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract deploy --salt 0x5
 ```
 
-The output contains two important values:
-
-- **block number**,
-- **contract address**.
-
-So save them for future use.
-
-Example output:
+The output contains two important values — **block number** and **contract address** — save them for future use:
 
 ```
 [INFO  saya::core_contract::utils] Core contract deployed.
@@ -114,55 +88,45 @@ Example output:
 [INFO  saya::core_contract::cli] Core contract address: 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53
 ```
 
----
-
-## Set program info and fact registry
-
-The last step is to set the program info and fact registry (defaults to the Atlantic fact registry).
-
 Options:
 
 ```
---fact-registry-address <FACT_REGISTRY_ADDRESS>
-    [env: FACT_REGISTRY_ADDRESS=]
-
---core-contract-address <CORE_CONTRACT_ADDRESS>
-    [env: CORE_CONTRACT_ADDRESS=]
-
---fee-token-address <FEE_TOKEN_ADDRESS>
-    [env: FEE_TOKEN_ADDRESS=]
-    [default: 0x2e7442625bab778683501c0eadbc1ea17b3535da040a12ac7d281066e915eea]
-
---chain-id <CHAIN_ID>
-    [env: CHAIN_ID=]
+--class-hash <CLASS_HASH>  [env: CLASS_HASH=]  [default: latest Piltover hash]
+--salt <SALT>              [env: SALT=]
 ```
 
-Example:
+### Set program info and fact registry
 
 ```bash
-cargo run core-contract setup-program \
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract setup-program \
   --core-contract-address 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
   --chain-id example-chain
 ```
 
-Example output:
+Options:
 
 ```
-[INFO  saya::core_contract::cli] Starknet OS config hash: 0x1676f3cc88a3ac2bf40e1a6780b73c46ccd5769e0e141ffc5491981a131e5d5
-[INFO  saya::core_contract::cli] Set program info transaction submitted: Hash(0x4a7dbe9d4c8613518acde5d66b69f7daa29efe756c20182b01b83856aed0cda)
-[INFO  saya::core_contract::cli] Fact registry set transaction submitted: Hash(0x27c24c82c0f1b7ac71cba02d4cbf1aa0136094d2bd9f9396b1f3f78afecc167)
+--fact-registry-address <FACT_REGISTRY_ADDRESS>  [env: FACT_REGISTRY_ADDRESS=]
+--core-contract-address <CORE_CONTRACT_ADDRESS>  [env: CORE_CONTRACT_ADDRESS=]
+--fee-token-address <FEE_TOKEN_ADDRESS>          [env: FEE_TOKEN_ADDRESS=]
+--chain-id <CHAIN_ID>                            [env: CHAIN_ID=]
 ```
+
+### Deploy a mock fact registry (for testing)
+
+Deploys a fact registry that confirms any submitted fact — useful for local testing without real proofs:
+
+```bash
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare-and-deploy-fact-registry-mock --salt 0x1
+```
+
+Then pass the deployed address to `setup-program --fact-registry-address`.
 
 ---
 
 ## Initialize Katana
 
-`katana init` generates:
-
-- a configuration file,
-- a genesis block.
-
-Example:
+`katana init` generates a configuration file and genesis block:
 
 ```bash
 katana init \
@@ -170,120 +134,178 @@ katana init \
   --id example-chain \
   --settlement-contract 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
   --settlement-contract-deployed-block 6180778
-
 ```
 
-Use `katana config` to list all the local configuration and `katana config <CHAIN_ID>` to display the configuration and the file path if you want to inspect it.
+Use `katana config` to list local configurations.
 
-1. Start Katana with `katana --chain <CHAIN_ID>` to load the generated parameters at start.
+Start Katana with:
 
-> **_NOTE:_** You can define an `--output-path` when working with `katana init` to output the configuration files in the given directory. You will then want to start katana with the `--chain /path` instead of `--chain <CHAIN_ID>`.
+```bash
+katana --chain <CHAIN_ID> --block-time 30000
+```
 
-1. Block time: when running Katana in provable mode, the block time is important, since each block will be proven by Saya, and eventually settled or posted to a data availability layer (which in both cases is incurring an additional cost).
+> **Note:** When running Katana in provable mode it is recommended to set a block time (in milliseconds). Katana starts the block timer on the first transaction in a block and never produces empty blocks.
 
-   It is then recommended to run Katana with a block time. It is important to note that Katana is starting the block time for the very first transaction received for the block, and will never produce empty blocks.
+> **Note:** Use `--output-path` with `katana init` to write config to a custom directory, then start with `--chain /path`.
 
-   ```bash
-   # Example for Katana with a block time of 30 seconds.
-   katana --chain <CHAIN_ID> --block-time 30000
-   ```
+---
 
 ## Requirements
 
-- Katana up and running in provable mode.
-- Herodotus Dev account with API key, which can be obtained from <https://herodotus.cloud>.
-
-### Sovereign mode
-
-- Celestia node up and running that you can send blob to using a celestia token (only for sovereign mode at the moment). A script is available in `scripts/celestia.sh` to help with the setup.
-- An account to send the blobs (usually configured with the light node you are running).
+- Katana running in provable mode.
 
 ### Persistent mode
 
-- Piltover settlement contract must be deployed on the settlement chain, see [piltover repository](https://github.com/keep-starknet-strange/piltover) or `katana init` can handle it too.
-- An account on the settlement chain with funds to verify the proof.
+- Piltover settlement contract deployed on the settlement chain (via `ops core-contract` above, or `katana init`).
+- An account on the settlement chain with funds to submit settlement transactions.
+- Herodotus Atlantic API key (from <https://herodotus.cloud>) unless using `--mock-layout-bridge-program-hash`.
+
+### Persistent-TEE mode
+
+- Katana TEE node (via `katana-tee`) running and reachable.
+- TEE registry contract deployed on the prover network.
+- An account on the prover network for submitting proofs.
+- An account on the settlement chain with funds to submit settlement transactions.
+
+### Sovereign mode
+
+- Celestia light node running with a funded account for blob submission. A helper script is available at `scripts/celestia.sh`.
+
+---
 
 ## Cairo programs
 
-Saya currently requires the following Cairo program to work. Use the script in the `scripts` folder to compile it.
+Persistent mode requires a compiled `layout_bridge` Cairo program:
 
 ```bash
 ./scripts/generate_layout_bridge.sh
 ```
 
-The scripts rely on docker to be installed and available, you may set `SUDO` variable based on your environment:
+The script requires Docker. Set `SUDO` if needed:
 
 ```bash
 SUDO=sudo ./scripts/generate_layout_bridge.sh
 ```
 
-> **_NOTE:_** The `starknet/cairo-lang` docker image is only available for `linux/amd64` architecture, emulation adds a significant overhead to build the `layout_bridge` program, which already requires a large amount of RAM (~32GB).
+> **Note:** The `starknet/cairo-lang` Docker image is `linux/amd64` only — emulation requires ~32 GB RAM.
 
-> **_NOTE:_** If you don't have a machine that can compile the programs, you can find them in the Saya docker image mounted in the `/programs` directory, or they can be downloaded from the [Saya release page](https://github.com/dojoengine/saya/releases).
+> **Note:** Pre-built programs are available in the Saya Docker image at `/programs` and on the [Saya release page](https://github.com/dojoengine/saya/releases).
 
-## Environment
-
-For simpler usage, you should export the environment variables required by Saya to run based on the Saya mode / targeted network.
-
-First, check the `.env.persistent.example` or `.env.sovereign.example` file and fill in the missing values (some values are pre-filled to settle on Sepolia), copying it to `.env.persistent` or `.env.sovereign`.
-
-Source the `.env.persistent` or `.env.sovereign` file or use:
-
-```bash
-# Persistent
-export $(grep -v '^#' .env.persistent | xargs)
-
-# Sovereign
-export $(grep -v '^#' .env.sovereign | xargs)
-```
-
-You can override any value exported in `.env.persistent` or `.env.sovereign` by passing the corresponding flag to the `saya` command.
-
-Those files are into the `.gitignore` file, so they are not checked into the repository.
+---
 
 ## Persistent mode
 
+### Running
+
 ```bash
-cargo run --bin saya -r -- persistent start
+cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
+  --rollup-rpc http://localhost:5050 \
+  --settlement-rpc https://starknet-sepolia.public.blastapi.io \
+  --settlement-piltover-address <PILTOVER_ADDRESS> \
+  --settlement-account-address <ACCOUNT_ADDRESS> \
+  --settlement-account-private-key <PRIVATE_KEY> \
+  --layout-bridge-program programs/layout_bridge.json \
+  --atlantic-key <ATLANTIC_KEY> \
+  --settlement-integrity-address <INTEGRITY_ADDRESS>
 ```
+
+Key options:
+
+```
+--rollup-rpc <URL>                           Katana L3 JSON-RPC endpoint
+--settlement-rpc <URL>                       Settlement chain JSON-RPC endpoint
+--settlement-piltover-address <FELT>         Piltover contract address
+--settlement-account-address <FELT>          Submitter account address
+--settlement-account-private-key <FELT>      Submitter account private key
+--layout-bridge-program <PATH>               Path to compiled layout_bridge program
+--atlantic-key <KEY>                         Atlantic (Herodotus) API key
+--settlement-integrity-address <FELT>        On-chain integrity/fact registry address
+--blocks-processed-in-parallel <N>           Parallel block pipeline depth (default: 60)
+--db-dir <PATH>                              SQLite database directory
+```
+
+### Mocking proofs (for testing)
+
+Replace the layout bridge proof with a mock (skips on-chain fact registration) by first switching Piltover to a mock fact registry:
+
+```bash
+cargo run --manifest-path bin/ops/Cargo.toml -- core-contract setup-program \
+  --core-contract-address <PILTOVER_ADDRESS> \
+  --chain-id example-chain \
+  --fact-registry-address <MOCK_FACT_REGISTRY_ADDRESS>
+```
+
+Then start with:
+
+```bash
+cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
+  ... \
+  --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
+```
+
+To also mock the SNOS proof (derives it from the PIE):
+
+```bash
+cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
+  ... \
+  --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
+  --mock-snos-from-pie
+```
+
+---
 
 ## Sovereign mode
 
 ```bash
-cargo run --bin saya -r -- sovereign start
+cargo run --manifest-path bin/persistent/Cargo.toml -r -- sovereign start \
+  --rollup-rpc http://localhost:5050 \
+  --celestia-rpc http://localhost:26658 \
+  --celestia-token <TOKEN>
 ```
+
+---
+
+## Persistent-TEE mode
+
+The TEE pipeline ingests blocks from Katana, fetches an AMD SEV-SNP attestation quote, generates an SP1 Groth16 proof via the TEE registry, and settles on Piltover.
+
+### Running
+
+```bash
+cargo run --manifest-path bin/persistent-tee/Cargo.toml -r -- tee start \
+  --rollup-rpc http://localhost:5050 \
+  --settlement-rpc https://starknet-sepolia.public.blastapi.io \
+  --settlement-piltover-address <PILTOVER_ADDRESS> \
+  --settlement-account-address <ACCOUNT_ADDRESS> \
+  --settlement-account-private-key <PRIVATE_KEY> \
+  --tee-registry-address <TEE_REGISTRY_ADDRESS> \
+  --prover-private-key <PROVER_PRIVATE_KEY>
+```
+
+Key options:
+
+```
+--rollup-rpc <URL>                       Katana TEE node JSON-RPC endpoint
+--settlement-rpc <URL>                   Settlement chain JSON-RPC endpoint
+--settlement-piltover-address <FELT>     Piltover contract address
+--settlement-account-address <FELT>      Submitter account address
+--settlement-account-private-key <FELT>  Submitter account private key
+--tee-registry-address <FELT>            TEE registry contract on the prover network
+--prover-private-key <STRING>            Prover network account private key
+--batch-size <N>                         Blocks per attestation batch (default: 10)
+--idle-timeout-secs <N>                  Flush partial batch after N idle seconds (default: 120)
+--attestor-poll-interval-ms <N>          Attestor poll interval in ms (default: 1000)
+--db-dir <PATH>                          SQLite database directory
+```
+
+---
 
 ## Testing
 
-Since persistent mode requires two proofs (SNOS and Layout bridge), you can opt to mock the layout bridge proof by providing the `--mock-layout-bridge-program-hash` argument for testing purposes.
+```bash
+# Unit + integration tests
+cargo test --workspace --all-features
 
-Before running Saya, you must first change the fact registry address for the piltover settlement contract to use a mock one.
-
-> **_NOTE:_** `0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867` is a deployed mock fact registry address on Sepolia that returns the expected fact confirmation for any fact.
-
-````
-cargo run core-contract --settlement-chain-id sepolia setup-program   --core-contract-address <PILTOVER_ADDRESS>   --chain-id example-chain  --fact-registry-address 0x01eda48cc753670a9a00313afd08bac6e1606943d554ea4a6040cd2953d67867```
-
-Then you can run Saya with:
-
-````
-
-saya persistent start \
- --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
-
-```
-
-By doing so, Saya will mock the layout bridge proof and call the `update_state` function of the settlement contract.
-
-In order to also mock the SNOS proof, you can use the following command:
-
-```
-
-saya persistent start \
- --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
- --mock-snos-from-pie
-
-```
-
-This will generates the SNOS's PIE, and mock the proof from it.
+# E2E (requires Docker)
+docker compose -f compose.e2e.yml up
 ```
