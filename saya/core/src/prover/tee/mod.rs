@@ -135,8 +135,7 @@ impl TeeProver {
     }
 
     fn prove(&self, attestation: TeeAttestation) -> TeeProof {
-        let prev_state_root = Felt::from_hex(&attestation.prev_state_root)
-            .unwrap_or(Felt::ZERO);
+        let prev_state_root = Felt::from_hex(&attestation.prev_state_root).unwrap_or(Felt::ZERO);
         let state_root = Felt::from_hex(&attestation.state_root).unwrap_or(Felt::ZERO);
         let prev_block_hash = Felt::from_hex(&attestation.prev_block_hash).unwrap_or(Felt::ZERO);
         let block_hash = Felt::from_hex(&attestation.block_hash).unwrap_or(Felt::ZERO);

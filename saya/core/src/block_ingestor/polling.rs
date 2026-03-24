@@ -17,7 +17,9 @@ use tokio::{
 use url::Url;
 
 use crate::{
-    block_ingestor::{BatchingBlockIngestorBuilder, BlockInfo, BlockIngestor, BlockIngestorBuilder},
+    block_ingestor::{
+        BatchingBlockIngestorBuilder, BlockInfo, BlockIngestor, BlockIngestorBuilder,
+    },
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{BlockStatus, PersistantStorage},
 };

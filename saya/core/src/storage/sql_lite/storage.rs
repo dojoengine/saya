@@ -338,8 +338,8 @@ impl PersistantStorage for SqliteDb {
 
 #[cfg(test)]
 mod tests {
-    use starknet_types_core::felt::Felt;
     use starknet::core::types::StateDiff;
+    use starknet_types_core::felt::Felt;
 
     use crate::storage::sql_lite::IN_MEMORY_DB;
 
