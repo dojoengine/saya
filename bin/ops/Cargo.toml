@@ -11,7 +11,7 @@ repository = "https://github.com/dojoengine/saya"
 [workspace.dependencies]
 
 [package]
-name = "core-contract"
+name = "ops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

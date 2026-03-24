@@ -17,7 +17,7 @@ mod sovereign;
 use sovereign::Sovereign;
 
 mod persistent;
-use persistent::Persistent;
+use persistent::Start;
 
 mod any;
 
@@ -38,9 +38,8 @@ enum Subcommands {
     /// Run and manage Saya in sovereign mode where the network settles interally without a "base
     /// layer".
     Sovereign(Sovereign),
-    /// Run and manage Saya in persistent L3 mode where proofs are settled in a "base layer"
-    /// network.
-    Persistent(Persistent),
+    /// Start Saya in persistent L3 mode where proofs are settled in a "base layer" network.
+    Start(Start),
 }
 
 #[tokio::main]
@@ -50,12 +49,12 @@ async fn main() -> Result<()> {
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var(
             "RUST_LOG",
-            "info,saya=trace,saya_core=trace,rpc_client=info,prove_block=info,blockifier=off,generate_pie=off,rpc_client=off,starknet_os=off",
+            "info,persistent=trace,saya_core=trace,rpc_client=info,prove_block=info,blockifier=off,generate_pie=off,rpc_client=off,starknet_os=off",
         );
     }
     env_logger::init();
     match cli.command {
         Subcommands::Sovereign(cmd) => cmd.run().await,
-        Subcommands::Persistent(cmd) => cmd.run().await,
+        Subcommands::Start(cmd) => cmd.run().await,
     }
 }

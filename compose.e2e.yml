@@ -19,9 +19,9 @@ services:
     networks: [saya_net]
     restart: "no"
     environment:
-      RUST_LOG: saya=debug
+      RUST_LOG: info,persistent=debug,saya_core=debug
     healthcheck:
-      test: ["CMD-SHELL", "pgrep saya"]
+      test: ["CMD-SHELL", "pgrep persistent"]
       interval: 3s
       timeout: 5s
       retries: 30
@@ -29,7 +29,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya persistent start \
+        persistent start \
           --rollup-rpc http://katana_l3:5050 \
           --settlement-rpc http://katana_l2:5050 \
           --settlement-piltover-address 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \

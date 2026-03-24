@@ -1,7 +1,7 @@
 use std::{io::Read, path::PathBuf, time::Duration};
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use generate_pie::types::OsHintsConfiguration;
 use saya_core::{
     block_ingestor::PollingBlockIngestorBuilder,
@@ -33,20 +33,8 @@ use url::Url;
 
 /// 10 seconds.
 const GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
-#[derive(Debug, Parser)]
-pub struct Persistent {
-    #[clap(subcommand)]
-    command: Subcommands,
-}
-
-#[derive(Debug, Subcommand)]
-enum Subcommands {
-    /// Start Saya in persistent mode.
-    Start(Start),
-}
-
 #[derive(Debug, Parser, Clone)]
-struct Start {
+pub struct Start {
     /// Rollup network Starknet JSON-RPC URL (v0.7.1)
     #[clap(long, env)]
     rollup_rpc: Url,
@@ -120,14 +108,6 @@ struct HintsConfiguration {
     /// Use KZG data availability for OS hints
     #[clap(long, env, default_value_t = false)]
     use_kzg_da: bool,
-}
-
-impl Persistent {
-    pub async fn run(self) -> Result<()> {
-        match self.command {
-            Subcommands::Start(start) => start.run().await,
-        }
-    }
 }
 
 impl Start {

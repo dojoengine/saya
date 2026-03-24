@@ -65,7 +65,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -82,7 +82,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -96,7 +96,7 @@ services:
       core_contract_declare:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
@@ -119,7 +119,7 @@ services:
       fact_registry_setup:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
@@ -237,14 +237,14 @@ services:
     networks: [saya_net]
     restart: "no"
     environment:
-      RUST_LOG: saya=debug
+      RUST_LOG: info,persistent=debug,saya_core=debug
     depends_on:
       sn_msg_deploy:
         condition: service_completed_successfully
       appc_msg_sn_deploy:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "pgrep saya"]
+      test: ["CMD-SHELL", "pgrep persistent"]
       interval: 3s
       timeout: 5s
       retries: 30
@@ -252,7 +252,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya persistent start \
+        persistent start \
           --rollup-rpc http://katana_l3:5050 \
           --settlement-rpc http://katana_l2:5050 \
           --settlement-piltover-address 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \

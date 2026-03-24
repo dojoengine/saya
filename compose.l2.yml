@@ -61,7 +61,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -78,7 +78,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -92,7 +92,7 @@ services:
       core_contract_declare:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
@@ -115,7 +115,7 @@ services:
       fact_registry_setup:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
