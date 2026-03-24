@@ -5,7 +5,8 @@ use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
-    block_ingestor::BlockInfo, data_availability::DataAvailabilityCursor, service::Daemon,
+    block_ingestor::BlockInfo, data_availability::DataAvailabilityCursor, prover::TeeProof,
+    service::Daemon,
 };
 
 pub trait SettlementBackendBuilder {
@@ -25,7 +26,20 @@ pub trait SettlementBackend: Daemon {
     fn get_block_number(&self) -> impl Future<Output = Result<Felt>> + Send;
 }
 
-// TODO: abstract over this to allow other settlement backends.
+/// Settlement backend builder for the TEE pipeline.
+///
+/// Receives [`TeeProof`] directly — all calldata fields are carried on the proof so no
+/// `DataAvailabilityCursor` adapter is needed.
+pub trait TeeSettlementBackendBuilder {
+    type Backend: SettlementBackend;
+
+    fn build(self) -> impl Future<Output = Result<Self::Backend>> + Send;
+
+    fn proof_channel(self, proof_channel: Receiver<TeeProof>) -> Self;
+
+    fn cursor_channel(self, cursor_channel: Sender<SettlementCursor>) -> Self;
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettlementCursor {
     /// Number/height of the rollup block that's been settled.

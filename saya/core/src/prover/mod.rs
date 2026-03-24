@@ -14,6 +14,9 @@ pub use recursive::{PipelineChain, PipelineChainBuilder};
 mod block_orderer;
 pub use block_orderer::{BlockOrderer, BlockOrdererBuilder};
 
+pub mod tee;
+pub use tee::{TeeProof, TeeProver, TeeProverBuilder};
+
 #[cfg(feature = "snos")]
 use crate::data_availability::SovereignPacket;
 #[cfg(feature = "snos")]
@@ -58,8 +61,8 @@ pub trait PipelineStageBuilder {
 }
 
 pub trait PipelineStage: Daemon {
-    type Input;
-    type Output;
+    type Input: Send + 'static;
+    type Output: Send + 'static;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

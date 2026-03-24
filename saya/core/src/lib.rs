@@ -7,6 +7,9 @@
 /// Block ingestor abstraction and built-in implementations.
 pub mod block_ingestor;
 
+/// TEE (Trusted Execution Environment) pipeline stages and types.
+pub mod tee;
+
 /// Prover abstraction and built-in implementations.
 pub mod prover;
 
@@ -25,7 +28,7 @@ pub mod orchestrator;
 /// Types related to handling long-running background services.
 pub mod service;
 
-/// Internal utilities.
-mod utils;
+/// Shared utilities (retry helpers).
+pub mod utils;
 
 pub use starknet_api::core::ChainId;
