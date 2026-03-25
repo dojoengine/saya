@@ -70,7 +70,9 @@ jobs:
           toolchain: "nightly-2024-12-16"
 
       - name: Install target
-        run: rustup target add ${{ matrix.job.target }}
+        run: |
+          rustup target add --toolchain 1.87 ${{ matrix.job.target }}
+          rustup target add --toolchain 1.91 ${{ matrix.job.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
