@@ -4959,7 +4959,7 @@ dependencies = [
 
 [[package]]
 name = "saya-core"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4988,7 +4988,7 @@ dependencies = [
 
 [[package]]
 name = "saya-e2e"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "piltover",
