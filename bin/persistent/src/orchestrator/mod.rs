@@ -1,5 +1,5 @@
 mod persistent;
-pub use persistent::{PersistentOrchestrator, PersistentOrchestratorBuilder};
+pub use persistent::PersistentOrchestratorBuilder;
 
 mod sovereign;
-pub use sovereign::{SovereignOrchestrator, SovereignOrchestratorBuilder};
+pub use sovereign::SovereignOrchestratorBuilder;

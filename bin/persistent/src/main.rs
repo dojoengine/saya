@@ -6,12 +6,12 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-mod error;
-mod utils;
 mod atlantic;
+mod error;
 mod mock;
-mod settlement;
 mod orchestrator;
+mod settlement;
+mod utils;
 
 mod sovereign;
 use sovereign::Sovereign;

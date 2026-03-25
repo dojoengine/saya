@@ -7,8 +7,8 @@ use generate_pie::{
     types::{ChainConfig, OsHintsConfiguration},
 };
 
-use log::{debug, error, info, trace};
 use crate::atlantic::compress_pie;
+use log::{debug, error, info, trace};
 use saya_core::{
     block_ingestor::BlockInfo,
     prover::{PipelineStage, PipelineStageBuilder},

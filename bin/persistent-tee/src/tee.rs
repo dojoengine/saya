@@ -5,10 +5,8 @@ use std::{path::PathBuf, time::Duration};
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use saya_core::{
-    block_ingestor::BatchingPollingBlockIngestorBuilder,
-    orchestrator::TeeOrchestratorBuilder,
-    service::Daemon,
-    storage::SqliteDb,
+    block_ingestor::BatchingPollingBlockIngestorBuilder, orchestrator::TeeOrchestratorBuilder,
+    service::Daemon, storage::SqliteDb,
 };
 
 use crate::settlement::TeePiltoverSettlementBackendBuilder;

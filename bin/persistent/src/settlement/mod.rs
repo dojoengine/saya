@@ -1,2 +1,2 @@
 mod piltover;
-pub use piltover::{PiltoverSettlementBackend, PiltoverSettlementBackendBuilder};
+pub use piltover::PiltoverSettlementBackendBuilder;

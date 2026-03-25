@@ -12,7 +12,18 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Checkout source code"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v4"
+
+      - name: "Setup SSH agent for private deps"
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
+      - name: "Setup Rust toolchain"
+        uses: "dtolnay/rust-toolchain@master"
+        with:
+          toolchain: "1.89"
+          components: "rustfmt"
 
       - name: "Use Rust cache"
         uses: "Swatinem/rust-cache@v2"
@@ -33,12 +44,17 @@ jobs:
 
     steps:
       - name: "Checkout source code"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v4"
 
-      - name: "Setup toolchain"
-        uses: "actions-rs/toolchain@v1"
+      - name: "Setup SSH agent for private deps"
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          toolchain: "nightly"
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
+      - name: "Setup Rust toolchain"
+        uses: "dtolnay/rust-toolchain@master"
+        with:
+          toolchain: "1.89"
           components: "clippy"
 
       - uses: Swatinem/rust-cache@v2
@@ -48,7 +64,7 @@ jobs:
       - name: "Setup Python"
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: "pip"
 
       - name: "Install dependencies"

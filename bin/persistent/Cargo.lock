@@ -5091,7 +5091,7 @@ dependencies = [
  "integrity",
  "log",
  "num-traits",
- "piltover",
+ "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2)",
  "reqwest 0.12.23",
  "saya-core",
  "serde",
@@ -5174,6 +5174,15 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 name = "piltover"
 version = "0.1.0"
 source = "git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2#67e65b8928b7ee3c2c188bf36c6b9eddc14addb2"
+dependencies = [
+ "cainome",
+ "starknet",
+]
+
+[[package]]
+name = "piltover"
+version = "0.1.0"
+source = "git+https://github.com/cartridge-gg/piltover.git?rev=dc86b13de0713c172153c4833fd7b3d14a855351#dc86b13de0713c172153c4833fd7b3d14a855351"
 dependencies = [
  "cainome",
  "starknet",
@@ -6179,7 +6188,7 @@ dependencies = [
  "hex",
  "log",
  "num-traits",
- "piltover",
+ "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=dc86b13de0713c172153c4833fd7b3d14a855351)",
  "serde",
  "serde_json",
  "sqlx",

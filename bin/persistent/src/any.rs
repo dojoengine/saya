@@ -1,8 +1,8 @@
-use anyhow::Result;
 use crate::{
     atlantic::{AtlanticLayoutBridgeProver, AtlanticLayoutBridgeProverBuilder},
     mock::{MockLayoutBridgeProver, MockLayoutBridgeProverBuilder},
 };
+use anyhow::Result;
 use saya_core::{
     block_ingestor::BlockInfo,
     data_availability::{

@@ -15,10 +15,10 @@ jobs:
       - name: "Checkout source code"
         uses: "actions/checkout@v4"
 
-      - name: "Setup nightly toolchain"
-        uses: "actions-rs/toolchain@v1"
+      - name: "Setup Rust toolchain"
+        uses: "dtolnay/rust-toolchain@master"
         with:
-          toolchain: "nightly"
+          toolchain: "1.89"
 
       - name: "Use Rust cache"
         uses: "Swatinem/rust-cache@v2"
@@ -28,13 +28,33 @@ jobs:
       - name: "Setup Python"
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: "pip"
 
       - name: "Install dependencies"
         run: |
           pip install -r requirements.txt
 
-      - name: "Cargo build"
+      - name: "Cargo build (root workspace)"
         run: |
           cargo build --workspace --all-features
+
+      - name: "Cargo build (bin/persistent)"
+        working-directory: bin/persistent
+        run: |
+          cargo build --all-features
+
+      - name: "Cargo build (bin/ops)"
+        working-directory: bin/ops
+        run: |
+          cargo build --all-features
+
+      - name: "Setup SSH agent for private deps"
+        uses: "webfactory/ssh-agent@v0.9.0"
+        with:
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
+      - name: "Cargo build (bin/persistent-tee)"
+        working-directory: bin/persistent-tee
+        run: |
+          cargo build --all-features

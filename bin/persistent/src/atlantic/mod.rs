@@ -5,7 +5,7 @@ use swiftness_stark::types::StarkProof;
 mod client;
 
 mod snos;
-pub use snos::{AtlanticSnosProver, AtlanticSnosProverBuilder};
+pub use snos::AtlanticSnosProverBuilder;
 
 mod shared;
 
