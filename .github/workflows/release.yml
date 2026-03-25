@@ -103,6 +103,11 @@ jobs:
           # See: https://github.com/jemalloc/jemalloc/issues/467
           echo "JEMALLOC_SYS_WITH_LG_PAGE=16" >> $GITHUB_ENV
 
+      - name: Setup SSH agent for private deps
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
       - name: Build binaries
         run: |
           cargo --version

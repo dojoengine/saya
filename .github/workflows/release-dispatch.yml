@@ -23,13 +23,18 @@ jobs:
         with:
           toolchain: "nightly"
 
+      - name: Setup SSH agent for private deps
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
       - run: |
           VERSION=${{ inputs.version }}
           VERSION=${VERSION#v}
           cargo install cargo-release --version 0.25.19 --locked
           cargo release version $VERSION --execute --no-confirm && cargo release replace --execute --no-confirm
           for dir in bin/persistent bin/ops bin/persistent-tee; do
-            (cd $dir && cargo release version $VERSION --execute --no-confirm)
+            (cd $dir && cargo release version $VERSION --allow-dirty --execute --no-confirm)
           done
 
       - id: version_info
