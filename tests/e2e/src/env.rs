@@ -13,7 +13,7 @@ pub fn l3_rpc_url() -> String {
 /// L2 messaging contract (`sn_msg`).
 pub fn sn_msg_address() -> Felt {
     Felt::from_hex(&std::env::var("SN_MSG_ADDRESS").unwrap_or_else(|_| {
-        "0x05caadeae8dae02b47180f7e26a999d35e63be5f0fe773c7ebf93461fa25a513".to_string()
+        "0x042ba247c6b41acc8fa299571a1c9ad3c0c19511fe09255ea9ff9287c250144a".to_string()
     }))
     .expect("invalid SN_MSG_ADDRESS")
 }
