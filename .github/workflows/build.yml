@@ -49,6 +49,11 @@ jobs:
         run: |
           cargo build --all-features
 
+      - name: "Setup SSH agent for private deps"
+        uses: "webfactory/ssh-agent@v0.9.0"
+        with:
+          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
+
       - name: "Cargo build (bin/persistent-tee)"
         working-directory: bin/persistent-tee
         run: |
