@@ -34,7 +34,7 @@ jobs:
           cargo install cargo-release --version 0.25.19 --locked
           cargo release version $VERSION --execute --no-confirm && cargo release replace --execute --no-confirm
           for dir in bin/persistent bin/ops bin/persistent-tee; do
-            (cd $dir && cargo release version $VERSION --allow-dirty --execute --no-confirm)
+            (cd $dir && cargo release version $VERSION --execute --no-confirm)
           done
 
       - id: version_info
