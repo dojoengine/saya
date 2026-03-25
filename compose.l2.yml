@@ -127,7 +127,7 @@ services:
       - http://katana_l2:5050
       - setup-program
       - --core-contract-address
-      - "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
+      - "0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896"
       - --chain-id
       - ${L3_CHAIN_ID:-custom}
       - --fact-registry-address
@@ -150,7 +150,7 @@ services:
         sleep 2
 
         sozo deploy 0x011dceea1eeb800a2a87454e424acb9158b5c649687d92a045c3eb6b73a182db \
-          --constructor-calldata 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --constructor-calldata 0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896 \
           --salt 0x1234 \
           --katana-account katana0 \
           --rpc-url http://katana_l2:5050

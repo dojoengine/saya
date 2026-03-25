@@ -54,7 +54,7 @@ pub fn appc_private_key() -> Felt {
 /// Defaults to the address used in `compose.yml`.
 pub fn piltover_address() -> Felt {
     let addr = std::env::var("PILTOVER_ADDRESS").unwrap_or_else(|_| {
-        "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d".to_string()
+        "0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896".to_string()
     });
     Felt::from_hex(&addr).expect("invalid PILTOVER_ADDRESS")
 }
