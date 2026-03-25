@@ -11,6 +11,7 @@ mod common;
 mod prover;
 mod prover_impl;
 mod settlement;
+mod storage;
 mod tee;
 
 use tee::Tee;

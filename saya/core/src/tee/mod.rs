@@ -5,12 +5,16 @@
 //!                    → (TEE Prover — see [`crate::prover::tee`])
 //!                    → [`crate::prover::tee::TeeProof`]
 
+pub mod storage;
+pub use storage::{BatchId, IncompleteBatch, StoredAttestation, TeeBatchStatus, TeeStorage};
+
+use serde::{Deserialize, Serialize};
 use starknet_types_core::felt::Felt;
 
 use crate::{block_ingestor::BlockInfo, prover::HasBlockNumber};
 
 /// L2→L1 message emitted by a contract execution.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L2ToL1Message {
     pub from_address: Felt,
     pub to_address: Felt,
@@ -18,7 +22,7 @@ pub struct L2ToL1Message {
 }
 
 /// L1→L2 message derived from an L1Handler transaction.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct L1ToL2Message {
     pub from_address: Felt,
     pub to_address: Felt,
@@ -34,6 +38,8 @@ pub struct L1ToL2Message {
 /// without needing an extra DB round-trip.
 #[derive(Debug, Clone)]
 pub struct TeeAttestation {
+    /// Database batch id for persistence tracking.
+    pub batch_id: i64,
     /// The ordered batch of blocks covered by this attestation.
     pub blocks: Vec<BlockInfo>,
     /// Raw attestation bytes returned by Katana (hex-encoded AMD SEV-SNP quote).

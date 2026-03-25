@@ -128,6 +128,7 @@ where
                 number: block_number,
                 status: BlockStatus::Mined,
                 state_update: Some(state_update.clone()),
+                tee_batch_id: None,
             };
 
             if channel.send(new_block).await.is_err() {
@@ -261,7 +262,7 @@ where
 /// - `batch_size` blocks have accumulated, or
 /// - `idle_timeout` elapses without a new block becoming available on-chain.
 #[derive(Debug)]
-pub struct BatchingPollingBlockIngestor<DB> {
+pub struct BatchingPollingBlockIngestor<DB, TS> {
     rpc_url: Url,
     current_block: u64,
     channel: tokio::sync::mpsc::Sender<Vec<BlockInfo>>,
@@ -269,20 +270,28 @@ pub struct BatchingPollingBlockIngestor<DB> {
     db: DB,
     batch_size: usize,
     idle_timeout: Duration,
+    tee_storage: Option<TS>,
 }
 
 #[derive(Debug)]
-pub struct BatchingPollingBlockIngestorBuilder<DB> {
+pub struct BatchingPollingBlockIngestorBuilder<DB, TS> {
     rpc_url: Url,
     start_block: Option<u64>,
     channel: Option<tokio::sync::mpsc::Sender<Vec<BlockInfo>>>,
     db: DB,
     batch_size: usize,
     idle_timeout: Duration,
+    tee_storage: Option<TS>,
 }
 
-impl<DB> BatchingPollingBlockIngestorBuilder<DB> {
-    pub fn new(rpc_url: Url, db: DB, batch_size: usize, idle_timeout: Duration) -> Self {
+impl<DB, TS> BatchingPollingBlockIngestorBuilder<DB, TS> {
+    pub fn new(
+        rpc_url: Url,
+        db: DB,
+        batch_size: usize,
+        idle_timeout: Duration,
+        tee_storage: Option<TS>,
+    ) -> Self {
         Self {
             rpc_url,
             start_block: None,
@@ -290,15 +299,17 @@ impl<DB> BatchingPollingBlockIngestorBuilder<DB> {
             db,
             batch_size,
             idle_timeout,
+            tee_storage,
         }
     }
 }
 
-impl<DB> BatchingBlockIngestorBuilder for BatchingPollingBlockIngestorBuilder<DB>
+impl<DB, TS> BatchingBlockIngestorBuilder for BatchingPollingBlockIngestorBuilder<DB, TS>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
+    TS: crate::tee::TeeStorage + Send + Sync + Clone + 'static,
 {
-    type Ingestor = BatchingPollingBlockIngestor<DB>;
+    type Ingestor = BatchingPollingBlockIngestor<DB, TS>;
 
     fn build(self) -> Result<Self::Ingestor> {
         Ok(BatchingPollingBlockIngestor {
@@ -313,6 +324,7 @@ where
             finish_handle: FinishHandle::new(),
             batch_size: self.batch_size,
             idle_timeout: self.idle_timeout,
+            tee_storage: self.tee_storage,
         })
     }
 
@@ -327,14 +339,17 @@ where
     }
 }
 
-impl<DB> BlockIngestor for BatchingPollingBlockIngestor<DB> where
-    DB: PersistantStorage + Send + Sync + Clone + 'static
+impl<DB, TS> BlockIngestor for BatchingPollingBlockIngestor<DB, TS>
+where
+    DB: PersistantStorage + Send + Sync + Clone + 'static,
+    TS: crate::tee::TeeStorage + Send + Sync + Clone + 'static,
 {
 }
 
-impl<DB> Daemon for BatchingPollingBlockIngestor<DB>
+impl<DB, TS> Daemon for BatchingPollingBlockIngestor<DB, TS>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
+    TS: crate::tee::TeeStorage + Send + Sync + Clone + 'static,
 {
     fn shutdown_handle(&self) -> ShutdownHandle {
         self.finish_handle.shutdown_handle()
@@ -345,9 +360,10 @@ where
     }
 }
 
-impl<DB> BatchingPollingBlockIngestor<DB>
+impl<DB, TS> BatchingPollingBlockIngestor<DB, TS>
 where
     DB: PersistantStorage + Send + Sync + Clone + 'static,
+    TS: crate::tee::TeeStorage + Send + Sync + Clone + 'static,
 {
     async fn get_latest_block(&self) -> Option<u64> {
         let provider = JsonRpcClient::new(HttpTransport::new(self.rpc_url.clone()));
@@ -401,7 +417,33 @@ where
             number: block_number,
             status: BlockStatus::Mined,
             state_update: Some(state_update),
+            tee_batch_id: None,
         })
+    }
+
+    async fn attach_tee_batch_id(&self, mut batch: Vec<BlockInfo>) -> Vec<BlockInfo> {
+        if batch.is_empty() {
+            return batch;
+        }
+
+        if let Some(tee_storage) = &self.tee_storage {
+            let first_block = batch.first().map(|b| b.number).unwrap_or(0);
+            let last_block = batch.last().map(|b| b.number).unwrap_or(0);
+
+            match tee_storage.create_batch(first_block, last_block).await {
+                Ok(batch_id) => {
+                    for block in &mut batch {
+                        block.tee_batch_id = Some(batch_id);
+                    }
+                    trace!(batch_id, first_block, last_block; "Created TEE batch");
+                }
+                Err(e) => {
+                    error!(first_block, last_block, error:% = e; "Failed to create TEE batch in DB");
+                }
+            }
+        }
+
+        batch
     }
 
     async fn run(mut self) {
@@ -424,6 +466,7 @@ where
                                 pending.push(info);
                                 if pending.len() >= self.batch_size {
                                     let batch = std::mem::take(&mut pending);
+                                    let batch = self.attach_tee_batch_id(batch).await;
                                     if self.channel.send(batch).await.is_err() {
                                         break 'outer;
                                     }
@@ -463,6 +506,7 @@ where
 
                         if pending.len() >= self.batch_size {
                             let batch = std::mem::take(&mut pending);
+                            let batch = self.attach_tee_batch_id(batch).await;
                             if self.channel.send(batch).await.is_err() {
                                 break 'outer;
                             }
@@ -488,6 +532,7 @@ where
                         if !pending.is_empty() {
                             debug!(count = pending.len(); "Idle timeout — flushing partial batch");
                             let batch = std::mem::take(&mut pending);
+                            let batch = self.attach_tee_batch_id(batch).await;
                             if self.channel.send(batch).await.is_err() {
                                 break 'outer;
                             }
@@ -500,6 +545,7 @@ where
 
         // Flush any blocks accumulated before shutdown.
         if !pending.is_empty() {
+            let pending = self.attach_tee_batch_id(pending).await;
             let _ = self.channel.send(pending).await;
         }
 

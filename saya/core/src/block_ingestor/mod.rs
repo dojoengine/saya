@@ -42,4 +42,6 @@ pub struct BlockInfo {
     pub number: u64,
     pub status: BlockStatus,
     pub state_update: Option<StateUpdate>,
+    /// Optional TEE batch ID — only set for TEE pipeline batches.
+    pub tee_batch_id: Option<i64>,
 }

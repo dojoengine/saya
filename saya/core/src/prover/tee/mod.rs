@@ -22,6 +22,8 @@ use crate::{
 /// Piltover `TEEInput` for `update_state` without an extra DB lookup.
 #[derive(Debug, Clone)]
 pub struct TeeProof {
+    /// Database batch id for persistence tracking.
+    pub batch_id: i64,
     /// Ordered batch of blocks covered by this proof, carried through the pipeline.
     pub blocks: Vec<BlockInfo>,
     /// JSON-encoded `OnchainProof` returned by the TEE proving service.
@@ -141,6 +143,7 @@ impl TeeProver {
         let block_hash = Felt::from_hex(&attestation.block_hash).unwrap_or(Felt::ZERO);
 
         TeeProof {
+            batch_id: attestation.batch_id,
             blocks: attestation.blocks,
             data: vec![],
             prev_state_root,

@@ -5,14 +5,17 @@ use crate::prover_impl::TeeAttestation as TeeAttestationProver;
 use anyhow::Result;
 use katana_tee_client::ProverConfig;
 use katana_tee_client::TeeQuoteResponse;
-use log::{debug, info};
+use log::{debug, error, info, warn};
 use saya_core::{
     prover::{HasBlockNumber, PipelineStage, PipelineStageBuilder, TeeProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
-    tee::TeeAttestation,
+    tee::{TeeAttestation, TeeBatchStatus, TeeStorage},
 };
 use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
+
+use crate::common::{retry_with_backoff, RETRY_INITIAL_DELAY, STAGE_MAX_ATTEMPTS};
+use crate::storage::TeeDb;
 
 /// Submits a [`TeeAttestation`] to the TEE proving service and emits the resulting [`TeeProof`].
 #[derive(Debug)]
@@ -20,6 +23,7 @@ pub struct TeeProver {
     provider_url: String,
     registry_address: Felt,
     private_key: String,
+    db: TeeDb,
     input_channel: Receiver<TeeAttestation>,
     output_channel: Sender<TeeProof>,
     finish_handle: FinishHandle,
@@ -30,16 +34,23 @@ pub struct TeeProverBuilder {
     provider_url: String,
     registry_address: Felt,
     private_key: String,
+    db: TeeDb,
     input_channel: Option<Receiver<TeeAttestation>>,
     output_channel: Option<Sender<TeeProof>>,
 }
 
 impl TeeProverBuilder {
-    pub fn new(provider_url: String, registry_address: Felt, private_key: String) -> Self {
+    pub fn new(
+        provider_url: String,
+        registry_address: Felt,
+        private_key: String,
+        db: TeeDb,
+    ) -> Self {
         Self {
             provider_url,
             registry_address,
             private_key,
+            db,
             input_channel: None,
             output_channel: None,
         }
@@ -54,6 +65,7 @@ impl PipelineStageBuilder for TeeProverBuilder {
             provider_url: self.provider_url,
             registry_address: self.registry_address,
             private_key: self.private_key,
+            db: self.db,
             input_channel: self
                 .input_channel
                 .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
@@ -103,13 +115,67 @@ impl TeeProver {
 
             debug!(block_number = attestation.block_number(); "Submitting TEE attestation to prover");
 
-            let proof = match self.prove(attestation).await {
-                Ok(p) => p,
-                Err(e) => {
-                    log::error!("TEE proof generation failed: {}", e);
-                    continue;
+            let batch_id = attestation.batch_id;
+
+            let mut scratch_attempt = 0u32;
+            let proof = 'scratch: loop {
+                let attempt_attestation = attestation.clone();
+                match retry_with_backoff(
+                    "prover_generate",
+                    STAGE_MAX_ATTEMPTS,
+                    RETRY_INITIAL_DELAY,
+                    || {
+                        let attestation = attempt_attestation.clone();
+                        async { self.prove(attestation).await }
+                    },
+                )
+                .await
+                {
+                    Ok(p) => break 'scratch p,
+                    Err(e) => {
+                        warn!(batch_id, error:% = e; "Prover exhausted retries");
+                        if let Err(db_err) = self
+                            .db
+                            .set_batch_status(batch_id, TeeBatchStatus::Failed)
+                            .await
+                        {
+                            error!(batch_id, error:% = db_err; "Failed to mark batch failed");
+                        }
+                        if let Err(db_err) = self.db.increment_retry_count(batch_id).await {
+                            error!(batch_id, error:% = db_err; "Failed to increment retry_count");
+                        }
+                        scratch_attempt += 1;
+                        if scratch_attempt >= 2 {
+                            error!(batch_id, error:% = e; "Prover scratch retry also failed; exiting process");
+                            std::process::exit(1);
+                        }
+                        // Attestation is still in DB; reset status so the batch
+                        // is recoverable and re-prove with the same attestation.
+                        warn!(batch_id; "Retrying batch once from scratch at prover stage");
+                        if let Err(db_err) = self
+                            .db
+                            .set_batch_status(batch_id, TeeBatchStatus::Attested)
+                            .await
+                        {
+                            error!(batch_id, error:% = db_err; "Failed to reset batch status for scratch retry");
+                        }
+                    }
                 }
             };
+
+            if let Err(e) = self.db.save_proof(proof.batch_id, &proof.data).await {
+                log::error!("Failed to persist proof for batch {}: {}", proof.batch_id, e);
+                continue;
+            }
+
+            if let Err(e) = self
+                .db
+                .set_batch_status(proof.batch_id, TeeBatchStatus::Proved)
+                .await
+            {
+                log::error!("Failed to set batch {} status to proved: {}", proof.batch_id, e);
+                continue;
+            }
 
             tokio::select! {
                 _ = self.finish_handle.shutdown_requested() => break,
@@ -156,6 +222,7 @@ impl TeeProver {
         let block_hash = Felt::from_hex(&attestation.block_hash)?;
 
         Ok(TeeProof {
+            batch_id: attestation.batch_id,
             blocks: attestation.blocks,
             data: proof_raw,
             prev_state_root,

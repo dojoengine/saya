@@ -16,7 +16,7 @@
 
 use anyhow::Result;
 use log::{debug, info};
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
     block_ingestor::{BatchingBlockIngestorBuilder, BlockInfo, BlockIngestor},
@@ -35,6 +35,10 @@ const SETTLE_CURSOR_BUFFER_SIZE: usize = 4;
 #[derive(Debug)]
 pub struct TeeOrchestrator<I, A, P, S> {
     cursor_channel: Receiver<SettlementCursor>,
+    attestation_sender: Sender<TeeAttestation>,
+    proof_sender: Sender<TeeProof>,
+    recovered_attestations: Vec<TeeAttestation>,
+    recovered_proofs: Vec<TeeProof>,
     ingestor: I,
     attestor: A,
     prover: P,
@@ -48,6 +52,8 @@ pub struct TeeOrchestratorBuilder<I, A, P, S> {
     attestor_builder: A,
     prover_builder: P,
     settlement_builder: S,
+    recovered_attestations: Vec<TeeAttestation>,
+    recovered_proofs: Vec<TeeProof>,
 }
 
 struct TeeOrchestratorState {
@@ -71,7 +77,19 @@ impl<I, A, P, S> TeeOrchestratorBuilder<I, A, P, S> {
             attestor_builder,
             prover_builder,
             settlement_builder,
+            recovered_attestations: Vec::new(),
+            recovered_proofs: Vec::new(),
         }
+    }
+
+    pub fn recovered_attestations(mut self, recovered_attestations: Vec<TeeAttestation>) -> Self {
+        self.recovered_attestations = recovered_attestations;
+        self
+    }
+
+    pub fn recovered_proofs(mut self, recovered_proofs: Vec<TeeProof>) -> Self {
+        self.recovered_proofs = recovered_proofs;
+        self
     }
 }
 
@@ -92,6 +110,9 @@ where
         let (proof_tx, proof_rx) = tokio::sync::mpsc::channel::<TeeProof>(PROOF_BUFFER_SIZE);
         let (settle_cursor_tx, settle_cursor_rx) =
             tokio::sync::mpsc::channel::<SettlementCursor>(SETTLE_CURSOR_BUFFER_SIZE);
+
+        let attestation_sender = attestation_tx.clone();
+        let proof_sender = proof_tx.clone();
 
         let settlement = self
             .settlement_builder
@@ -123,6 +144,10 @@ where
 
         Ok(TeeOrchestrator {
             cursor_channel: settle_cursor_rx,
+            attestation_sender,
+            proof_sender,
+            recovered_attestations: self.recovered_attestations,
+            recovered_proofs: self.recovered_proofs,
             ingestor,
             attestor,
             prover,
@@ -179,6 +204,11 @@ where
     }
 
     fn start(self) {
+        let attestation_sender = self.attestation_sender.clone();
+        let proof_sender = self.proof_sender.clone();
+        let recovered_attestations = self.recovered_attestations;
+        let recovered_proofs = self.recovered_proofs;
+
         let state = TeeOrchestratorState {
             cursor_channel: self.cursor_channel,
             ingestor_handle: self.ingestor.shutdown_handle(),
@@ -188,10 +218,24 @@ where
             finish_handle: self.finish_handle,
         };
 
-        self.ingestor.start();
         self.attestor.start();
         self.prover.start();
         self.settlement.start();
+
+        tokio::spawn(async move {
+            for attestation in recovered_attestations {
+                if attestation_sender.send(attestation).await.is_err() {
+                    break;
+                }
+            }
+            for proof in recovered_proofs {
+                if proof_sender.send(proof).await.is_err() {
+                    break;
+                }
+            }
+        });
+
+        self.ingestor.start();
 
         tokio::spawn(state.run());
     }
