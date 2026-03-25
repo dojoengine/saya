@@ -12,7 +12,6 @@ use core_contract::CoreContract;
 mod celestia;
 use celestia::Celestia;
 
-
 #[derive(Debug, Parser)]
 #[clap(about, version)]
 struct Cli {

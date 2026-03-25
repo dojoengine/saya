@@ -1,4 +1,10 @@
-use crate::utils::{calculate_output, felt_to_bigdecimal, retry_with_backoff, split_calls, watch_tx};
+use crate::utils::{
+    calculate_output, felt_to_bigdecimal, retry_with_backoff, split_calls, watch_tx,
+};
+use anyhow::Result;
+use integrity::{split_proof, VerifierConfiguration};
+use log::{debug, info};
+use piltover::{DaLayerInfo, PiltoverInput};
 use saya_core::{
     block_ingestor::BlockInfo,
     data_availability::DataAvailabilityCursor,
@@ -6,10 +12,6 @@ use saya_core::{
     settlement::{SettlementBackend, SettlementBackendBuilder, SettlementCursor},
     storage::PersistantStorage,
 };
-use anyhow::Result;
-use integrity::{split_proof, VerifierConfiguration};
-use log::{debug, info};
-use piltover::{DaLayerInfo, PiltoverInput};
 use starknet::{
     accounts::{Account, ConnectedAccount, SingleOwnerAccount},
     core::{
@@ -319,14 +321,10 @@ where
 
             // TODO: wait for transaction to confirm
             // TODO: error handling
-            let transaction = retry_with_backoff(
-                || execution.send(),
-                "settlement",
-                3,
-                Duration::from_secs(3),
-            )
-            .await
-            .unwrap();
+            let transaction =
+                retry_with_backoff(|| execution.send(), "settlement", 3, Duration::from_secs(3))
+                    .await
+                    .unwrap();
             info!(
                 block_number = new_da.block_number,
                 transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);

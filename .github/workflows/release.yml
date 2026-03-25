@@ -79,7 +79,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.12"
           cache: "pip"
 
       - name: "Install dependencies"
@@ -105,6 +105,8 @@ jobs:
         run: |
           cargo --version
           cargo build --release --workspace --all-features --target ${{ matrix.job.target }}
+          (cd bin/persistent && cargo build --release --all-features --target ${{ matrix.job.target }})
+          (cd bin/ops && cargo build --release --all-features --target ${{ matrix.job.target }})
 
       - name: Archive binaries
         id: artifacts
@@ -112,13 +114,17 @@ jobs:
           VERSION_NAME: ${{ needs.prepare.outputs.tag_name }}
         run: |
           if [ "$PLATFORM_NAME" == "linux" ]; then
-            tar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release saya
-            echo "file_name=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            tar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
+            tar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
+            echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           elif [ "$PLATFORM_NAME" == "darwin" ]; then
             # We need to use gtar here otherwise the archive is corrupt.
             # See: https://github.com/actions/virtual-environments/issues/2619
-            gtar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./target/${TARGET}/release saya
-            echo "file_name=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            gtar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
+            gtar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
+            echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
@@ -127,7 +133,8 @@ jobs:
         if: ${{ env.PLATFORM_NAME == 'linux' }}
         run: |
           mkdir -p $PLATFORM_NAME/$ARCH
-          mv target/$TARGET/release/saya $PLATFORM_NAME/$ARCH
+          mv bin/persistent/target/$TARGET/release/persistent $PLATFORM_NAME/$ARCH
+          mv bin/ops/target/$TARGET/release/ops $PLATFORM_NAME/$ARCH
         shell: bash
 
       - name: Upload docker binaries
@@ -141,7 +148,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: artifacts-${{ matrix.job.target }}
-          path: ${{ steps.artifacts.outputs.file_name }}
+          path: |
+            ${{ steps.artifacts.outputs.persistent_file }}
+            ${{ steps.artifacts.outputs.ops_file }}
           retention-days: 1
 
   build-programs:

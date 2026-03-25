@@ -8,15 +8,15 @@ use crate::{
     },
     error::ProverError,
 };
+use anyhow::Result;
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
+use log::{debug, info, trace, warn};
 use saya_core::{
     block_ingestor::BlockInfo,
     prover::{PipelineStage, PipelineStageBuilder, SnosProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
     storage::{PersistantStorage, Step},
 };
-use anyhow::Result;
-use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace, warn};
 use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,

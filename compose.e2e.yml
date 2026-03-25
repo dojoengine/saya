@@ -12,7 +12,7 @@
 
 services:
   saya:
-    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
+    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:latest}
     container_name: saya
     networks: [saya_net]
     restart: "no"

@@ -15,9 +15,9 @@ use saya_core::{
 
 use crate::{
     atlantic::AtlanticSnosProverBuilder,
+    common::{calculate_workers_per_stage, SAYA_DB_PATH},
     orchestrator::SovereignOrchestratorBuilder,
     snos_pie_generator::SnosPieGeneratorBuilder,
-    common::{calculate_workers_per_stage, SAYA_DB_PATH},
 };
 use starknet::{
     core::utils::parse_cairo_short_string,

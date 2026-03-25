@@ -3,13 +3,13 @@ use super::{
     AtlanticClient, AtlanticProof,
 };
 use crate::error::ProverError;
+use cairo_vm::vm::runners::cairo_pie::CairoPie;
+use log::info;
 use saya_core::{
     prover::SnosProof,
     service::FinishHandle,
     storage::{PersistantStorage, Step},
 };
-use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::info;
 use std::time::Duration;
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
