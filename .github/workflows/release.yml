@@ -104,7 +104,6 @@ jobs:
       - name: Build binaries
         run: |
           cargo --version
-          cargo build --release --workspace --all-features --target ${{ matrix.job.target }}
           (cd bin/persistent && cargo build --release --all-features --target ${{ matrix.job.target }})
           (cd bin/ops && cargo build --release --all-features --target ${{ matrix.job.target }})
 
