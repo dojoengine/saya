@@ -1469,27 +1469,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core-contract"
-version = "0.2.2"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "cairo-lang-starknet-classes",
- "celestia-rpc",
- "celestia-types",
- "clap",
- "dojo-utils",
- "env_logger",
- "hex",
- "log",
- "serde_json",
- "starknet",
- "starknet_api",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3625,6 +3604,27 @@ name = "openssl-probe"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
+
+[[package]]
+name = "ops"
+version = "0.2.2"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "cairo-lang-starknet-classes",
+ "celestia-rpc",
+ "celestia-types",
+ "clap",
+ "dojo-utils",
+ "env_logger",
+ "hex",
+ "log",
+ "serde_json",
+ "starknet",
+ "starknet_api",
+ "tokio",
+ "url",
+]
 
 [[package]]
 name = "parity-scale-codec"

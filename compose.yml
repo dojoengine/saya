@@ -6,7 +6,7 @@
 #   docker compose -f compose.e2e.yml up
 
 x-saya-common: &saya-common
-  image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
+  image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:latest}
   dns: 127.0.0.11
   networks: [saya_net]
   restart: "no"
@@ -228,6 +228,7 @@ services:
   # ── Saya: settlement daemon ───────────────────────────────────────────────
 
   saya:
+    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
     container_name: saya
     networks: [saya_net]
     restart: "no"

@@ -14,7 +14,7 @@ pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
 /// the source code at:
 /// https://github.com/cartridge-gg/piltover/tree/67e65b8928b7ee3c2c188bf36c6b9eddc14addb2
 pub const DEFAULT_PILTOVER_CLASS_HASH: &str =
-    "0x1d7927de261ef86b08e58f850b47a1ed93587f87167b512cded4c1a1b3391a3";
+    "0x777e9e5d8191c112d75551c5c323809ebb25e76d45d0ee9fcd7f95a9abf76fe";
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.

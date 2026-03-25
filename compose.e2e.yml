@@ -12,9 +12,7 @@
 
 services:
   saya:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
     container_name: saya
     networks: [saya_net]
     restart: "no"
