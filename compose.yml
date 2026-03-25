@@ -6,7 +6,7 @@
 #   docker compose -f compose.e2e.yml up
 
 x-saya-common: &saya-common
-  image: ghcr.io/dojoengine/saya:v0.2.2
+  image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
   dns: 127.0.0.11
   networks: [saya_net]
   restart: "no"
@@ -63,7 +63,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -80,7 +80,7 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya core-contract \
+        ops core-contract \
           --private-key $${PRIVATE_KEY} \
           --account-address $${ACCOUNT_ADDRESS} \
           --settlement-chain-id $${CHAIN_ID} \
@@ -94,7 +94,7 @@ services:
       core_contract_declare:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
@@ -117,7 +117,7 @@ services:
       fact_registry_setup:
         condition: service_completed_successfully
     command:
-      - saya
+      - ops
       - core-contract
       - --private-key
       - ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912}
@@ -129,7 +129,7 @@ services:
       - http://katana_l2:5050
       - setup-program
       - --core-contract-address
-      - "0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d"
+      - "0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896"
       - --chain-id
       - ${L3_CHAIN_ID:-custom}
       - --fact-registry-address
@@ -152,7 +152,7 @@ services:
         sleep 2
 
         sozo deploy 0x011dceea1eeb800a2a87454e424acb9158b5c649687d92a045c3eb6b73a182db \
-          --constructor-calldata 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --constructor-calldata 0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896 \
           --salt 0x1234 \
           --katana-account katana0 \
           --rpc-url http://katana_l2:5050
@@ -171,8 +171,8 @@ services:
           --settlement-chain http://katana_l2:5050 \
           --output-path /shared/katana_config \
           --id ${L3_CHAIN_ID:-custom} \
-          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d} \
-          --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-4} \
+          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896} \
+          --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-1} \
           --settlement-facts-registry ${FACT_REGISTRY_ADDRESS:-0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd}
 
   katana_l3:
@@ -213,6 +213,8 @@ services:
           --l2-gas 20000000000 \
           --rpc-url http://katana_l3:5050
 
+        sleep 2
+
         sozo deploy 0x03653979a4d0bcd57a755a32a182d0650d9cd45cd3ff3be28a20c972e1c9c29c \
           --account-address ${APPC_ACCOUNT_ADDRESS:-0x1f401c745d3dba9b9da11921d1fb006c96f571e9039a0ece3f3b0dc14f04c3d} \
           --private-key ${APPC_PRIVATE_KEY:-0x7230b49615d175307d580c33d6fda61fc7b9aec91df0f5c1a5ebe3b8cbfee02} \
@@ -228,19 +230,19 @@ services:
   # ── Saya: settlement daemon ───────────────────────────────────────────────
 
   saya:
-    image: ghcr.io/dojoengine/saya:v0.2.2
+    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:feat-tee}
     container_name: saya
     networks: [saya_net]
     restart: "no"
     environment:
-      RUST_LOG: saya=debug
+      RUST_LOG: info,persistent=debug,saya_core=debug
     depends_on:
       sn_msg_deploy:
         condition: service_completed_successfully
       appc_msg_sn_deploy:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "pgrep saya"]
+      test: ["CMD-SHELL", "pgrep persistent"]
       interval: 3s
       timeout: 5s
       retries: 30
@@ -248,10 +250,10 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        saya persistent start \
+        persistent start \
           --rollup-rpc http://katana_l3:5050 \
           --settlement-rpc http://katana_l2:5050 \
-          --settlement-piltover-address 0x1c8a55203cd99a6bfaf7cd91ae2ad953eff67b584826edab1857ca2e3c5db5d \
+          --settlement-piltover-address 0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896 \
           --settlement-account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
           --settlement-account-private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \

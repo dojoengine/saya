@@ -1,11 +1,8 @@
-mod sovereign;
-pub use sovereign::{SovereignOrchestrator, SovereignOrchestratorBuilder};
-
-mod persistent;
-pub use persistent::{PersistentOrchestrator, PersistentOrchestratorBuilder};
-
 mod persistent_tee;
 pub use persistent_tee::{PersistentTeeOrchestrator, PersistentTeeOrchestratorBuilder};
+
+mod tee;
+pub use tee::{TeeOrchestrator, TeeOrchestratorBuilder};
 
 #[derive(Debug)]
 pub struct Genesis {

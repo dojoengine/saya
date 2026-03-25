@@ -2,8 +2,8 @@ use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use celestia_rpc::{BlobClient, Client, TxConfig};
 use celestia_types::{nmt::Namespace, AppVersion, Blob};
-use integrity::Felt;
 use log::{debug, info};
+use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use url::Url;
 
