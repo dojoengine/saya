@@ -149,7 +149,9 @@ pub fn repo_root() -> std::path::PathBuf {
 }
 
 /// Start the full compose stack and block until all healthchecks pass.
+/// Tears down any existing stack (including volumes) first to ensure a clean state.
 pub fn compose_up() {
+    compose_down();
     let status = std::process::Command::new("docker")
         .args(["compose", "up", "--build", "--wait"])
         .current_dir(repo_root())
