@@ -172,7 +172,7 @@ services:
           --output-path /shared/katana_config \
           --id ${L3_CHAIN_ID:-custom} \
           --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896} \
-          --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-4} \
+          --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-1} \
           --settlement-facts-registry ${FACT_REGISTRY_ADDRESS:-0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd}
 
   katana_l3:
@@ -212,6 +212,8 @@ services:
           --l1-data-gas-price 20000000000 \
           --l2-gas 20000000000 \
           --rpc-url http://katana_l3:5050
+
+        sleep 2
 
         sozo deploy 0x03653979a4d0bcd57a755a32a182d0650d9cd45cd3ff3be28a20c972e1c9c29c \
           --account-address ${APPC_ACCOUNT_ADDRESS:-0x1f401c745d3dba9b9da11921d1fb006c96f571e9039a0ece3f3b0dc14f04c3d} \
