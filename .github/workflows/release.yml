@@ -108,6 +108,7 @@ jobs:
           cargo --version
           (cd bin/persistent && cargo build --release --all-features --target ${{ matrix.job.target }})
           (cd bin/ops && cargo build --release --all-features --target ${{ matrix.job.target }})
+          (cd bin/persistent-tee && cargo build --release --all-features --target ${{ matrix.job.target }})
 
       - name: Archive binaries
         id: artifacts
@@ -117,15 +118,19 @@ jobs:
           if [ "$PLATFORM_NAME" == "linux" ]; then
             tar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
             tar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
+            tar -czvf "persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release persistent-tee
             echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
             echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "persistent_tee_file=persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           elif [ "$PLATFORM_NAME" == "darwin" ]; then
             # We need to use gtar here otherwise the archive is corrupt.
             # See: https://github.com/actions/virtual-environments/issues/2619
             gtar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
             gtar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
+            gtar -czvf "persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release persistent-tee
             echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
             echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "persistent_tee_file=persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
@@ -136,6 +141,7 @@ jobs:
           mkdir -p $PLATFORM_NAME/$ARCH
           mv bin/persistent/target/$TARGET/release/persistent $PLATFORM_NAME/$ARCH
           mv bin/ops/target/$TARGET/release/ops $PLATFORM_NAME/$ARCH
+          mv bin/persistent-tee/target/$TARGET/release/persistent-tee $PLATFORM_NAME/$ARCH
         shell: bash
 
       - name: Upload docker binaries
@@ -152,6 +158,7 @@ jobs:
           path: |
             ${{ steps.artifacts.outputs.persistent_file }}
             ${{ steps.artifacts.outputs.ops_file }}
+            ${{ steps.artifacts.outputs.persistent_tee_file }}
           retention-days: 1
 
   build-programs:

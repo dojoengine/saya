@@ -8,6 +8,7 @@ LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 
 COPY --from=binaries --chmod=755 $TARGETPLATFORM/persistent /usr/local/bin/
 COPY --from=binaries --chmod=755 $TARGETPLATFORM/ops /usr/local/bin/
+COPY --from=binaries --chmod=755 $TARGETPLATFORM/persistent-tee /usr/local/bin/
 COPY ./programs /programs
 
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
