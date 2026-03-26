@@ -121,21 +121,21 @@ jobs:
           VERSION_NAME: ${{ needs.prepare.outputs.tag_name }}
         run: |
           if [ "$PLATFORM_NAME" == "linux" ]; then
-            tar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
-            tar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
-            tar -czvf "persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release persistent-tee
-            echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
-            echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
-            echo "persistent_tee_file=persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            tar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release saya
+            tar -czvf "saya-ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release saya-ops
+            tar -czvf "saya-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release saya-tee
+            echo "saya_file=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "saya_ops_file=saya-ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "saya_tee_file=saya-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           elif [ "$PLATFORM_NAME" == "darwin" ]; then
             # We need to use gtar here otherwise the archive is corrupt.
             # See: https://github.com/actions/virtual-environments/issues/2619
-            gtar -czvf "persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release persistent
-            gtar -czvf "ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release ops
-            gtar -czvf "persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release persistent-tee
-            echo "persistent_file=persistent_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
-            echo "ops_file=ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
-            echo "persistent_tee_file=persistent-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            gtar -czvf "saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent/target/${TARGET}/release saya
+            gtar -czvf "saya-ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/ops/target/${TARGET}/release saya-ops
+            gtar -czvf "saya-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" -C ./bin/persistent-tee/target/${TARGET}/release saya-tee
+            echo "saya_file=saya_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "saya_ops_file=saya-ops_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
+            echo "saya_tee_file=saya-tee_${VERSION_NAME}_${PLATFORM_NAME}_${ARCH}.tar.gz" >> $GITHUB_OUTPUT
           fi
         shell: bash
 
@@ -144,9 +144,9 @@ jobs:
         if: ${{ env.PLATFORM_NAME == 'linux' }}
         run: |
           mkdir -p $PLATFORM_NAME/$ARCH
-          mv bin/persistent/target/$TARGET/release/persistent $PLATFORM_NAME/$ARCH
-          mv bin/ops/target/$TARGET/release/ops $PLATFORM_NAME/$ARCH
-          mv bin/persistent-tee/target/$TARGET/release/persistent-tee $PLATFORM_NAME/$ARCH
+          mv bin/persistent/target/$TARGET/release/saya $PLATFORM_NAME/$ARCH/
+          mv bin/ops/target/$TARGET/release/saya-ops $PLATFORM_NAME/$ARCH/
+          mv bin/persistent-tee/target/$TARGET/release/saya-tee $PLATFORM_NAME/$ARCH/
         shell: bash
 
       - name: Upload docker binaries
@@ -161,9 +161,9 @@ jobs:
         with:
           name: artifacts-${{ matrix.job.target }}
           path: |
-            ${{ steps.artifacts.outputs.persistent_file }}
-            ${{ steps.artifacts.outputs.ops_file }}
-            ${{ steps.artifacts.outputs.persistent_tee_file }}
+            ${{ steps.artifacts.outputs.saya_file }}
+            ${{ steps.artifacts.outputs.saya_ops_file }}
+            ${{ steps.artifacts.outputs.saya_tee_file }}
           retention-days: 1
 
   build-programs:

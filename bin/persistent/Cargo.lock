@@ -5074,45 +5074,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
-name = "persistent"
-version = "0.3.1"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "bigdecimal",
- "cainome",
- "cairo-vm",
- "ciborium",
- "clap",
- "env_logger",
- "futures-util",
- "generate-pie",
- "hex",
- "integrity",
- "log",
- "num-traits",
- "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2)",
- "reqwest 0.12.23",
- "saya-core",
- "serde",
- "serde_json",
- "starknet",
- "starknet-crypto 0.8.1",
- "starknet-types-core 0.2.4",
- "starknet_api",
- "swiftness",
- "swiftness_air",
- "swiftness_commitment",
- "swiftness_fri",
- "swiftness_pow",
- "swiftness_stark",
- "thiserror 2.0.16",
- "tokio",
- "url",
- "zip 2.4.2",
-]
-
-[[package]]
 name = "petgraph"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6172,6 +6133,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "saya"
+version = "0.3.1"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bigdecimal",
+ "cainome",
+ "cairo-vm",
+ "ciborium",
+ "clap",
+ "env_logger",
+ "futures-util",
+ "generate-pie",
+ "hex",
+ "integrity",
+ "log",
+ "num-traits",
+ "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2)",
+ "reqwest 0.12.23",
+ "saya-core",
+ "serde",
+ "serde_json",
+ "starknet",
+ "starknet-crypto 0.8.1",
+ "starknet-types-core 0.2.4",
+ "starknet_api",
+ "swiftness",
+ "swiftness_air",
+ "swiftness_commitment",
+ "swiftness_fri",
+ "swiftness_pow",
+ "swiftness_stark",
+ "thiserror 2.0.16",
+ "tokio",
+ "url",
+ "zip 2.4.2",
 ]
 
 [[package]]

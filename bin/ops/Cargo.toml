@@ -10,7 +10,7 @@ repository = "https://github.com/dojoengine/saya"
 [workspace.dependencies]
 
 [package]
-name = "ops"
+name = "saya-ops"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
