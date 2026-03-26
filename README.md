@@ -1,204 +1,124 @@
 # Saya
 
-Saya is a settlement service for Katana.
-
-## Binaries
-
-Saya is split into three independent binaries, each in its own Cargo workspace under `bin/`:
-
-| Binary | Workspace | Purpose |
-|--------|-----------|---------|
-| `persistent` | `bin/persistent/` | Settlement daemon — STARK/Atlantic proof pipeline, Piltover on-chain settlement, and sovereign (Celestia DA) mode |
-| `ops` | `bin/ops/` | Ops utilities — Piltover contract deployment and management, Celestia helpers |
-| `persistent-tee` | `bin/persistent-tee/` | TEE settlement daemon — AMD SEV-SNP attestation → SP1 proof → Piltover on-chain settlement |
-
-`saya/core` is a shared infrastructure library (no STARK or TEE-specific deps) used by all binaries.
+Saya is the proving and settlement orchestrator for the Dojo/Katana stack. It reads finalized blocks from a Katana rollup node and settles them on-chain.
 
 ---
 
-## Katana provable mode
+## Installation
 
-Katana must be running in **provable mode** to be proven by Saya.
-All commands described below are available starting from **Dojo `1.3.0`**.
+```bash
+asdf plugin add saya https://github.com/dojoengine/asdf-saya.git
+asdf install saya latest
+```
 
-### Important limitation
+This installs three commands: `saya`, `saya-ops`, and `saya-tee`.
 
-Provable Katana currently supports only **Starknet v14.0.1**.
-Because of this, Katana's built-in logic for deploying the core contract **cannot be used**.
-Instead, deployment is handled by the **`ops` binary**.
-
-### Correct flow
-
-1. Use the `ops` binary to:
-   - declare (or use the predeclared) core contract,
-   - deploy the contract,
-   - set the program info and fact registry.
-
-2. From this process, obtain:
-   - the **core contract address**,
-   - the **block number** where it was deployed.
-
-3. Use these values when running `katana init`.
+Alternatively, grab pre-built binaries from the [releases page](https://github.com/dojoengine/saya/releases) or use the Docker image `ghcr.io/dojoengine/saya`.
 
 ---
 
-## Ops binary (`bin/ops`)
+## Overview
 
-### Required environment variables
+### How it works
+
+```
+Katana L3 node  ──blocks──▶  Saya  ──proof + state──▶  Piltover (L2)
+```
+
+Saya polls Katana for finalized blocks, proves them (via Atlantic or TEE), and submits state updates to the Piltover settlement contract on L2.
+
+### Modes
+
+| Mode | Binary | How it proves | Settlement |
+|------|--------|---------------|------------|
+| Persistent | `persistent` | STARK proof via Atlantic (Herodotus) | Piltover on L2 |
+| Sovereign | `persistent` | STARK proof via Atlantic | Celestia DA (no on-chain settlement) |
+| Persistent-TEE | `persistent-tee` | AMD SEV-SNP attestation → SP1 Groth16 | Piltover on L2 |
+
+### What you need per mode
+
+| Requirement | Persistent | Sovereign | Persistent-TEE |
+|-------------|:---:|:---:|:---:|
+| Katana in provable mode | ✓ | ✓ | ✓ |
+| Piltover contract deployed | ✓ | — | ✓ |
+| Settlement account (L2) | ✓ | — | ✓ |
+| Atlantic API key | ✓ | ✓ | — |
+| `layout_bridge` program | ✓ | ✓ | — |
+| Katana-TEE node | — | — | ✓ |
+| TEE registry contract | — | — | ✓ |
+| Prover network account | — | — | ✓ |
+| Celestia light node | — | ✓ | — |
+
+---
+
+## Setup
+
+These are one-time steps before running Saya.
+
+### 1. Deploy Piltover (`ops`)
+
+Set environment variables:
 
 ```bash
 export SETTLEMENT_ACCOUNT_PRIVATE_KEY=<PRIVATE_KEY_IN_HEX>
 export SETTLEMENT_ACCOUNT_ADDRESS=<ACCOUNT_ADDRESS_IN_HEX>
 export SETTLEMENT_CHAIN_ID=<sepolia|mainnet|CUSTOM_CHAIN_ID>
+# SETTLEMENT_RPC_URL is optional for sepolia/mainnet (default public RPC is used)
 ```
 
-`SETTLEMENT_RPC_URL` is optional — if `SETTLEMENT_CHAIN_ID` is `sepolia` or `mainnet` the default public RPC is used automatically.
-
-### Declare the core contract
+Then declare, deploy, and configure the contract:
 
 ```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare
-```
-
-Or with a custom contract path:
-
-```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare --core-contract-path <PATH>
-```
-
-Expected output for the unmodified core contract:
-
-```
-[INFO  saya::core_contract::utils] Core contract already declared on-chain.
-[INFO  saya::core_contract::cli] Core contract class hash: 0x5aed647bf20ab45d4ca041823019ab1f98425eba797ce6b998af94237677f5
-```
-
-### Deploy the core contract
-
-```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract deploy --salt 0x5
-```
-
-The output contains two important values — **block number** and **contract address** — save them for future use:
-
-```
-[INFO  saya::core_contract::utils] Core contract deployed.
-[INFO  saya::core_contract::utils]  Tx hash   : 0x5bfedaba61dcebb3ab0a8f5856eace3a6bec17f007654142f5004b0ef4f39bf
-[INFO  saya::core_contract::utils]  Deployed on block  : 6180778
-[INFO  saya::core_contract::cli] Core contract address: 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53
-```
-
-Options:
-
-```
---class-hash <CLASS_HASH>  [env: CLASS_HASH=]  [default: latest Piltover hash]
---salt <SALT>              [env: SALT=]
-```
-
-### Set program info and fact registry
-
-```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract setup-program \
-  --core-contract-address 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
+saya-ops core-contract declare
+saya-ops core-contract deploy --salt 0x5
+saya-ops core-contract setup-program \
+  --core-contract-address <ADDRESS_FROM_DEPLOY> \
   --chain-id example-chain
 ```
 
-Options:
+The `deploy` command prints the **contract address** and **deployed block number** — save both for the next step.
 
-```
---fact-registry-address <FACT_REGISTRY_ADDRESS>  [env: FACT_REGISTRY_ADDRESS=]
---core-contract-address <CORE_CONTRACT_ADDRESS>  [env: CORE_CONTRACT_ADDRESS=]
---fee-token-address <FEE_TOKEN_ADDRESS>          [env: FEE_TOKEN_ADDRESS=]
---chain-id <CHAIN_ID>                            [env: CHAIN_ID=]
-```
+> For local testing without real proofs, deploy a mock fact registry instead:
+> ```bash
+> saya-ops core-contract declare-and-deploy-fact-registry-mock --salt 0x1
+> # then pass --fact-registry-address <MOCK_ADDRESS> to setup-program
+> ```
 
-### Deploy a mock fact registry (for testing)
+### 2. Initialize Katana
 
-Deploys a fact registry that confirms any submitted fact — useful for local testing without real proofs:
-
-```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract declare-and-deploy-fact-registry-mock --salt 0x1
-```
-
-Then pass the deployed address to `setup-program --fact-registry-address`.
-
----
-
-## Initialize Katana
-
-`katana init` generates a configuration file and genesis block:
+Katana must run in **provable mode** (supported from Dojo `1.3.0`, Starknet v14.0.1 only).
 
 ```bash
 katana init \
   --settlement-chain sepolia \
   --id example-chain \
-  --settlement-contract 0x9da87cf1e8ceccb46e7d044541b51bc7f369c262f332e49152e74b30659b53 \
-  --settlement-contract-deployed-block 6180778
+  --settlement-contract <PILTOVER_ADDRESS> \
+  --settlement-contract-deployed-block <DEPLOYED_BLOCK>
 ```
 
-Use `katana config` to list local configurations.
-
-Start Katana with:
+Start Katana with a block time (required for provable mode — Katana never produces empty blocks):
 
 ```bash
-katana --chain <CHAIN_ID> --block-time 30000
+katana --chain example-chain --block-time 30000
 ```
 
-> **Note:** When running Katana in provable mode it is recommended to set a block time (in milliseconds). Katana starts the block timer on the first transaction in a block and never produces empty blocks.
+### 3. Get Cairo programs (persistent mode only)
 
-> **Note:** Use `--output-path` with `katana init` to write config to a custom directory, then start with `--chain /path`.
-
----
-
-## Requirements
-
-- Katana running in provable mode.
-
-### Persistent mode
-
-- Piltover settlement contract deployed on the settlement chain (via `ops core-contract` above, or `katana init`).
-- An account on the settlement chain with funds to submit settlement transactions.
-- Herodotus Atlantic API key (from <https://herodotus.cloud>) unless using `--mock-layout-bridge-program-hash`.
-
-### Persistent-TEE mode
-
-- Katana TEE node (via `katana-tee`) running and reachable.
-- TEE registry contract deployed on the prover network.
-- An account on the prover network for submitting proofs.
-- An account on the settlement chain with funds to submit settlement transactions.
-
-### Sovereign mode
-
-- Celestia light node running with a funded account for blob submission. A helper script is available at `scripts/celestia.sh`.
-
----
-
-## Cairo programs
-
-Persistent mode requires a compiled `layout_bridge` Cairo program:
+The `layout_bridge` program ships with the release. Download it from the [releases page](https://github.com/dojoengine/saya/releases) or build it locally:
 
 ```bash
 ./scripts/generate_layout_bridge.sh
+# Requires Docker (linux/amd64 only — emulation needs ~32 GB RAM)
 ```
-
-The script requires Docker. Set `SUDO` if needed:
-
-```bash
-SUDO=sudo ./scripts/generate_layout_bridge.sh
-```
-
-> **Note:** The `starknet/cairo-lang` Docker image is `linux/amd64` only — emulation requires ~32 GB RAM.
-
-> **Note:** Pre-built programs are available in the Saya Docker image at `/programs` and on the [Saya release page](https://github.com/dojoengine/saya/releases).
 
 ---
 
-## Persistent mode
+## Running
 
-### Running
+### Persistent mode
 
 ```bash
-cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
+saya start \
   --rollup-rpc http://localhost:5050 \
   --settlement-rpc https://starknet-sepolia.public.blastapi.io \
   --settlement-piltover-address <PILTOVER_ADDRESS> \
@@ -209,7 +129,8 @@ cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
   --settlement-integrity-address <INTEGRITY_ADDRESS>
 ```
 
-Key options:
+<details>
+<summary>All options</summary>
 
 ```
 --rollup-rpc <URL>                           Katana L3 JSON-RPC endpoint
@@ -222,57 +143,27 @@ Key options:
 --settlement-integrity-address <FELT>        On-chain integrity/fact registry address
 --blocks-processed-in-parallel <N>           Parallel block pipeline depth (default: 60)
 --db-dir <PATH>                              SQLite database directory
+--mock-layout-bridge-program-hash <HASH>     Skip real Atlantic proving (testing only)
+--mock-snos-from-pie                         Derive SNOS proof from PIE (testing only)
 ```
 
-### Mocking proofs (for testing)
+</details>
 
-Replace the layout bridge proof with a mock (skips on-chain fact registration) by first switching Piltover to a mock fact registry:
-
-```bash
-cargo run --manifest-path bin/ops/Cargo.toml -- core-contract setup-program \
-  --core-contract-address <PILTOVER_ADDRESS> \
-  --chain-id example-chain \
-  --fact-registry-address <MOCK_FACT_REGISTRY_ADDRESS>
-```
-
-Then start with:
+### Sovereign mode
 
 ```bash
-cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
-  ... \
-  --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8
-```
-
-To also mock the SNOS proof (derives it from the PIE):
-
-```bash
-cargo run --manifest-path bin/persistent/Cargo.toml -r -- start \
-  ... \
-  --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \
-  --mock-snos-from-pie
-```
-
----
-
-## Sovereign mode
-
-```bash
-cargo run --manifest-path bin/persistent/Cargo.toml -r -- sovereign start \
+saya sovereign start \
   --rollup-rpc http://localhost:5050 \
   --celestia-rpc http://localhost:26658 \
   --celestia-token <TOKEN>
 ```
 
----
+A helper script for running a local Celestia light node is at `scripts/celestia.sh`.
 
-## Persistent-TEE mode
-
-The TEE pipeline ingests blocks from Katana, fetches an AMD SEV-SNP attestation quote, generates an SP1 Groth16 proof via the TEE registry, and settles on Piltover.
-
-### Running
+### Persistent-TEE mode
 
 ```bash
-cargo run --manifest-path bin/persistent-tee/Cargo.toml -r -- tee start \
+saya-tee tee start \
   --rollup-rpc http://localhost:5050 \
   --settlement-rpc https://starknet-sepolia.public.blastapi.io \
   --settlement-piltover-address <PILTOVER_ADDRESS> \
@@ -282,7 +173,8 @@ cargo run --manifest-path bin/persistent-tee/Cargo.toml -r -- tee start \
   --prover-private-key <PROVER_PRIVATE_KEY>
 ```
 
-Key options:
+<details>
+<summary>All options</summary>
 
 ```
 --rollup-rpc <URL>                       Katana TEE node JSON-RPC endpoint
@@ -296,6 +188,23 @@ Key options:
 --idle-timeout-secs <N>                  Flush partial batch after N idle seconds (default: 120)
 --attestor-poll-interval-ms <N>          Attestor poll interval in ms (default: 1000)
 --db-dir <PATH>                          SQLite database directory
+```
+
+</details>
+
+---
+
+## Building from source
+
+Only needed if you want to modify Saya.
+Requires Rust `1.89` — install via [rustup](https://rustup.rs); `rust-toolchain.toml` pins the version automatically.
+
+```bash
+cd bin/persistent && cargo build --release
+cd bin/ops && cargo build --release
+
+# TEE mode (requires SSH access to cartridge-gg/katana-tee)
+cd bin/persistent-tee && cargo build --release
 ```
 
 ---

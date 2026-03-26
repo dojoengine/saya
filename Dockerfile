@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 RUN --mount=type=cache,target=/src/bin/persistent/target \
     mkdir -p ./build && \
-    cp ./bin/persistent/target/release/persistent ./build/
+    cp ./bin/persistent/target/release/saya ./build/
 
 # Build bin/ops (contract deployment utilities)
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --manifest-path bin/ops/Cargo.toml
 
 RUN --mount=type=cache,target=/src/bin/ops/target \
-    cp ./bin/ops/target/release/ops ./build/
+    cp ./bin/ops/target/release/saya-ops ./build/
 
 # Generate layout_bridge program from cairo-lang source
 ARG CAIRO_VERSION=0.14.0.1
@@ -57,8 +57,8 @@ FROM alpine
 LABEL org.opencontainers.image.source=https://github.com/dojoengine/saya
 
 COPY --from=build /sbin/tini /tini
-COPY --from=build /src/build/persistent /usr/bin/
-COPY --from=build /src/build/ops /usr/bin/
+COPY --from=build /src/build/saya /usr/bin/
+COPY --from=build /src/build/saya-ops /usr/bin/
 COPY --from=build /programs /programs
 
 ENV LAYOUT_BRIDGE_PROGRAM=/programs/layout_bridge.json
