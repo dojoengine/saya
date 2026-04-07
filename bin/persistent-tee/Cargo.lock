@@ -8193,31 +8193,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
-name = "persistent-tee"
-version = "0.3.1"
-dependencies = [
- "alloy-primitives",
- "amd-sev-snp-attestation-prover",
- "amd-sev-snp-attestation-verifier",
- "amd_tee_registry_client",
- "anyhow",
- "cainome",
- "clap",
- "env_logger",
- "katana_tee_client",
- "log",
- "piltover",
- "saya-core",
- "sha3",
- "starknet",
- "starknet-types-core 0.2.4",
- "thiserror 2.0.18",
- "tokio",
- "url",
- "x509-verifier-rust-crypto",
-]
-
-[[package]]
 name = "pest"
 version = "2.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9835,6 +9810,31 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
+]
+
+[[package]]
+name = "saya-tee"
+version = "0.3.1"
+dependencies = [
+ "alloy-primitives",
+ "amd-sev-snp-attestation-prover",
+ "amd-sev-snp-attestation-verifier",
+ "amd_tee_registry_client",
+ "anyhow",
+ "cainome",
+ "clap",
+ "env_logger",
+ "katana_tee_client",
+ "log",
+ "piltover",
+ "saya-core",
+ "sha3",
+ "starknet",
+ "starknet-types-core 0.2.4",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
+ "x509-verifier-rust-crypto",
 ]
 
 [[package]]
