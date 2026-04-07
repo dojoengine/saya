@@ -4,7 +4,7 @@ use std::str::FromStr;
 use crate::core_contract::constants::{
     ATLANTIC_FACT_REGISTRY_MAINNET, ATLANTIC_FACT_REGISTRY_SEPOLIA, DEFAULT_PILTOVER_CLASS_HASH,
     FACT_REGISTRY_MOCK_BYTES, KATANA_STRK_FEE_TOKEN, MAINNET_RPC_URL, PILTOVER_CONTRACT_BYTES,
-    SEPOLIA_RPC_URL,
+    SEPOLIA_RPC_URL, TEE_REGISTRY_MOCK_BYTES,
 };
 use crate::core_contract::utils::{
     compute_starknet_os_config_hash, declare_contract, declare_contract_from_bytes,
@@ -58,6 +58,7 @@ pub enum CoreContractCmd {
     Declare(DeclareArgs),
     Deploy(DeployArgs),
     DeclareAndDeployFactRegistryMock(DeployFactRegistryArgs),
+    DeclareAndDeployTeeRegistryMock(DeployTeeRegistryArgs),
     SetupProgram(SetupProgramArgs),
 }
 
@@ -87,6 +88,20 @@ pub struct DeployFactRegistryArgs {
     #[clap(long, env = "FACT_REGISTRY_PATH")]
     fact_registry_path: Option<String>,
     #[clap(long, env = "FACT_REGISTRY_SALT")]
+    salt: Felt,
+}
+
+#[derive(Debug, Args)]
+pub struct DeployTeeRegistryArgs {
+    /// Path to the TEE registry mock contract (optional, uses embedded contract by default).
+    ///
+    /// The embedded contract is `piltover_mock_amd_tee_registry`, a permissive
+    /// `IAMDTeeRegistry` implementation that bypasses on-chain Groth16
+    /// verification of SP1 attestation proofs and round-trips a `VerifierJournal`
+    /// through Cairo Serde. Used by e2e tests for `saya-tee --mock-prove`.
+    #[clap(long, env = "TEE_REGISTRY_PATH")]
+    tee_registry_path: Option<String>,
+    #[clap(long, env = "TEE_REGISTRY_SALT")]
     salt: Felt,
 }
 
@@ -193,6 +208,30 @@ impl CoreContract {
                 .await?;
 
                 info!("Fact registry mock address: {:?}", fact_registry_address);
+            }
+            CoreContractCmd::DeclareAndDeployTeeRegistryMock(deploy_tee_registry_args) => {
+                let class_hash = if let Some(path) = deploy_tee_registry_args.tee_registry_path {
+                    declare_contract(account.clone(), "TEE registry mock", Path::new(&path))
+                        .await?
+                } else {
+                    declare_contract_from_bytes(
+                        account.clone(),
+                        "TEE registry mock",
+                        TEE_REGISTRY_MOCK_BYTES,
+                    )
+                    .await?
+                };
+
+                let tee_registry_address = deploy_contract(
+                    account.clone(),
+                    "TEE registry mock",
+                    class_hash,
+                    deploy_tee_registry_args.salt,
+                    &[],
+                )
+                .await?;
+
+                info!("TEE registry mock address: {:?}", tee_registry_address);
             }
             CoreContractCmd::SetupProgram(ref setup_program_args) => {
                 let chain_id = cairo_short_string_to_felt(&setup_program_args.chain_id)?;
