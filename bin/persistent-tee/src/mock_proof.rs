@@ -197,7 +197,7 @@ pub fn felts_to_bytes(felts: &[Felt]) -> Vec<u8> {
 ///
 /// Returns `None` if the byte slice length is not a multiple of 32.
 pub fn bytes_to_felts(bytes: &[u8]) -> Option<Vec<Felt>> {
-    if !bytes.len().is_multiple_of(32) {
+    if bytes.len() % 32 != 0 {
         return None;
     }
     let mut felts = Vec::with_capacity(bytes.len() / 32);
@@ -237,11 +237,11 @@ mod tests {
     fn report_data_zero_outside_first_32_bytes() {
         let raw_report = build_raw_report(Felt::from(42u64));
         // Words [0..20) and [28..296) must be zero.
-        for (i, word) in raw_report.iter().enumerate().take(20) {
-            assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
+        for i in 0..20 {
+            assert_eq!(raw_report[i], Felt::ZERO, "word {i} should be zero");
         }
-        for (i, word) in raw_report.iter().enumerate().take(ATTESTATION_REPORT_WORDS).skip(28) {
-            assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
+        for i in 28..ATTESTATION_REPORT_WORDS {
+            assert_eq!(raw_report[i], Felt::ZERO, "word {i} should be zero");
         }
     }
 
