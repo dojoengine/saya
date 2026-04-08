@@ -240,12 +240,7 @@ mod tests {
         for (i, word) in raw_report.iter().enumerate().take(20) {
             assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
         }
-        for (i, word) in raw_report
-            .iter()
-            .enumerate()
-            .take(ATTESTATION_REPORT_WORDS)
-            .skip(28)
-        {
+        for (i, word) in raw_report.iter().enumerate().take(ATTESTATION_REPORT_WORDS).skip(28) {
             assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
         }
     }
