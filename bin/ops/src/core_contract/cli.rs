@@ -211,8 +211,7 @@ impl CoreContract {
             }
             CoreContractCmd::DeclareAndDeployTeeRegistryMock(deploy_tee_registry_args) => {
                 let class_hash = if let Some(path) = deploy_tee_registry_args.tee_registry_path {
-                    declare_contract(account.clone(), "TEE registry mock", Path::new(&path))
-                        .await?
+                    declare_contract(account.clone(), "TEE registry mock", Path::new(&path)).await?
                 } else {
                     declare_contract_from_bytes(
                         account.clone(),

@@ -117,7 +117,12 @@ fn commitment_to_report_words(commitment: Felt) -> [Felt; 8] {
     let bytes = commitment.to_bytes_be();
     let mut words = [Felt::ZERO; 8];
     for i in 0..8 {
-        let chunk = [bytes[i * 4], bytes[i * 4 + 1], bytes[i * 4 + 2], bytes[i * 4 + 3]];
+        let chunk = [
+            bytes[i * 4],
+            bytes[i * 4 + 1],
+            bytes[i * 4 + 2],
+            bytes[i * 4 + 3],
+        ];
         let word = u32::from_le_bytes(chunk);
         words[i] = Felt::from(word);
     }
@@ -214,7 +219,8 @@ mod tests {
             Felt::ZERO,
             Felt::from(1u64),
             Felt::from(0xdeadbeef_u64),
-            Felt::from_hex("0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap(),
+            Felt::from_hex("0x123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .unwrap(),
         ];
         let bytes = felts_to_bytes(&felts);
         let decoded = bytes_to_felts(&bytes).unwrap();
@@ -246,29 +252,36 @@ mod tests {
         //   high   = u128_byte_reverse(limb0)
         //   low    = u128_byte_reverse(limb1)
         //   commitment = (high << 128) | low
-        let commitment = Felt::from_hex(
-            "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .unwrap();
+        let commitment =
+            Felt::from_hex("0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+                .unwrap();
         let raw_report = build_raw_report(commitment);
 
         let read_limb = |start: usize| -> u128 {
-            let w0 = u128::from(raw_report[start].to_bytes_be()[31] as u32
-                | (raw_report[start].to_bytes_be()[30] as u32) << 8
-                | (raw_report[start].to_bytes_be()[29] as u32) << 16
-                | (raw_report[start].to_bytes_be()[28] as u32) << 24);
-            let w1 = u128::from(raw_report[start + 1].to_bytes_be()[31] as u32
-                | (raw_report[start + 1].to_bytes_be()[30] as u32) << 8
-                | (raw_report[start + 1].to_bytes_be()[29] as u32) << 16
-                | (raw_report[start + 1].to_bytes_be()[28] as u32) << 24);
-            let w2 = u128::from(raw_report[start + 2].to_bytes_be()[31] as u32
-                | (raw_report[start + 2].to_bytes_be()[30] as u32) << 8
-                | (raw_report[start + 2].to_bytes_be()[29] as u32) << 16
-                | (raw_report[start + 2].to_bytes_be()[28] as u32) << 24);
-            let w3 = u128::from(raw_report[start + 3].to_bytes_be()[31] as u32
-                | (raw_report[start + 3].to_bytes_be()[30] as u32) << 8
-                | (raw_report[start + 3].to_bytes_be()[29] as u32) << 16
-                | (raw_report[start + 3].to_bytes_be()[28] as u32) << 24);
+            let w0 = u128::from(
+                raw_report[start].to_bytes_be()[31] as u32
+                    | (raw_report[start].to_bytes_be()[30] as u32) << 8
+                    | (raw_report[start].to_bytes_be()[29] as u32) << 16
+                    | (raw_report[start].to_bytes_be()[28] as u32) << 24,
+            );
+            let w1 = u128::from(
+                raw_report[start + 1].to_bytes_be()[31] as u32
+                    | (raw_report[start + 1].to_bytes_be()[30] as u32) << 8
+                    | (raw_report[start + 1].to_bytes_be()[29] as u32) << 16
+                    | (raw_report[start + 1].to_bytes_be()[28] as u32) << 24,
+            );
+            let w2 = u128::from(
+                raw_report[start + 2].to_bytes_be()[31] as u32
+                    | (raw_report[start + 2].to_bytes_be()[30] as u32) << 8
+                    | (raw_report[start + 2].to_bytes_be()[29] as u32) << 16
+                    | (raw_report[start + 2].to_bytes_be()[28] as u32) << 24,
+            );
+            let w3 = u128::from(
+                raw_report[start + 3].to_bytes_be()[31] as u32
+                    | (raw_report[start + 3].to_bytes_be()[30] as u32) << 8
+                    | (raw_report[start + 3].to_bytes_be()[29] as u32) << 16
+                    | (raw_report[start + 3].to_bytes_be()[28] as u32) << 24,
+            );
             w0 + (w1 << 32) + (w2 << 64) + (w3 << 96)
         };
 
