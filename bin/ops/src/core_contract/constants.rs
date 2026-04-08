@@ -8,11 +8,10 @@ pub const PILTOVER_CONTRACT_BYTES: &[u8] =
     include_bytes!("../../../../contracts/core_contract.json");
 pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
     include_bytes!("../../../../contracts/fact_registry_mock.json");
-/// Mock implementation of `amd_tee_registry::IAMDTeeRegistry`. Used by
-/// e2e tests for `saya-tee` to bypass on-chain Groth16 verification of SP1
-/// attestation proofs. Built from
-/// `cartridge-gg/piltover@feat/tee-mock-registry`'s
-/// `piltover_mock_amd_tee_registry` contract.
+/// Mock implementation of `amd_tee_registry::IAMDTeeRegistry`. Used by e2e
+/// tests for `saya-tee` to bypass on-chain Groth16 verification of SP1
+/// attestation proofs. Built from `cartridge-gg/piltover`'s
+/// `piltover_mock_amd_tee_registry` contract (added in piltover#15).
 pub const TEE_REGISTRY_MOCK_BYTES: &[u8] =
     include_bytes!("../../../../contracts/tee_registry_mock.json");
 
