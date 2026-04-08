@@ -17,7 +17,7 @@ jobs:
       - name: "Setup Rust toolchain"
         uses: "dtolnay/rust-toolchain@master"
         with:
-          toolchain: "1.89"
+          toolchain: "1.91"
           components: "rustfmt"
 
       - name: "Use Rust cache"
@@ -44,7 +44,7 @@ jobs:
       - name: "Setup Rust toolchain"
         uses: "dtolnay/rust-toolchain@master"
         with:
-          toolchain: "1.89"
+          toolchain: "1.91"
           components: "clippy"
 
       - uses: Swatinem/rust-cache@v2

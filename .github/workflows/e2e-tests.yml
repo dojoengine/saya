@@ -16,7 +16,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: "1.89"
+          toolchain: "1.91"
 
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
@@ -53,7 +53,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: "1.89"
+          toolchain: "1.91"
 
       - name: Cache Cargo dependencies
         uses: Swatinem/rust-cache@v2
