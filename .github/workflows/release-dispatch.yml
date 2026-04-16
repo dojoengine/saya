@@ -23,11 +23,6 @@ jobs:
         with:
           toolchain: "nightly"
 
-      - name: Setup SSH agent for private deps
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.KATANA_TEE_DEPLOY_KEY }}
-
       - run: |
           VERSION=${{ inputs.version }}
           VERSION=${VERSION#v}

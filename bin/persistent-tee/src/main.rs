@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 
 mod attestor;
 mod common;
+mod mock_proof;
 mod prover;
 mod prover_impl;
 mod settlement;

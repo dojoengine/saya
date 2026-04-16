@@ -1,6 +1,15 @@
 //! TEE prover — submits a TEE attestation to the SP1 proving service and retrieves the resulting
 //! proof.
+//!
+//! When `mock_prove` is set, the entire SP1 / AMD KDS / cert chain pipeline is
+//! skipped and the prover synthesizes a `TeeProof` whose `data` is a raw
+//! big-endian felt array encoding a stub `VerifierJournal` (see
+//! [`crate::mock_proof`]). The paired `TeePiltoverSettlementBackend` recognises
+//! this format and forwards the felts directly to the on-chain
+//! `mock_amd_tee_registry` contract instead of going through
+//! `OnchainProof::decode_json` and `StarknetCalldata::from_proof`.
 
+use crate::mock_proof;
 use crate::prover_impl::TeeAttestation as TeeAttestationProver;
 use anyhow::Result;
 use katana_tee_client::ProverConfig;
@@ -20,6 +29,9 @@ pub struct TeeProver {
     provider_url: String,
     registry_address: Felt,
     private_key: String,
+    /// When `true`, skip the real KDS/cert/SP1 pipeline and synthesize a stub
+    /// `VerifierJournal` for the paired `mock_amd_tee_registry` contract.
+    mock_prove: bool,
     input_channel: Receiver<TeeAttestation>,
     output_channel: Sender<TeeProof>,
     finish_handle: FinishHandle,
@@ -30,16 +42,23 @@ pub struct TeeProverBuilder {
     provider_url: String,
     registry_address: Felt,
     private_key: String,
+    mock_prove: bool,
     input_channel: Option<Receiver<TeeAttestation>>,
     output_channel: Option<Sender<TeeProof>>,
 }
 
 impl TeeProverBuilder {
-    pub fn new(provider_url: String, registry_address: Felt, private_key: String) -> Self {
+    pub fn new(
+        provider_url: String,
+        registry_address: Felt,
+        private_key: String,
+        mock_prove: bool,
+    ) -> Self {
         Self {
             provider_url,
             registry_address,
             private_key,
+            mock_prove,
             input_channel: None,
             output_channel: None,
         }
@@ -54,6 +73,7 @@ impl PipelineStageBuilder for TeeProverBuilder {
             provider_url: self.provider_url,
             registry_address: self.registry_address,
             private_key: self.private_key,
+            mock_prove: self.mock_prove,
             input_channel: self
                 .input_channel
                 .ok_or_else(|| anyhow::anyhow!("`input_channel` not set"))?,
@@ -124,36 +144,52 @@ impl TeeProver {
     async fn prove(&self, attestation: TeeAttestation) -> Result<TeeProof> {
         let block_number = attestation.block_number();
 
-        info!(block_number; "TEE proving started for block batch");
-        let response = TeeQuoteResponse {
-            quote: attestation.quote.clone(),
-            prev_state_root: attestation.prev_state_root.clone(),
-            state_root: attestation.state_root.clone(),
-            prev_block_hash: attestation.prev_block_hash.clone(),
-            block_hash: attestation.block_hash.clone(),
-            prev_block_number: attestation.prev_block_number,
-            block_number: attestation.block_number,
-            messages_commitment: attestation.messages_commitment,
-            l2_to_l1_messages: vec![],
-            l1_to_l2_messages: vec![],
-        };
-
-        let tee = TeeAttestationProver::from_response(&response)?;
-        let config = ProverConfig {
-            rpc_url: None,
-            private_key: Some(self.private_key.clone()),
-            skip_time_validity_check: false,
-        };
-        let proof = tee
-            .generate_proof(&self.provider_url, self.registry_address, config)
-            .await?;
-        let proof_raw = proof.encode_json()?;
-        info!(block_number; "TEE proving completed, proof size: {} bytes", proof_raw.len());
-
         let prev_state_root = Felt::from_hex_unchecked(&attestation.prev_state_root);
         let state_root = Felt::from_hex(&attestation.state_root)?;
         let prev_block_hash = Felt::from_hex(&attestation.prev_block_hash)?;
         let block_hash = Felt::from_hex(&attestation.block_hash)?;
+
+        let proof_raw = if self.mock_prove {
+            info!(block_number; "TEE mock proving (no SP1, no KDS, no AMD verification)");
+            let commitment = mock_proof::compute_appchain_commitment(
+                prev_state_root,
+                state_root,
+                prev_block_hash,
+                block_hash,
+                attestation.prev_block_number,
+                attestation.block_number,
+                attestation.messages_commitment,
+            );
+            let felts = mock_proof::serialize_mock_journal(commitment);
+            mock_proof::felts_to_bytes(&felts)
+        } else {
+            info!(block_number; "TEE proving started for block batch");
+            let response = TeeQuoteResponse {
+                quote: attestation.quote.clone(),
+                prev_state_root: attestation.prev_state_root.clone(),
+                state_root: attestation.state_root.clone(),
+                prev_block_hash: attestation.prev_block_hash.clone(),
+                block_hash: attestation.block_hash.clone(),
+                prev_block_number: attestation.prev_block_number,
+                block_number: attestation.block_number,
+                messages_commitment: attestation.messages_commitment,
+                l2_to_l1_messages: vec![],
+                l1_to_l2_messages: vec![],
+            };
+
+            let tee = TeeAttestationProver::from_response(&response)?;
+            let config = ProverConfig {
+                rpc_url: None,
+                private_key: Some(self.private_key.clone()),
+                skip_time_validity_check: false,
+            };
+            let proof = tee
+                .generate_proof(&self.provider_url, self.registry_address, config)
+                .await?;
+            let proof_raw = proof.encode_json()?;
+            info!(block_number; "TEE proving completed, proof size: {} bytes", proof_raw.len());
+            proof_raw
+        };
 
         Ok(TeeProof {
             blocks: attestation.blocks,

@@ -70,6 +70,19 @@ struct Start {
     /// Path to the database directory
     #[clap(long, env)]
     db_dir: Option<PathBuf>,
+    /// Skip the entire SP1 / AMD KDS / cert chain pipeline and synthesize a
+    /// stub `VerifierJournal` whose `report_data` encodes the Poseidon
+    /// commitment Piltover would otherwise extract from a real attestation.
+    ///
+    /// Requires the on-chain TEE registry pointed at by
+    /// `--tee-registry-address` to be a permissive `IAMDTeeRegistry` mock
+    /// (e.g. `piltover_mock_amd_tee_registry`, deployable via
+    /// `saya-ops core-contract declare-and-deploy-tee-registry-mock`).
+    ///
+    /// Intended exclusively for end-to-end tests on machines without AMD
+    /// SEV-SNP hardware. Do not use in production.
+    #[clap(long, env)]
+    mock_prove: bool,
 }
 
 impl Tee {
@@ -105,6 +118,7 @@ impl Start {
             self.settlement_rpc.to_string(),
             self.tee_registry_address,
             self.prover_private_key,
+            self.mock_prove,
         );
 
         let settlement_builder = TeePiltoverSettlementBackendBuilder::new(
@@ -112,6 +126,7 @@ impl Start {
             self.settlement_piltover_address,
             self.settlement_account_address,
             self.settlement_account_private_key,
+            self.mock_prove,
         );
 
         let orchestrator = TeeOrchestratorBuilder::new(

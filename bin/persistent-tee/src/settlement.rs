@@ -68,13 +68,28 @@ fn messages_to_appchain(msgs: &[L1ToL2Message]) -> Vec<MessageToAppchain> {
 }
 
 /// Builds `PiltoverInput::TeeInput` calldata using the piltover bindgen.
-fn build_tee_calldata(proof: &TeeProof) -> Result<Vec<Felt>> {
-    let onchain_proof = OnchainProof::decode_json(&proof.data)?;
-    let sp1_proof: Vec<Felt> = StarknetCalldata::from_proof(&onchain_proof)?
-        .to_felts()?
-        .iter()
-        .map(|f| Felt::from_bytes_be(&f.to_bytes_be()))
-        .collect();
+///
+/// In real proving mode (`mock_prove = false`), `proof.data` is a JSON-encoded
+/// `OnchainProof` produced by the SP1 prover network, and is converted to
+/// Garaga calldata via [`StarknetCalldata::from_proof`].
+///
+/// In mock proving mode (`mock_prove = true`), `proof.data` is a raw
+/// big-endian felt buffer produced by [`crate::mock_proof::serialize_mock_journal`]
+/// — a Cairo-Serde-serialized stub `VerifierJournal` — which the paired
+/// `piltover_mock_amd_tee_registry` contract decodes as-is. We forward the
+/// felts directly to `TEEInput.sp1_proof` without going through `OnchainProof`.
+fn build_tee_calldata(proof: &TeeProof, mock_prove: bool) -> Result<Vec<Felt>> {
+    let sp1_proof: Vec<Felt> = if mock_prove {
+        crate::mock_proof::bytes_to_felts(&proof.data)
+            .ok_or_else(|| anyhow::anyhow!("mock proof data length is not a multiple of 32"))?
+    } else {
+        let onchain_proof = OnchainProof::decode_json(&proof.data)?;
+        StarknetCalldata::from_proof(&onchain_proof)?
+            .to_felts()?
+            .iter()
+            .map(|f| Felt::from_bytes_be(&f.to_bytes_be()))
+            .collect()
+    };
 
     let l1_to_l2_msg_hashes: Vec<Felt> = proof
         .l1_to_l2_messages
@@ -107,6 +122,10 @@ pub struct TeePiltoverSettlementBackend {
     provider: Arc<JsonRpcClient<HttpTransport>>,
     account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
     piltover_address: Felt,
+    /// When `true`, decode `TeeProof.data` as a raw felt buffer (mock journal)
+    /// instead of `OnchainProof` JSON. Must be paired with the upstream
+    /// `TeeProver` running with `mock_prove = true`.
+    mock_prove: bool,
     proof_channel: Receiver<TeeProof>,
     cursor_channel: Sender<SettlementCursor>,
     finish_handle: FinishHandle,
@@ -118,6 +137,7 @@ pub struct TeePiltoverSettlementBackendBuilder {
     piltover_address: Felt,
     account_address: Felt,
     account_private_key: Felt,
+    mock_prove: bool,
     proof_channel: Option<Receiver<TeeProof>>,
     cursor_channel: Option<Sender<SettlementCursor>>,
 }
@@ -128,12 +148,14 @@ impl TeePiltoverSettlementBackendBuilder {
         piltover_address: Felt,
         account_address: Felt,
         account_private_key: Felt,
+        mock_prove: bool,
     ) -> Self {
         Self {
             rpc_url,
             piltover_address,
             account_address,
             account_private_key,
+            mock_prove,
             proof_channel: None,
             cursor_channel: None,
         }
@@ -160,6 +182,7 @@ impl TeeSettlementBackendBuilder for TeePiltoverSettlementBackendBuilder {
             provider,
             account,
             piltover_address: self.piltover_address,
+            mock_prove: self.mock_prove,
             proof_channel: self
                 .proof_channel
                 .ok_or_else(|| anyhow::anyhow!("`proof_channel` not set"))?,
@@ -237,7 +260,7 @@ impl TeePiltoverSettlementBackend {
                 },
             };
 
-            let calldata = match build_tee_calldata(&proof) {
+            let calldata = match build_tee_calldata(&proof, self.mock_prove) {
                 Ok(c) => c,
                 Err(e) => {
                     log::error!(
