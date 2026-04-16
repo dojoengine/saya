@@ -19,7 +19,7 @@ repository.workspace = true
 [dependencies]
 saya-core = { path = "../../saya/core" }
 katana_tee_client = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
-amd-sev-snp-attestation-prover = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263", features = ["sp1"] }
+amd-sev-snp-attestation-prover = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263", default-features = false, features = ["sp1"] }
 amd-sev-snp-attestation-verifier = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
 amd_tee_registry_client = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
 x509-verifier-rust-crypto = { git = "https://github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
