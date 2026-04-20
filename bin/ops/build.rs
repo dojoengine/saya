@@ -38,27 +38,30 @@ fn main() {
     // `crates/contracts/build.rs`.
     initialize_submodule_if_empty(&piltover_dir);
 
-    // Hard-fail if asdf/scarb isn't available. Dev must run `make install-scarb`
-    // first. `asdf exec scarb` reads the version pinned by
-    // `piltover/.tool-versions` automatically.
-    let scarb_check = Command::new("asdf")
-        .args(["exec", "scarb", "--version"])
+    // Hard-fail if scarb isn't on PATH. Dev must run `make install-scarb` first
+    // (or install scarb directly). We invoke `scarb` directly rather than
+    // `asdf exec scarb` so CI environments that install scarb via the official
+    // installer (without asdf) also work. Local dev via asdf still works
+    // transparently: asdf shims intercept the `scarb` call and route to the
+    // version pinned by `piltover/.tool-versions`.
+    let scarb_check = Command::new("scarb")
+        .arg("--version")
         .current_dir(&piltover_dir)
         .output();
     if !scarb_check.as_ref().map(|o| o.status.success()).unwrap_or(false) {
         panic!(
-            "asdf or scarb not available. Run `make install-scarb` from the repo root to \
-             install the scarb version pinned by `piltover/.tool-versions`. If \
-             asdf itself is missing, install it from https://asdf-vm.com/ first."
+            "scarb not found on PATH. Run `make install-scarb` from the repo root to \
+             install the version pinned by `piltover/.tool-versions`, or install scarb \
+             directly from https://docs.swmansion.com/scarb/download.html."
         );
     }
 
     // Build piltover contracts via scarb.
-    let status = Command::new("asdf")
-        .args(["exec", "scarb", "build"])
+    let status = Command::new("scarb")
+        .arg("build")
         .current_dir(&piltover_dir)
         .status()
-        .expect("`asdf exec scarb build` failed to spawn");
+        .expect("`scarb build` failed to spawn");
     if !status.success() {
         panic!("scarb build failed in {}", piltover_dir.display());
     }

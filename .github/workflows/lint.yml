@@ -65,11 +65,15 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: "Setup asdf"
-        uses: asdf-vm/actions/setup@v3
-
-      - name: "Install scarb via asdf (pinned by piltover/.tool-versions)"
-        run: make install-scarb
+      - name: "Install scarb (version pinned by piltover/.tool-versions)"
+        run: |
+          SCARB_VERSION=$(awk '$1 == "scarb" { print $2 }' piltover/.tool-versions)
+          if [ -z "$SCARB_VERSION" ]; then
+            echo "Could not read scarb version from piltover/.tool-versions"; exit 1
+          fi
+          echo "Installing scarb $SCARB_VERSION"
+          curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh -s -- -v "$SCARB_VERSION"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: "Run Clippy"
         run: |
