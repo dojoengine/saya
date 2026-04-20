@@ -15,6 +15,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+build = "build.rs"
 
 [dependencies]
 anyhow = { version = "1.0.95", default-features = false }

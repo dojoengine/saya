@@ -3,17 +3,31 @@ use starknet::{core::types::Felt, macros::felt};
 pub const SEPOLIA_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/sepolia";
 pub const MAINNET_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/mainnet";
 
-// Embed contract files into the binary
+// Embed contract files into the binary.
+//
+// PILTOVER_CONTRACT_BYTES stays vendored: its class hash
+// (`DEFAULT_PILTOVER_CLASS_HASH` below) is load-bearing for already-deployed
+// Piltover on Sepolia/Mainnet, and piltover's current `feat/tee-persistent`
+// branch has a modified `src/appchain.cairo` that would produce a different
+// class hash. DO NOT rebuild this artifact from the submodule.
 pub const PILTOVER_CONTRACT_BYTES: &[u8] =
     include_bytes!("../../../../contracts/core_contract.json");
+
+// FACT_REGISTRY_MOCK_BYTES and TEE_REGISTRY_MOCK_BYTES are rebuilt from the
+// `piltover` submodule by `bin/ops/build.rs` on every cargo build.
+// The submodule pin in `.gitmodules` is the single source of truth for their
+// Cairo source.
+
 pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
-    include_bytes!("../../../../contracts/fact_registry_mock.json");
+    include_bytes!(concat!(env!("OUT_DIR"), "/fact_registry_mock.json"));
+
 /// Mock implementation of `amd_tee_registry::IAMDTeeRegistry`. Used by e2e
 /// tests for `saya-tee` to bypass on-chain Groth16 verification of SP1
-/// attestation proofs. Built from `cartridge-gg/piltover`'s
-/// `piltover_mock_amd_tee_registry` contract (added in piltover#15).
+/// attestation proofs. Rebuilt from `cartridge-gg/piltover`'s
+/// `piltover_mock_amd_tee_registry` contract (added in piltover#15) via the
+/// `piltover` submodule.
 pub const TEE_REGISTRY_MOCK_BYTES: &[u8] =
-    include_bytes!("../../../../contracts/tee_registry_mock.json");
+    include_bytes!(concat!(env!("OUT_DIR"), "/tee_registry_mock.json"));
 
 /// The default class hash of the piltover core contract.
 /// This class hash corresponds to the piltover contract compiled from

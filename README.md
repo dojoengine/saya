@@ -197,13 +197,30 @@ saya-tee tee start \
 ## Building from source
 
 Only needed if you want to modify Saya.
-Requires Rust `1.89` — install via [rustup](https://rustup.rs); `rust-toolchain.toml` pins the version automatically.
+
+**One-time setup:**
+
+```bash
+git clone --recursive https://github.com/dojoengine/saya
+# or, if you already cloned without --recursive:
+# git submodule update --init --recursive
+
+make install-scarb
+```
+
+`make install-scarb` uses [asdf](https://asdf-vm.com/) to install the `scarb`
+version pinned by `piltover/.tool-versions`. `saya-ops` rebuilds
+two Piltover mock contracts from that submodule on every cargo build via its
+`build.rs`, so scarb is a hard build-time dependency.
+
+Rust `1.89` is also required — install via [rustup](https://rustup.rs);
+`rust-toolchain.toml` pins the version automatically.
+
+**Build:**
 
 ```bash
 cd bin/persistent && cargo build --release
 cd bin/ops && cargo build --release
-
-# TEE mode (requires SSH access to cartridge-gg/katana-tee)
 cd bin/persistent-tee && cargo build --release
 ```
 
