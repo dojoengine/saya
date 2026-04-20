@@ -1,4 +1,4 @@
-SUBMODULE_DIR := third_party/piltover
+SUBMODULE_DIR := piltover
 
 # Scarb version is read from the submodule's .tool-versions — single source of
 # truth, no drift between saya's Makefile and the piltover pin.

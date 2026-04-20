@@ -1,4 +1,4 @@
-//! Rebuilds Piltover mock contracts from source via the `third_party/piltover`
+//! Rebuilds Piltover mock contracts from source via the `piltover`
 //! submodule + scarb. The submodule is the single source of truth for the
 //! Sierra bytecode embedded in saya-ops.
 //!
@@ -24,14 +24,14 @@ const CONTRACTS: &[(&str, &str)] = &[
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let workspace_root = manifest_dir.join("../..");
-    let piltover_dir = workspace_root.join("third_party/piltover");
+    let piltover_dir = workspace_root.join("piltover");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=../../third_party/piltover/src");
-    println!("cargo:rerun-if-changed=../../third_party/piltover/Scarb.toml");
-    println!("cargo:rerun-if-changed=../../third_party/piltover/Scarb.lock");
-    println!("cargo:rerun-if-changed=../../third_party/piltover/.tool-versions");
+    println!("cargo:rerun-if-changed=../../piltover/src");
+    println!("cargo:rerun-if-changed=../../piltover/Scarb.toml");
+    println!("cargo:rerun-if-changed=../../piltover/Scarb.lock");
+    println!("cargo:rerun-if-changed=../../piltover/.tool-versions");
 
     // Auto-init the submodule if it's empty (user may have cloned without
     // `--recursive`). Mirrors katana's `initialize_submodule` helper in
@@ -40,7 +40,7 @@ fn main() {
 
     // Hard-fail if asdf/scarb isn't available. Dev must run `make install-scarb`
     // first. `asdf exec scarb` reads the version pinned by
-    // `third_party/piltover/.tool-versions` automatically.
+    // `piltover/.tool-versions` automatically.
     let scarb_check = Command::new("asdf")
         .args(["exec", "scarb", "--version"])
         .current_dir(&piltover_dir)
@@ -48,7 +48,7 @@ fn main() {
     if !scarb_check.as_ref().map(|o| o.status.success()).unwrap_or(false) {
         panic!(
             "asdf or scarb not available. Run `make install-scarb` from the repo root to \
-             install the scarb version pinned by `third_party/piltover/.tool-versions`. If \
+             install the scarb version pinned by `piltover/.tool-versions`. If \
              asdf itself is missing, install it from https://asdf-vm.com/ first."
         );
     }

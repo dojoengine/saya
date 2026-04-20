@@ -68,7 +68,7 @@ jobs:
       - name: "Setup asdf"
         uses: asdf-vm/actions/setup@v3
 
-      - name: "Install scarb via asdf (pinned by third_party/piltover/.tool-versions)"
+      - name: "Install scarb via asdf (pinned by piltover/.tool-versions)"
         run: make install-scarb
 
       - name: "Run Clippy"

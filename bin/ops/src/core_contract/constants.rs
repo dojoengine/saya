@@ -14,7 +14,7 @@ pub const PILTOVER_CONTRACT_BYTES: &[u8] =
     include_bytes!("../../../../contracts/core_contract.json");
 
 // FACT_REGISTRY_MOCK_BYTES and TEE_REGISTRY_MOCK_BYTES are rebuilt from the
-// `third_party/piltover` submodule by `bin/ops/build.rs` on every cargo build.
+// `piltover` submodule by `bin/ops/build.rs` on every cargo build.
 // The submodule pin in `.gitmodules` is the single source of truth for their
 // Cairo source.
 
@@ -25,7 +25,7 @@ pub const FACT_REGISTRY_MOCK_BYTES: &[u8] =
 /// tests for `saya-tee` to bypass on-chain Groth16 verification of SP1
 /// attestation proofs. Rebuilt from `cartridge-gg/piltover`'s
 /// `piltover_mock_amd_tee_registry` contract (added in piltover#15) via the
-/// `third_party/piltover` submodule.
+/// `piltover` submodule.
 pub const TEE_REGISTRY_MOCK_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/tee_registry_mock.json"));
 

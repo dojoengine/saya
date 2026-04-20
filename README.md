@@ -209,7 +209,7 @@ make install-scarb
 ```
 
 `make install-scarb` uses [asdf](https://asdf-vm.com/) to install the `scarb`
-version pinned by `third_party/piltover/.tool-versions`. `saya-ops` rebuilds
+version pinned by `piltover/.tool-versions`. `saya-ops` rebuilds
 two Piltover mock contracts from that submodule on every cargo build via its
 `build.rs`, so scarb is a hard build-time dependency.
 
