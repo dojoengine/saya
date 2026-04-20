@@ -62,6 +62,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: dtolnay/rust-toolchain@master
         name: Rust Toolchain Setup
@@ -87,6 +89,12 @@ jobs:
       - name: "Install dependencies"
         run: |
           pip install -r requirements.txt
+
+      - name: "Setup asdf"
+        uses: asdf-vm/actions/setup@v3
+
+      - name: "Install scarb via asdf (pinned by third_party/piltover/.tool-versions)"
+        run: make install-scarb
 
       - name: Apple M1 setup
         if: ${{ matrix.job.target == 'aarch64-apple-darwin' }}
