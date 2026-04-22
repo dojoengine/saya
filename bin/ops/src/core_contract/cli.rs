@@ -13,7 +13,7 @@ use crate::core_contract::utils::{
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use dojo_utils::TransactionResult;
-use log::info;
+use log::debug;
 use serde::Serialize;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;
@@ -256,7 +256,6 @@ impl CoreContract {
                     .await?
                 };
 
-                info!("Core contract class hash: {:?}", class_hash);
                 let (tx_hash, declared_block) = tx_outcome(&tx);
                 CoreContractResult::Declare {
                     class_hash: fhex(class_hash),
@@ -273,7 +272,6 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("Core contract address: {:?}", contract_address);
                 let (tx_hash, deployed_block) = tx_outcome(&tx);
                 CoreContractResult::Deploy {
                     class_hash: fhex(deploy_args.class_hash),
@@ -307,7 +305,6 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("Fact registry mock address: {:?}", fact_registry_address);
                 let (tx_hash, deployed_block) = tx_outcome(&deploy_tx);
                 CoreContractResult::DeclareAndDeployFactRegistryMock {
                     class_hash: fhex(class_hash),
@@ -340,7 +337,6 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("TEE registry mock address: {:?}", tee_registry_address);
                 let (tx_hash, deployed_block) = tx_outcome(&deploy_tx);
                 CoreContractResult::DeclareAndDeployTeeRegistryMock {
                     class_hash: fhex(class_hash),
@@ -355,7 +351,7 @@ impl CoreContract {
 
                 let snos_config_hash =
                     compute_starknet_os_config_hash(chain_id, setup_program_args.fee_token_address);
-                info!("Starknet OS config hash: {:?}", snos_config_hash);
+                debug!("Starknet OS config hash: {:?}", snos_config_hash);
                 let set_program_tx = set_program_info(
                     account.clone(),
                     setup_program_args.core_contract_address,
@@ -364,14 +360,14 @@ impl CoreContract {
                 .await?;
                 let fact_registry =
                     self.get_fact_registry_address(setup_program_args.fact_registry_address);
-                info!("Set program info transaction submitted: {:?}", set_program_tx);
+                debug!("Set program info transaction submitted: {:?}", set_program_tx);
                 let set_fact_tx = set_fact_registry(
                     account.clone(),
                     setup_program_args.core_contract_address,
                     fact_registry,
                 )
                 .await?;
-                info!("Fact registry set transaction submitted: {:?}", set_fact_tx);
+                debug!("Fact registry set transaction submitted: {:?}", set_fact_tx);
                 let (spi_tx_hash, spi_block) = tx_outcome(&set_program_tx);
                 let (sfr_tx_hash, sfr_block) = tx_outcome(&set_fact_tx);
                 CoreContractResult::SetupProgram {
@@ -386,11 +382,37 @@ impl CoreContract {
             }
         };
 
-        // Emit structured result to stdout in JSON mode. Human logs stay on
-        // stderr via env_logger; the two streams don't interfere, so
-        // downstream can redirect/parse each independently.
-        if self.output == OutputFormat::Json {
-            println!("{}", serde_json::to_string(&result)?);
+        // stdout is reserved for the primary command result. Human-readable
+        // progress/diagnostic logs stay on stderr via env_logger (`debug!`
+        // and `trace!`), so the two streams are independently pipeable.
+        //
+        // `--output json`  → one JSON object per invocation.
+        // `--output text`  → a single hex string (class hash or contract
+        //                    address), or nothing at all for action-only
+        //                    subcommands like `setup-program`.
+        match self.output {
+            OutputFormat::Json => {
+                println!("{}", serde_json::to_string(&result)?);
+            }
+            OutputFormat::Text => match &result {
+                CoreContractResult::Declare { class_hash, .. } => println!("{}", class_hash),
+                CoreContractResult::Deploy {
+                    contract_address, ..
+                } => println!("{}", contract_address),
+                CoreContractResult::DeclareAndDeployFactRegistryMock {
+                    contract_address,
+                    ..
+                } => println!("{}", contract_address),
+                CoreContractResult::DeclareAndDeployTeeRegistryMock {
+                    contract_address,
+                    ..
+                } => println!("{}", contract_address),
+                CoreContractResult::SetupProgram { .. } => {
+                    // Action, not query: success is implied by a zero exit
+                    // code. Users who want the tx hashes can request them
+                    // with `--output json`.
+                }
+            },
         }
 
         Ok(())

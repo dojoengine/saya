@@ -8,7 +8,7 @@ use anyhow::Result;
 use cairo_lang_starknet_classes::casm_contract_class::CasmContractClass;
 use cairo_lang_starknet_classes::contract_class::ContractClass;
 use dojo_utils::{Declarer, Deployer, Invoker, LabeledClass, TransactionResult, TxnConfig};
-use log::{info, warn};
+use log::{debug, trace, warn};
 use starknet::accounts::{Account, SingleOwnerAccount};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::{contract::SierraClass, Call, Felt, FlattenedSierraClass};
@@ -43,20 +43,7 @@ pub async fn declare_contract(
     let mut results = declarer.declare_all().await?;
     let tx_result = results.remove(0);
 
-    match &tx_result {
-        TransactionResult::Noop => {
-            info!("Contract {} already declared.", contract_name);
-        }
-        TransactionResult::Hash(hash) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
-        }
-        TransactionResult::HashReceipt(hash, receipt) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
-            info!(" Declared on block  : {:?}", receipt.block.block_number());
-        }
-    };
+    log_tx_result(&tx_result, contract_name, "declared", "Declared on block");
     Ok((class.class_hash, tx_result))
 }
 
@@ -78,21 +65,39 @@ pub async fn declare_contract_from_bytes(
     let mut results = declarer.declare_all().await?;
     let tx_result = results.remove(0);
 
-    match &tx_result {
+    log_tx_result(&tx_result, contract_name, "declared", "Declared on block");
+    Ok((class.class_hash, tx_result))
+}
+
+/// Centralized, leveled logger for `TransactionResult`. Primary result values
+/// (class hashes, contract addresses) go to stdout via `println!` in
+/// cli.rs; this function only emits diagnostic progress.
+///
+/// - `debug!` for status ("Contract X deployed", "Contract X already deployed")
+/// - `trace!` for low-level tx detail (hash, block number)
+///
+/// `verb_past` is e.g. "declared" or "deployed"; `block_label` is
+/// "Declared on block" or "At block".
+fn log_tx_result(
+    result: &TransactionResult,
+    contract_name: &str,
+    verb_past: &str,
+    block_label: &str,
+) {
+    match result {
         TransactionResult::Noop => {
-            info!("Contract {} already declared.", contract_name);
+            debug!("Contract {} already {}.", contract_name, verb_past);
         }
         TransactionResult::Hash(hash) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
+            debug!("Contract {} {}.", contract_name, verb_past);
+            trace!("  Tx hash  : {hash:?}");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
-            info!(" Declared on block  : {:?}", receipt.block.block_number());
+            debug!("Contract {} {}.", contract_name, verb_past);
+            trace!("  Tx hash  : {hash:?}");
+            trace!("  {}  : {}", block_label, receipt.block.block_number());
         }
-    };
-    Ok((class.class_hash, tx_result))
+    }
 }
 
 pub async fn deploy_core_contract(
@@ -141,20 +146,7 @@ pub async fn deploy_contract(
         .await
     {
         Ok((contract_address, transaction_result)) => {
-            match &transaction_result {
-                TransactionResult::Noop => {
-                    info!("Contract {} already deployed.", contract_name);
-                }
-                TransactionResult::Hash(hash) => {
-                    info!("Contract {} deployed.", contract_name);
-                    info!("Tx hash   : {hash:?}");
-                }
-                TransactionResult::HashReceipt(hash, receipt) => {
-                    info!("Contract {} deployed.", contract_name);
-                    info!("Tx hash   : {hash:?}");
-                    info!("At block  : {:?}", receipt.block.block_number());
-                }
-            }
+            log_tx_result(&transaction_result, contract_name, "deployed", "At block");
             Ok((contract_address, transaction_result))
         }
         Err(e) => {
