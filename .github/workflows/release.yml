@@ -75,6 +75,7 @@ jobs:
         run: |
           rustup target add --toolchain 1.87 ${{ matrix.job.target }}
           rustup target add --toolchain 1.89 ${{ matrix.job.target }}
+          rustup target add --toolchain 1.91 ${{ matrix.job.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
