@@ -1804,7 +1804,7 @@ dependencies = [
 [[package]]
 name = "dojo-utils"
 version = "1.8.0"
-source = "git+https://github.com/dojoengine/dojo?branch=main#9b64ea8dc9bc6be8992dba87c104378dbf09b565"
+source = "git+https://github.com/dojoengine/dojo?rev=9b64ea8dc9bc6be8992dba87c104378dbf09b565#9b64ea8dc9bc6be8992dba87c104378dbf09b565"
 dependencies = [
  "anyhow",
  "colored_json",

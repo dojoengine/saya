@@ -28,7 +28,7 @@ clap = { version = "4.5.23", default-features = false, features = [
     "env",
     "std",
 ] }
-dojo-utils = { git = "https://github.com/dojoengine/dojo", branch = "main" }
+dojo-utils = { git = "https://github.com/dojoengine/dojo", rev = "9b64ea8dc9bc6be8992dba87c104378dbf09b565" }
 env_logger = { version = "0.11.6", features = ["unstable-kv"] }
 log = { version = "0.4.22", features = ["kv"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
