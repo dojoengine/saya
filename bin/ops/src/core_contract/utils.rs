@@ -12,6 +12,7 @@ use log::{debug, trace, warn};
 use starknet::accounts::{Account, SingleOwnerAccount};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::{contract::SierraClass, Call, Felt, FlattenedSierraClass};
+use starknet::core::utils::get_contract_address;
 use starknet::macros::{selector, short_string};
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::JsonRpcClient;
@@ -139,6 +140,18 @@ pub async fn deploy_contract(
         .await
     {
         Ok((contract_address, transaction_result)) => {
+            // dojo-utils's `deploy_via_udc` returns `(Felt::ZERO, Noop)` when
+            // the contract is already deployed at the deterministic UDC-derived
+            // address — it computes the real address internally then drops it
+            // before returning. Recompute locally so downstream callers (and
+            // --output json consumers) see the actual address, not zero.
+            let contract_address = if contract_address == Felt::ZERO
+                && matches!(transaction_result, TransactionResult::Noop)
+            {
+                get_contract_address(salt, class_hash, constructor_calldata, Felt::ZERO)
+            } else {
+                contract_address
+            };
             match &transaction_result {
                 TransactionResult::Noop => {
                     debug!(contract:% = contract_name; "Contract already deployed.");
