@@ -382,31 +382,41 @@ impl CoreContract {
             }
         };
 
-        // stdout is reserved for the primary command result. Human-readable
-        // progress/diagnostic logs stay on stderr via env_logger (`debug!`
-        // and `trace!`), so the two streams are independently pipeable.
+        // Stdout carries the primary command result. Text mode prints
+        // human-readable `Label: 0x...` lines so a user running the command
+        // interactively can tell at a glance what each hex value is. Scripts
+        // that need to parse reliably should use `--output json`.
         //
-        // `--output json`  → one JSON object per invocation.
-        // `--output text`  → a single hex string (class hash or contract
-        //                    address), or nothing at all for action-only
-        //                    subcommands like `setup-program`.
+        // Diagnostic/progress logs live on stderr via `debug!` + `trace!`.
         match self.output {
             OutputFormat::Json => {
                 println!("{}", serde_json::to_string(&result)?);
             }
             OutputFormat::Text => match &result {
-                CoreContractResult::Declare { class_hash, .. } => println!("{}", class_hash),
+                CoreContractResult::Declare { class_hash, .. } => {
+                    println!("Core contract class hash: {}", class_hash);
+                }
                 CoreContractResult::Deploy {
                     contract_address, ..
-                } => println!("{}", contract_address),
+                } => {
+                    println!("Core contract address: {}", contract_address);
+                }
                 CoreContractResult::DeclareAndDeployFactRegistryMock {
+                    class_hash,
                     contract_address,
                     ..
-                } => println!("{}", contract_address),
+                } => {
+                    println!("Fact registry mock class hash: {}", class_hash);
+                    println!("Fact registry mock address: {}", contract_address);
+                }
                 CoreContractResult::DeclareAndDeployTeeRegistryMock {
+                    class_hash,
                     contract_address,
                     ..
-                } => println!("{}", contract_address),
+                } => {
+                    println!("TEE registry mock class hash: {}", class_hash);
+                    println!("TEE registry mock address: {}", contract_address);
+                }
                 CoreContractResult::SetupProgram { .. } => {
                     // Action, not query: success is implied by a zero exit
                     // code. Users who want the tx hashes can request them
