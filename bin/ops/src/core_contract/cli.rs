@@ -351,7 +351,7 @@ impl CoreContract {
 
                 let snos_config_hash =
                     compute_starknet_os_config_hash(chain_id, setup_program_args.fee_token_address);
-                debug!("Starknet OS config hash: {:?}", snos_config_hash);
+                debug!(snos_config_hash:? = snos_config_hash; "Computed Starknet OS config hash.");
                 let set_program_tx = set_program_info(
                     account.clone(),
                     setup_program_args.core_contract_address,
@@ -360,14 +360,14 @@ impl CoreContract {
                 .await?;
                 let fact_registry =
                     self.get_fact_registry_address(setup_program_args.fact_registry_address);
-                debug!("Set program info transaction submitted: {:?}", set_program_tx);
+                debug!(tx:? = set_program_tx; "set_program_info transaction submitted.");
                 let set_fact_tx = set_fact_registry(
                     account.clone(),
                     setup_program_args.core_contract_address,
                     fact_registry,
                 )
                 .await?;
-                debug!("Fact registry set transaction submitted: {:?}", set_fact_tx);
+                debug!(tx:? = set_fact_tx; "set_fact_registry transaction submitted.");
                 let (spi_tx_hash, spi_block) = tx_outcome(&set_program_tx);
                 let (sfr_tx_hash, sfr_block) = tx_outcome(&set_fact_tx);
                 CoreContractResult::SetupProgram {

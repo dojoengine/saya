@@ -45,16 +45,15 @@ pub async fn declare_contract(
 
     match &tx_result {
         TransactionResult::Noop => {
-            debug!("Contract {} already declared.", contract_name);
+            debug!(contract:% = contract_name; "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            debug!("Contract {} declared.", contract_name);
-            trace!("  Tx hash  : {hash:?}");
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash; "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            debug!("Contract {} declared.", contract_name);
-            trace!("  Tx hash  : {hash:?}");
-            trace!("  Declared on block  : {}", receipt.block.block_number());
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
         }
     }
     Ok((class.class_hash, tx_result))
@@ -80,16 +79,15 @@ pub async fn declare_contract_from_bytes(
 
     match &tx_result {
         TransactionResult::Noop => {
-            debug!("Contract {} already declared.", contract_name);
+            debug!(contract:% = contract_name; "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            debug!("Contract {} declared.", contract_name);
-            trace!("  Tx hash  : {hash:?}");
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash; "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            debug!("Contract {} declared.", contract_name);
-            trace!("  Tx hash  : {hash:?}");
-            trace!("  Declared on block  : {}", receipt.block.block_number());
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
         }
     }
     Ok((class.class_hash, tx_result))
@@ -143,16 +141,15 @@ pub async fn deploy_contract(
         Ok((contract_address, transaction_result)) => {
             match &transaction_result {
                 TransactionResult::Noop => {
-                    debug!("Contract {} already deployed.", contract_name);
+                    debug!(contract:% = contract_name; "Contract already deployed.");
                 }
                 TransactionResult::Hash(hash) => {
-                    debug!("Contract {} deployed.", contract_name);
-                    trace!("  Tx hash  : {hash:?}");
+                    debug!(contract:% = contract_name; "Contract deployed.");
+                    trace!(tx_hash:? = hash; "Tx hash");
                 }
                 TransactionResult::HashReceipt(hash, receipt) => {
-                    debug!("Contract {} deployed.", contract_name);
-                    trace!("  Tx hash  : {hash:?}");
-                    trace!("  At block  : {}", receipt.block.block_number());
+                    debug!(contract:% = contract_name; "Contract deployed.");
+                    trace!(tx_hash:? = hash, block = receipt.block.block_number(); "At block");
                 }
             }
             Ok((contract_address, transaction_result))
@@ -161,8 +158,8 @@ pub async fn deploy_contract(
             let address = try_extract_already_deployed_address(&e)?;
             if let Some(address) = address {
                 warn!(
-                    "{} already deployed at address: {:?}",
-                    contract_name, address
+                    contract:% = contract_name, address:? = address;
+                    "Contract already deployed at address."
                 );
                 // Match the "already declared" semantics: represent an
                 // idempotent no-op with TransactionResult::Noop so the
