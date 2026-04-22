@@ -43,7 +43,20 @@ pub async fn declare_contract(
     let mut results = declarer.declare_all().await?;
     let tx_result = results.remove(0);
 
-    log_tx_result(&tx_result, contract_name, "declared", "Declared on block");
+    match &tx_result {
+        TransactionResult::Noop => {
+            debug!("Contract {} already declared.", contract_name);
+        }
+        TransactionResult::Hash(hash) => {
+            debug!("Contract {} declared.", contract_name);
+            trace!("  Tx hash  : {hash:?}");
+        }
+        TransactionResult::HashReceipt(hash, receipt) => {
+            debug!("Contract {} declared.", contract_name);
+            trace!("  Tx hash  : {hash:?}");
+            trace!("  Declared on block  : {}", receipt.block.block_number());
+        }
+    }
     Ok((class.class_hash, tx_result))
 }
 
@@ -65,39 +78,21 @@ pub async fn declare_contract_from_bytes(
     let mut results = declarer.declare_all().await?;
     let tx_result = results.remove(0);
 
-    log_tx_result(&tx_result, contract_name, "declared", "Declared on block");
-    Ok((class.class_hash, tx_result))
-}
-
-/// Centralized, leveled logger for `TransactionResult`. Primary result values
-/// (class hashes, contract addresses) go to stdout via `println!` in
-/// cli.rs; this function only emits diagnostic progress.
-///
-/// - `debug!` for status ("Contract X deployed", "Contract X already deployed")
-/// - `trace!` for low-level tx detail (hash, block number)
-///
-/// `verb_past` is e.g. "declared" or "deployed"; `block_label` is
-/// "Declared on block" or "At block".
-fn log_tx_result(
-    result: &TransactionResult,
-    contract_name: &str,
-    verb_past: &str,
-    block_label: &str,
-) {
-    match result {
+    match &tx_result {
         TransactionResult::Noop => {
-            debug!("Contract {} already {}.", contract_name, verb_past);
+            debug!("Contract {} already declared.", contract_name);
         }
         TransactionResult::Hash(hash) => {
-            debug!("Contract {} {}.", contract_name, verb_past);
+            debug!("Contract {} declared.", contract_name);
             trace!("  Tx hash  : {hash:?}");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            debug!("Contract {} {}.", contract_name, verb_past);
+            debug!("Contract {} declared.", contract_name);
             trace!("  Tx hash  : {hash:?}");
-            trace!("  {}  : {}", block_label, receipt.block.block_number());
+            trace!("  Declared on block  : {}", receipt.block.block_number());
         }
     }
+    Ok((class.class_hash, tx_result))
 }
 
 pub async fn deploy_core_contract(
@@ -146,7 +141,20 @@ pub async fn deploy_contract(
         .await
     {
         Ok((contract_address, transaction_result)) => {
-            log_tx_result(&transaction_result, contract_name, "deployed", "At block");
+            match &transaction_result {
+                TransactionResult::Noop => {
+                    debug!("Contract {} already deployed.", contract_name);
+                }
+                TransactionResult::Hash(hash) => {
+                    debug!("Contract {} deployed.", contract_name);
+                    trace!("  Tx hash  : {hash:?}");
+                }
+                TransactionResult::HashReceipt(hash, receipt) => {
+                    debug!("Contract {} deployed.", contract_name);
+                    trace!("  Tx hash  : {hash:?}");
+                    trace!("  At block  : {}", receipt.block.block_number());
+                }
+            }
             Ok((contract_address, transaction_result))
         }
         Err(e) => {
