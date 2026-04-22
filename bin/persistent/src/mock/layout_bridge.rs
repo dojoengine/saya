@@ -1,9 +1,9 @@
 use anyhow::Result;
 use integrity::Felt;
-use log::{debug, info};
 use swiftness::TransformTo;
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, info};
 
 use crate::utils::{calculate_output, stark_proof_mock};
 use saya_core::{

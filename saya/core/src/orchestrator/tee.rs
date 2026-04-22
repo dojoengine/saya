@@ -15,8 +15,8 @@
 //! ```
 
 use anyhow::Result;
-use log::{debug, info};
 use tokio::sync::mpsc::Receiver;
+use tracing::{debug, info};
 
 use crate::{
     block_ingestor::{BatchingBlockIngestorBuilder, BlockInfo, BlockIngestor},
@@ -144,7 +144,7 @@ impl TeeOrchestratorState {
 
             info!(
                 block_number = new_cursor.block_number,
-                transaction_hash:% = format!("{:#064x}", new_cursor.transaction_hash);
+                transaction_hash = %format!("{:#064x}", new_cursor.transaction_hash),
                 "Chain advanced to new block"
             );
         }

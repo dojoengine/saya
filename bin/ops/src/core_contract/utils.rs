@@ -8,7 +8,6 @@ use anyhow::Result;
 use cairo_lang_starknet_classes::casm_contract_class::CasmContractClass;
 use cairo_lang_starknet_classes::contract_class::ContractClass;
 use dojo_utils::{Declarer, Deployer, Invoker, LabeledClass, TransactionResult, TxnConfig};
-use log::{debug, trace, warn};
 use starknet::accounts::{Account, SingleOwnerAccount};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::{contract::SierraClass, Call, Felt, FlattenedSierraClass};
@@ -18,6 +17,7 @@ use starknet::providers::JsonRpcClient;
 use starknet::signers::LocalWallet;
 use starknet_api::contract_class::compiled_class_hash::{HashVersion, HashableCompiledClass};
 use std::{fs, path::Path};
+use tracing::{debug, trace, warn};
 
 pub fn compute_starknet_os_config_hash(chain_id: Felt, fee_token: Felt) -> Felt {
     const STARKNET_OS_CONFIG_VERSION: Felt = short_string!("StarknetOsConfig3");
@@ -45,15 +45,15 @@ pub async fn declare_contract(
 
     match &tx_result {
         TransactionResult::Noop => {
-            debug!(contract:% = contract_name; "Contract already declared.");
+            debug!(contract = %contract_name, "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            debug!(contract:% = contract_name; "Contract declared.");
-            trace!(tx_hash:? = hash; "Tx hash");
+            debug!(contract = %contract_name, "Contract declared.");
+            trace!(tx_hash = ?hash, "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            debug!(contract:% = contract_name; "Contract declared.");
-            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
+            debug!(contract = %contract_name, "Contract declared.");
+            trace!(tx_hash = ?hash, block = receipt.block.block_number(), "Declared on block");
         }
     }
     Ok((class.class_hash, tx_result))
@@ -79,15 +79,15 @@ pub async fn declare_contract_from_bytes(
 
     match &tx_result {
         TransactionResult::Noop => {
-            debug!(contract:% = contract_name; "Contract already declared.");
+            debug!(contract = %contract_name, "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            debug!(contract:% = contract_name; "Contract declared.");
-            trace!(tx_hash:? = hash; "Tx hash");
+            debug!(contract = %contract_name, "Contract declared.");
+            trace!(tx_hash = ?hash, "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            debug!(contract:% = contract_name; "Contract declared.");
-            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
+            debug!(contract = %contract_name, "Contract declared.");
+            trace!(tx_hash = ?hash, block = receipt.block.block_number(), "Declared on block");
         }
     }
     Ok((class.class_hash, tx_result))
@@ -141,15 +141,15 @@ pub async fn deploy_contract(
         Ok((contract_address, transaction_result)) => {
             match &transaction_result {
                 TransactionResult::Noop => {
-                    debug!(contract:% = contract_name; "Contract already deployed.");
+                    debug!(contract = %contract_name, "Contract already deployed.");
                 }
                 TransactionResult::Hash(hash) => {
-                    debug!(contract:% = contract_name; "Contract deployed.");
-                    trace!(tx_hash:? = hash; "Tx hash");
+                    debug!(contract = %contract_name, "Contract deployed.");
+                    trace!(tx_hash = ?hash, "Tx hash");
                 }
                 TransactionResult::HashReceipt(hash, receipt) => {
-                    debug!(contract:% = contract_name; "Contract deployed.");
-                    trace!(tx_hash:? = hash, block = receipt.block.block_number(); "At block");
+                    debug!(contract = %contract_name, "Contract deployed.");
+                    trace!(tx_hash = ?hash, block = receipt.block.block_number(), "At block");
                 }
             }
             Ok((contract_address, transaction_result))
@@ -158,7 +158,8 @@ pub async fn deploy_contract(
             let address = try_extract_already_deployed_address(&e)?;
             if let Some(address) = address {
                 warn!(
-                    contract:% = contract_name, address:? = address;
+                    contract = %contract_name,
+                    address = ?address,
                     "Contract already deployed at address."
                 );
                 // Match the "already declared" semantics: represent an

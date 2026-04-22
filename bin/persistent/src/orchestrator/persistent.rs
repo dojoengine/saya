@@ -1,6 +1,6 @@
 use anyhow::Result;
-use log::{debug, info};
 use tokio::sync::mpsc::Receiver;
+use tracing::{debug, info};
 
 use saya_core::{
     block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
@@ -165,7 +165,7 @@ impl PersistentOrchestratorState {
 
             info!(
                 block_number = new_cursor.block_number,
-                transaction_hash:% = format!("{:#064x}", new_cursor.transaction_hash);
+                transaction_hash = %format!("{:#064x}", new_cursor.transaction_hash),
                 "Chain advanced to new block"
             );
         }

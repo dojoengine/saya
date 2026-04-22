@@ -46,13 +46,10 @@ enum Subcommands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var(
-            "RUST_LOG",
-            "info,persistent=trace,saya_core=trace,rpc_client=info,prove_block=info,blockifier=off,generate_pie=off,rpc_client=off,starknet_os=off",
-        );
-    }
-    env_logger::init();
+    saya_tracing::init(
+        "info,persistent=trace,saya_core=trace,rpc_client=info,prove_block=info,blockifier=off,\
+         generate_pie=off,rpc_client=off,starknet_os=off",
+    )?;
     match cli.command {
         Subcommands::Sovereign(cmd) => cmd.run().await,
         Subcommands::Start(cmd) => cmd.run().await,

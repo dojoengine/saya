@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, marker::PhantomData};
 
 use anyhow::Result;
-use log::debug;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::debug;
 
 use crate::{
     prover::{HasBlockNumber, PipelineStage, PipelineStageBuilder},

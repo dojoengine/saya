@@ -3,11 +3,11 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::Error;
-use log::trace;
 use sqlx::query;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::Pool;
 use sqlx::Sqlite;
+use tracing::trace;
 
 mod storage;
 mod utils;
@@ -25,13 +25,13 @@ impl SqliteDb {
 
         if path != IN_MEMORY_DB && !path_file.try_exists()? {
             trace!(
-                database_path:% = path;
+                database_path = %path,
                 "Database file not found. A new one will be created. ",
             );
             fs::create_dir_all(path_file.parent().unwrap())?;
             fs::File::create(path_file)?;
         } else {
-            trace!(database_path:% = path; "Database file found.");
+            trace!(database_path = %path, "Database file found.");
         }
 
         let pool = SqlitePoolOptions::new()

@@ -8,7 +8,6 @@ use generate_pie::{
 };
 
 use crate::atlantic::compress_pie;
-use log::{debug, error, info, trace};
 use saya_core::{
     block_ingestor::BlockInfo,
     prover::{PipelineStage, PipelineStageBuilder},
@@ -23,6 +22,7 @@ use tokio::{
     },
     task,
 };
+use tracing::{debug, error, info, trace};
 use url::Url;
 
 const KATANA_DEFAULT_TOKEN_ADDRESS: &str =
@@ -88,23 +88,23 @@ where
             match db.get_pie(block_number_u32, Step::Snos).await {
                 Ok(pie_bytes) => match CairoPie::from_bytes(&pie_bytes) {
                     Ok(_) => {
-                        trace!(block_number; "SNOS PIE already in DB, skipping generation");
+                        trace!(block_number, "SNOS PIE already in DB, skipping generation");
                         let out = BlockInfo {
                             number: block_number,
                             status: BlockStatus::SnosPieGenerated,
                             state_update: block_info.state_update,
                         };
                         if task_tx.send(out).await.is_err() {
-                            error!(block_number; "Failed to forward block after PIE resume");
+                            error!(block_number, "Failed to forward block after PIE resume");
                         }
                         continue;
                     }
                     Err(err) => {
-                        error!(block_number, error:% = err; "Failed to parse existing PIE from DB");
+                        error!(block_number, error = %err, "Failed to parse existing PIE from DB");
                     }
                 },
                 Err(err) => {
-                    trace!(block_number, error:% = err; "SNOS PIE not found in DB, generating");
+                    trace!(block_number, error = %err, "SNOS PIE not found in DB, generating");
                 }
             }
 
@@ -134,7 +134,7 @@ where
                 .await
                 .unwrap();
 
-            info!(block_number; "SNOS PIE generated for block");
+            info!(block_number, "SNOS PIE generated for block");
 
             let out = BlockInfo {
                 number: block_number,
@@ -143,7 +143,7 @@ where
             };
 
             if task_tx.send(out).await.is_err() {
-                error!(block_number; "Failed to forward block after PIE generation");
+                error!(block_number, "Failed to forward block after PIE generation");
             }
         }
     }

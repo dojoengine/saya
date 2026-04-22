@@ -31,12 +31,12 @@ sha3 = "0.10"
 
 anyhow = "1"
 clap = { version = "4", default-features = false, features = ["derive", "env", "std"] }
-env_logger = { version = "0.11", features = ["unstable-kv"] }
-log = { version = "0.4", features = ["kv"] }
+saya-tracing = { path = "../../saya/tracing" }
 starknet = "0.17.0"
 starknet-types-core = { version = "0.2.1", default-features = false }
 thiserror = "2"
 tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "signal", "time"] }
+tracing = { version = "0.1.40", default-features = false, features = ["std", "attributes"] }
 url = "2"
 
 [patch.crates-io]

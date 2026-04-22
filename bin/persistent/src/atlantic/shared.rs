@@ -4,13 +4,13 @@ use super::{
 };
 use crate::error::ProverError;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::info;
 use saya_core::{
     prover::SnosProof,
     service::FinishHandle,
     storage::{PersistantStorage, Step},
 };
 use std::time::Duration;
+use tracing::info;
 
 const PROOF_STATUS_POLL_INTERVAL: Duration = Duration::from_secs(10);
 
@@ -81,8 +81,7 @@ where
         ))
     })?;
 
-    info!(block_number;
-        "SNOS proof successfully retrieved from Atlantic.");
+    info!(block_number, "SNOS proof successfully retrieved from Atlantic.");
 
     Ok(SnosProof {
         block_number: block_number as u64,

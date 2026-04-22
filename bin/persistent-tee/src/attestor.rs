@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use anyhow::Result;
 use katana_tee_client::KatanaRpcClient;
-use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, error, info};
 use url::Url;
 
 #[allow(unused_imports)]
@@ -104,16 +104,16 @@ impl TeeAttestor {
                 },
             };
             info!(
-                first_block = blocks.first().map(|b| b.number),
-                last_block = blocks.last().map(|b| b.number),
-                count = blocks.len();
+                first_block = ?blocks.first().map(|b| b.number),
+                last_block = ?blocks.last().map(|b| b.number),
+                count = blocks.len(),
                 "Fetching TEE attestation for block batch"
             );
 
             let attestation = match self.fetch_attestation(blocks).await {
                 Ok(a) => a,
                 Err(e) => {
-                    log::error!("Failed to fetch TEE attestation: {}", e);
+                    error!("Failed to fetch TEE attestation: {}", e);
                     continue;
                 }
             };

@@ -35,10 +35,7 @@ enum Subcommands {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info,persistent_tee=trace,saya_core=trace");
-    }
-    env_logger::init();
+    saya_tracing::init("info,persistent_tee=trace,saya_core=trace")?;
 
     match cli.command {
         Subcommands::Tee(cmd) => cmd.run().await,

@@ -9,9 +9,9 @@
 
 use anyhow::Result;
 use katana_tee_client::{OnchainProof, ProverConfig, StarknetRegistryClient};
-use log::info;
 use starknet_types_core::felt::Felt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tracing::{debug, info};
 
 /// Structured error type for TEE attestation operations.
 #[derive(Debug, thiserror::Error)]
@@ -157,7 +157,7 @@ impl TeeAttestation {
                             None,
                             None,
                         );
-                    log::debug!("{:?} {}", input, "SP1 Groth16 prover input");
+                    debug!("{:?} {}", input, "SP1 Groth16 prover input");
                     let raw_proof = prover
                         .verifier
                         .gen_proof(&input, RawProofType::Groth16, None)

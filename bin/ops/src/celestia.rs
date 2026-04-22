@@ -3,7 +3,7 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 use celestia_rpc::{BlobClient, Client};
 use celestia_types::{blob::Commitment, nmt::Namespace};
 use clap::{Args, Parser, Subcommand};
-use log::info;
+use tracing::info;
 
 #[derive(Debug, Parser)]
 pub struct Celestia {

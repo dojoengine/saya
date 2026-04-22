@@ -14,7 +14,6 @@ use crate::prover_impl::TeeAttestation as TeeAttestationProver;
 use anyhow::Result;
 use katana_tee_client::ProverConfig;
 use katana_tee_client::TeeQuoteResponse;
-use log::{debug, info};
 use saya_core::{
     prover::{HasBlockNumber, PipelineStage, PipelineStageBuilder, TeeProof},
     service::{Daemon, FinishHandle, ShutdownHandle},
@@ -22,6 +21,7 @@ use saya_core::{
 };
 use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, error, info};
 
 /// Submits a [`TeeAttestation`] to the TEE proving service and emits the resulting [`TeeProof`].
 #[derive(Debug)]
@@ -121,12 +121,15 @@ impl TeeProver {
                 },
             };
 
-            debug!(block_number = attestation.block_number(); "Submitting TEE attestation to prover");
+            debug!(
+                block_number = attestation.block_number(),
+                "Submitting TEE attestation to prover"
+            );
 
             let proof = match self.prove(attestation).await {
                 Ok(p) => p,
                 Err(e) => {
-                    log::error!("TEE proof generation failed: {}", e);
+                    error!("TEE proof generation failed: {}", e);
                     continue;
                 }
             };
@@ -150,7 +153,10 @@ impl TeeProver {
         let block_hash = Felt::from_hex(&attestation.block_hash)?;
 
         let proof_raw = if self.mock_prove {
-            info!(block_number; "TEE mock proving (no SP1, no KDS, no AMD verification)");
+            info!(
+                block_number,
+                "TEE mock proving (no SP1, no KDS, no AMD verification)"
+            );
             let commitment = mock_proof::compute_appchain_commitment(
                 prev_state_root,
                 state_root,
@@ -163,7 +169,7 @@ impl TeeProver {
             let felts = mock_proof::serialize_mock_journal(commitment);
             mock_proof::felts_to_bytes(&felts)
         } else {
-            info!(block_number; "TEE proving started for block batch");
+            info!(block_number, "TEE proving started for block batch");
             let response = TeeQuoteResponse {
                 quote: attestation.quote.clone(),
                 prev_state_root: attestation.prev_state_root.clone(),
@@ -187,7 +193,11 @@ impl TeeProver {
                 .generate_proof(&self.provider_url, self.registry_address, config)
                 .await?;
             let proof_raw = proof.encode_json()?;
-            info!(block_number; "TEE proving completed, proof size: {} bytes", proof_raw.len());
+            info!(
+                block_number,
+                "TEE proving completed, proof size: {} bytes",
+                proof_raw.len()
+            );
             proof_raw
         };
 
