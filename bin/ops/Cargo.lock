@@ -4484,6 +4484,7 @@ dependencies = [
  "env_logger",
  "hex",
  "log",
+ "serde",
  "serde_json",
  "starknet",
  "starknet_api",

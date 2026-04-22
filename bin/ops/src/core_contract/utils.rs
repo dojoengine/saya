@@ -29,7 +29,7 @@ pub async fn declare_contract(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     contract_name: &str,
     contract_path: &Path,
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
     let mut declarer = Declarer::new(account, txn_config);
@@ -40,9 +40,10 @@ pub async fn declare_contract(
         class: class.class.clone(),
     };
     declarer.add_class(labeled);
-    let results = declarer.declare_all().await?;
+    let mut results = declarer.declare_all().await?;
+    let tx_result = results.remove(0);
 
-    match &results[0] {
+    match &tx_result {
         TransactionResult::Noop => {
             info!("Contract {} already declared.", contract_name);
         }
@@ -56,14 +57,14 @@ pub async fn declare_contract(
             info!(" Declared on block  : {:?}", receipt.block.block_number());
         }
     };
-    Ok(class.class_hash)
+    Ok((class.class_hash, tx_result))
 }
 
 pub async fn declare_contract_from_bytes(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     contract_name: &str,
     contract_bytes: &[u8],
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
     let mut declarer = Declarer::new(account, txn_config);
@@ -74,9 +75,10 @@ pub async fn declare_contract_from_bytes(
         class: class.class.clone(),
     };
     declarer.add_class(labeled);
-    let results = declarer.declare_all().await?;
+    let mut results = declarer.declare_all().await?;
+    let tx_result = results.remove(0);
 
-    match &results[0] {
+    match &tx_result {
         TransactionResult::Noop => {
             info!("Contract {} already declared.", contract_name);
         }
@@ -90,7 +92,7 @@ pub async fn declare_contract_from_bytes(
             info!(" Declared on block  : {:?}", receipt.block.block_number());
         }
     };
-    Ok(class.class_hash)
+    Ok((class.class_hash, tx_result))
 }
 
 pub async fn deploy_core_contract(
@@ -98,7 +100,7 @@ pub async fn deploy_core_contract(
     contract_name: &str,
     class_hash: Felt,
     salt: Felt,
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let constructor_calldata: Vec<Felt> = vec![
         // owner.
         account.address(),
@@ -126,7 +128,7 @@ pub async fn deploy_contract(
     class_hash: Felt,
     salt: Felt,
     constructor_calldata: &[Felt],
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = dojo_utils::TxnConfig {
         receipt: true,
         ..Default::default()
@@ -139,7 +141,7 @@ pub async fn deploy_contract(
         .await
     {
         Ok((contract_address, transaction_result)) => {
-            match transaction_result {
+            match &transaction_result {
                 TransactionResult::Noop => {
                     info!("Contract {} already deployed.", contract_name);
                 }
@@ -153,7 +155,7 @@ pub async fn deploy_contract(
                     info!("At block  : {:?}", receipt.block.block_number());
                 }
             }
-            Ok(contract_address)
+            Ok((contract_address, transaction_result))
         }
         Err(e) => {
             let address = try_extract_already_deployed_address(&e)?;
@@ -162,7 +164,10 @@ pub async fn deploy_contract(
                     "{} already deployed at address: {:?}",
                     contract_name, address
                 );
-                return Ok(address);
+                // Match the "already declared" semantics: represent an
+                // idempotent no-op with TransactionResult::Noop so the
+                // caller can serialize it uniformly.
+                return Ok((address, TransactionResult::Noop));
             }
             Err(anyhow!("{} deployment failed: {:?}", contract_name, e))
         }
