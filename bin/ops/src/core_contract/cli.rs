@@ -11,14 +11,31 @@ use crate::core_contract::utils::{
     deploy_contract, deploy_core_contract, set_fact_registry, set_program_info,
 };
 use anyhow::Result;
-use clap::{Args, Parser, Subcommand};
-use log::info;
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use dojo_utils::TransactionResult;
+use log::debug;
+use serde::Serialize;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{JsonRpcClient, Provider};
 use starknet::signers::{LocalWallet, SigningKey};
 use url::Url;
+
+/// Output format for the final result of a subcommand.
+///
+/// `Text` (the default) keeps the current behavior: human-readable `info!` logs
+/// on stderr, nothing special on stdout.
+///
+/// `Json` additionally emits a single JSON object to stdout with the structured
+/// result of the command (addresses, tx hashes, block numbers). Human logs
+/// remain on stderr unchanged, so the stdout stream is safe to pipe into `jq`.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
 
 /// Supported settlement chain options for rollup initialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +68,73 @@ pub struct CoreContract {
     settlement_rpc_url: Option<Url>,
     #[clap(long, env = "SETTLEMENT_CHAIN_ID")]
     settlement_chain_id: SettlementChain,
+    /// Output format for the structured result (`text` or `json`). See
+    /// [`OutputFormat`]. `--output json` pipes one JSON object to stdout
+    /// suitable for `jq`; all human logs stay on stderr.
+    #[clap(long, value_enum, default_value_t = OutputFormat::Text, env = "SAYA_OPS_OUTPUT")]
+    output: OutputFormat,
+}
+
+/// Structured result of a `core-contract` subcommand, emitted to stdout when
+/// `--output json` is set. Downstream orchestrators (docker-compose init
+/// containers, terraform external providers, CI scripts) consume this in place
+/// of parsing `info!` log lines.
+///
+/// Felts are rendered as `0x`-prefixed lowercase hex strings. `tx_hash` and
+/// `deployed_block` are `null` when the underlying operation was a no-op (e.g.
+/// the contract was already declared or deployed at the same salt).
+#[derive(Debug, Serialize)]
+#[serde(tag = "command", rename_all = "kebab-case")]
+pub enum CoreContractResult {
+    Declare {
+        class_hash: String,
+        tx_hash: Option<String>,
+        declared_block: Option<u64>,
+    },
+    Deploy {
+        class_hash: String,
+        contract_address: String,
+        salt: String,
+        tx_hash: Option<String>,
+        deployed_block: Option<u64>,
+    },
+    DeclareAndDeployFactRegistryMock {
+        class_hash: String,
+        contract_address: String,
+        salt: String,
+        tx_hash: Option<String>,
+        deployed_block: Option<u64>,
+    },
+    DeclareAndDeployTeeRegistryMock {
+        class_hash: String,
+        contract_address: String,
+        salt: String,
+        tx_hash: Option<String>,
+        deployed_block: Option<u64>,
+    },
+    SetupProgram {
+        core_contract_address: String,
+        snos_config_hash: String,
+        fact_registry_address: String,
+        set_program_info_tx: Option<String>,
+        set_program_info_block: Option<u64>,
+        set_fact_registry_tx: Option<String>,
+        set_fact_registry_block: Option<u64>,
+    },
+}
+
+fn fhex(f: Felt) -> String {
+    format!("{:#x}", f)
+}
+
+fn tx_outcome(r: &TransactionResult) -> (Option<String>, Option<u64>) {
+    match r {
+        TransactionResult::Noop => (None, None),
+        TransactionResult::Hash(h) => (Some(fhex(*h)), None),
+        TransactionResult::HashReceipt(h, receipt) => {
+            (Some(fhex(*h)), Some(receipt.block.block_number()))
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -159,9 +243,9 @@ impl CoreContract {
             chain_id,
             encoding,
         );
-        match self.cmd {
+        let result = match self.cmd {
             CoreContractCmd::Declare(declare_args) => {
-                let class_hash = if let Some(path) = declare_args.core_contract_path {
+                let (class_hash, tx) = if let Some(path) = declare_args.core_contract_path {
                     declare_contract(account.clone(), "Core contract", Path::new(&path)).await?
                 } else {
                     declare_contract_from_bytes(
@@ -172,10 +256,15 @@ impl CoreContract {
                     .await?
                 };
 
-                info!("Core contract class hash: {:?}", class_hash);
+                let (tx_hash, declared_block) = tx_outcome(&tx);
+                CoreContractResult::Declare {
+                    class_hash: fhex(class_hash),
+                    tx_hash,
+                    declared_block,
+                }
             }
             CoreContractCmd::Deploy(deploy_args) => {
-                let contract_address = deploy_core_contract(
+                let (contract_address, tx) = deploy_core_contract(
                     account.clone(),
                     "Core contract",
                     deploy_args.class_hash,
@@ -183,10 +272,19 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("Core contract address: {:?}", contract_address);
+                let (tx_hash, deployed_block) = tx_outcome(&tx);
+                CoreContractResult::Deploy {
+                    class_hash: fhex(deploy_args.class_hash),
+                    contract_address: fhex(contract_address),
+                    salt: fhex(deploy_args.salt),
+                    tx_hash,
+                    deployed_block,
+                }
             }
             CoreContractCmd::DeclareAndDeployFactRegistryMock(deploy_fact_registry_args) => {
-                let class_hash = if let Some(path) = deploy_fact_registry_args.fact_registry_path {
+                let (class_hash, _declare_tx) = if let Some(path) =
+                    deploy_fact_registry_args.fact_registry_path
+                {
                     declare_contract(account.clone(), "Fact registry mock", Path::new(&path))
                         .await?
                 } else {
@@ -198,7 +296,7 @@ impl CoreContract {
                     .await?
                 };
 
-                let fact_registry_address = deploy_contract(
+                let (fact_registry_address, deploy_tx) = deploy_contract(
                     account.clone(),
                     "Fact registry mock",
                     class_hash,
@@ -207,21 +305,30 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("Fact registry mock address: {:?}", fact_registry_address);
+                let (tx_hash, deployed_block) = tx_outcome(&deploy_tx);
+                CoreContractResult::DeclareAndDeployFactRegistryMock {
+                    class_hash: fhex(class_hash),
+                    contract_address: fhex(fact_registry_address),
+                    salt: fhex(deploy_fact_registry_args.salt),
+                    tx_hash,
+                    deployed_block,
+                }
             }
             CoreContractCmd::DeclareAndDeployTeeRegistryMock(deploy_tee_registry_args) => {
-                let class_hash = if let Some(path) = deploy_tee_registry_args.tee_registry_path {
-                    declare_contract(account.clone(), "TEE registry mock", Path::new(&path)).await?
-                } else {
-                    declare_contract_from_bytes(
-                        account.clone(),
-                        "TEE registry mock",
-                        TEE_REGISTRY_MOCK_BYTES,
-                    )
-                    .await?
-                };
+                let (class_hash, _declare_tx) =
+                    if let Some(path) = deploy_tee_registry_args.tee_registry_path {
+                        declare_contract(account.clone(), "TEE registry mock", Path::new(&path))
+                            .await?
+                    } else {
+                        declare_contract_from_bytes(
+                            account.clone(),
+                            "TEE registry mock",
+                            TEE_REGISTRY_MOCK_BYTES,
+                        )
+                        .await?
+                    };
 
-                let tee_registry_address = deploy_contract(
+                let (tee_registry_address, deploy_tx) = deploy_contract(
                     account.clone(),
                     "TEE registry mock",
                     class_hash,
@@ -230,15 +337,22 @@ impl CoreContract {
                 )
                 .await?;
 
-                info!("TEE registry mock address: {:?}", tee_registry_address);
+                let (tx_hash, deployed_block) = tx_outcome(&deploy_tx);
+                CoreContractResult::DeclareAndDeployTeeRegistryMock {
+                    class_hash: fhex(class_hash),
+                    contract_address: fhex(tee_registry_address),
+                    salt: fhex(deploy_tee_registry_args.salt),
+                    tx_hash,
+                    deployed_block,
+                }
             }
             CoreContractCmd::SetupProgram(ref setup_program_args) => {
                 let chain_id = cairo_short_string_to_felt(&setup_program_args.chain_id)?;
 
                 let snos_config_hash =
                     compute_starknet_os_config_hash(chain_id, setup_program_args.fee_token_address);
-                info!("Starknet OS config hash: {:?}", snos_config_hash);
-                let tx_res = set_program_info(
+                debug!(snos_config_hash:? = snos_config_hash; "Computed Starknet OS config hash.");
+                let set_program_tx = set_program_info(
                     account.clone(),
                     setup_program_args.core_contract_address,
                     snos_config_hash,
@@ -246,15 +360,59 @@ impl CoreContract {
                 .await?;
                 let fact_registry =
                     self.get_fact_registry_address(setup_program_args.fact_registry_address);
-                info!("Set program info transaction submitted: {:?}", tx_res);
-                let tx_res = set_fact_registry(
+                debug!(tx:? = set_program_tx; "set_program_info transaction submitted.");
+                let set_fact_tx = set_fact_registry(
                     account.clone(),
                     setup_program_args.core_contract_address,
                     fact_registry,
                 )
                 .await?;
-                info!("Fact registry set transaction submitted: {:?}", tx_res);
+                debug!(tx:? = set_fact_tx; "set_fact_registry transaction submitted.");
+                let (spi_tx_hash, spi_block) = tx_outcome(&set_program_tx);
+                let (sfr_tx_hash, sfr_block) = tx_outcome(&set_fact_tx);
+                CoreContractResult::SetupProgram {
+                    core_contract_address: fhex(setup_program_args.core_contract_address),
+                    snos_config_hash: fhex(snos_config_hash),
+                    fact_registry_address: fhex(fact_registry),
+                    set_program_info_tx: spi_tx_hash,
+                    set_program_info_block: spi_block,
+                    set_fact_registry_tx: sfr_tx_hash,
+                    set_fact_registry_block: sfr_block,
+                }
             }
+        };
+
+        // stdout is reserved for the primary command result. Human-readable
+        // progress/diagnostic logs stay on stderr via env_logger (`debug!`
+        // and `trace!`), so the two streams are independently pipeable.
+        //
+        // `--output json`  → one JSON object per invocation.
+        // `--output text`  → a single hex string (class hash or contract
+        //                    address), or nothing at all for action-only
+        //                    subcommands like `setup-program`.
+        match self.output {
+            OutputFormat::Json => {
+                println!("{}", serde_json::to_string(&result)?);
+            }
+            OutputFormat::Text => match &result {
+                CoreContractResult::Declare { class_hash, .. } => println!("{}", class_hash),
+                CoreContractResult::Deploy {
+                    contract_address, ..
+                } => println!("{}", contract_address),
+                CoreContractResult::DeclareAndDeployFactRegistryMock {
+                    contract_address,
+                    ..
+                } => println!("{}", contract_address),
+                CoreContractResult::DeclareAndDeployTeeRegistryMock {
+                    contract_address,
+                    ..
+                } => println!("{}", contract_address),
+                CoreContractResult::SetupProgram { .. } => {
+                    // Action, not query: success is implied by a zero exit
+                    // code. Users who want the tx hashes can request them
+                    // with `--output json`.
+                }
+            },
         }
 
         Ok(())

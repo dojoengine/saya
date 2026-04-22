@@ -8,7 +8,7 @@ use anyhow::Result;
 use cairo_lang_starknet_classes::casm_contract_class::CasmContractClass;
 use cairo_lang_starknet_classes::contract_class::ContractClass;
 use dojo_utils::{Declarer, Deployer, Invoker, LabeledClass, TransactionResult, TxnConfig};
-use log::{info, warn};
+use log::{debug, trace, warn};
 use starknet::accounts::{Account, SingleOwnerAccount};
 use starknet::core::crypto::compute_hash_on_elements;
 use starknet::core::types::{contract::SierraClass, Call, Felt, FlattenedSierraClass};
@@ -29,7 +29,7 @@ pub async fn declare_contract(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     contract_name: &str,
     contract_path: &Path,
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
     let mut declarer = Declarer::new(account, txn_config);
@@ -40,30 +40,30 @@ pub async fn declare_contract(
         class: class.class.clone(),
     };
     declarer.add_class(labeled);
-    let results = declarer.declare_all().await?;
+    let mut results = declarer.declare_all().await?;
+    let tx_result = results.remove(0);
 
-    match &results[0] {
+    match &tx_result {
         TransactionResult::Noop => {
-            info!("Contract {} already declared.", contract_name);
+            debug!(contract:% = contract_name; "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash; "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
-            info!(" Declared on block  : {:?}", receipt.block.block_number());
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
         }
-    };
-    Ok(class.class_hash)
+    }
+    Ok((class.class_hash, tx_result))
 }
 
 pub async fn declare_contract_from_bytes(
     account: SingleOwnerAccount<JsonRpcClient<HttpTransport>, LocalWallet>,
     contract_name: &str,
     contract_bytes: &[u8],
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
     let mut declarer = Declarer::new(account, txn_config);
@@ -74,23 +74,23 @@ pub async fn declare_contract_from_bytes(
         class: class.class.clone(),
     };
     declarer.add_class(labeled);
-    let results = declarer.declare_all().await?;
+    let mut results = declarer.declare_all().await?;
+    let tx_result = results.remove(0);
 
-    match &results[0] {
+    match &tx_result {
         TransactionResult::Noop => {
-            info!("Contract {} already declared.", contract_name);
+            debug!(contract:% = contract_name; "Contract already declared.");
         }
         TransactionResult::Hash(hash) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash; "Tx hash");
         }
         TransactionResult::HashReceipt(hash, receipt) => {
-            info!("Contract {} declared.", contract_name);
-            info!("  Tx hash   : {hash:?}");
-            info!(" Declared on block  : {:?}", receipt.block.block_number());
+            debug!(contract:% = contract_name; "Contract declared.");
+            trace!(tx_hash:? = hash, block = receipt.block.block_number(); "Declared on block");
         }
-    };
-    Ok(class.class_hash)
+    }
+    Ok((class.class_hash, tx_result))
 }
 
 pub async fn deploy_core_contract(
@@ -98,7 +98,7 @@ pub async fn deploy_core_contract(
     contract_name: &str,
     class_hash: Felt,
     salt: Felt,
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let constructor_calldata: Vec<Felt> = vec![
         // owner.
         account.address(),
@@ -126,7 +126,7 @@ pub async fn deploy_contract(
     class_hash: Felt,
     salt: Felt,
     constructor_calldata: &[Felt],
-) -> Result<Felt> {
+) -> Result<(Felt, TransactionResult)> {
     let txn_config = dojo_utils::TxnConfig {
         receipt: true,
         ..Default::default()
@@ -139,30 +139,32 @@ pub async fn deploy_contract(
         .await
     {
         Ok((contract_address, transaction_result)) => {
-            match transaction_result {
+            match &transaction_result {
                 TransactionResult::Noop => {
-                    info!("Contract {} already deployed.", contract_name);
+                    debug!(contract:% = contract_name; "Contract already deployed.");
                 }
                 TransactionResult::Hash(hash) => {
-                    info!("Contract {} deployed.", contract_name);
-                    info!("Tx hash   : {hash:?}");
+                    debug!(contract:% = contract_name; "Contract deployed.");
+                    trace!(tx_hash:? = hash; "Tx hash");
                 }
                 TransactionResult::HashReceipt(hash, receipt) => {
-                    info!("Contract {} deployed.", contract_name);
-                    info!("Tx hash   : {hash:?}");
-                    info!("At block  : {:?}", receipt.block.block_number());
+                    debug!(contract:% = contract_name; "Contract deployed.");
+                    trace!(tx_hash:? = hash, block = receipt.block.block_number(); "At block");
                 }
             }
-            Ok(contract_address)
+            Ok((contract_address, transaction_result))
         }
         Err(e) => {
             let address = try_extract_already_deployed_address(&e)?;
             if let Some(address) = address {
                 warn!(
-                    "{} already deployed at address: {:?}",
-                    contract_name, address
+                    contract:% = contract_name, address:? = address;
+                    "Contract already deployed at address."
                 );
-                return Ok(address);
+                // Match the "already declared" semantics: represent an
+                // idempotent no-op with TransactionResult::Noop so the
+                // caller can serialize it uniformly.
+                return Ok((address, TransactionResult::Noop));
             }
             Err(anyhow!("{} deployment failed: {:?}", contract_name, e))
         }
