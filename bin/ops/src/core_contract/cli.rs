@@ -13,13 +13,13 @@ use crate::core_contract::utils::{
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use dojo_utils::TransactionResult;
-use log::debug;
 use serde::Serialize;
 use starknet::core::types::Felt;
 use starknet::core::utils::cairo_short_string_to_felt;
 use starknet::providers::jsonrpc::HttpTransport;
 use starknet::providers::{JsonRpcClient, Provider};
 use starknet::signers::{LocalWallet, SigningKey};
+use tracing::debug;
 use url::Url;
 
 /// Output format for the final result of a subcommand.
@@ -282,19 +282,18 @@ impl CoreContract {
                 }
             }
             CoreContractCmd::DeclareAndDeployFactRegistryMock(deploy_fact_registry_args) => {
-                let (class_hash, _declare_tx) = if let Some(path) =
-                    deploy_fact_registry_args.fact_registry_path
-                {
-                    declare_contract(account.clone(), "Fact registry mock", Path::new(&path))
+                let (class_hash, _declare_tx) =
+                    if let Some(path) = deploy_fact_registry_args.fact_registry_path {
+                        declare_contract(account.clone(), "Fact registry mock", Path::new(&path))
+                            .await?
+                    } else {
+                        declare_contract_from_bytes(
+                            account.clone(),
+                            "Fact registry mock",
+                            FACT_REGISTRY_MOCK_BYTES,
+                        )
                         .await?
-                } else {
-                    declare_contract_from_bytes(
-                        account.clone(),
-                        "Fact registry mock",
-                        FACT_REGISTRY_MOCK_BYTES,
-                    )
-                    .await?
-                };
+                    };
 
                 let (fact_registry_address, deploy_tx) = deploy_contract(
                     account.clone(),
@@ -315,18 +314,18 @@ impl CoreContract {
                 }
             }
             CoreContractCmd::DeclareAndDeployTeeRegistryMock(deploy_tee_registry_args) => {
-                let (class_hash, _declare_tx) =
-                    if let Some(path) = deploy_tee_registry_args.tee_registry_path {
-                        declare_contract(account.clone(), "TEE registry mock", Path::new(&path))
-                            .await?
-                    } else {
-                        declare_contract_from_bytes(
-                            account.clone(),
-                            "TEE registry mock",
-                            TEE_REGISTRY_MOCK_BYTES,
-                        )
-                        .await?
-                    };
+                let (class_hash, _declare_tx) = if let Some(path) =
+                    deploy_tee_registry_args.tee_registry_path
+                {
+                    declare_contract(account.clone(), "TEE registry mock", Path::new(&path)).await?
+                } else {
+                    declare_contract_from_bytes(
+                        account.clone(),
+                        "TEE registry mock",
+                        TEE_REGISTRY_MOCK_BYTES,
+                    )
+                    .await?
+                };
 
                 let (tee_registry_address, deploy_tx) = deploy_contract(
                     account.clone(),
@@ -351,7 +350,7 @@ impl CoreContract {
 
                 let snos_config_hash =
                     compute_starknet_os_config_hash(chain_id, setup_program_args.fee_token_address);
-                debug!(snos_config_hash:? = snos_config_hash; "Computed Starknet OS config hash.");
+                debug!(snos_config_hash = ?snos_config_hash, "Computed Starknet OS config hash.");
                 let set_program_tx = set_program_info(
                     account.clone(),
                     setup_program_args.core_contract_address,
@@ -360,14 +359,14 @@ impl CoreContract {
                 .await?;
                 let fact_registry =
                     self.get_fact_registry_address(setup_program_args.fact_registry_address);
-                debug!(tx:? = set_program_tx; "set_program_info transaction submitted.");
+                debug!(tx = ?set_program_tx, "set_program_info transaction submitted.");
                 let set_fact_tx = set_fact_registry(
                     account.clone(),
                     setup_program_args.core_contract_address,
                     fact_registry,
                 )
                 .await?;
-                debug!(tx:? = set_fact_tx; "set_fact_registry transaction submitted.");
+                debug!(tx = ?set_fact_tx, "set_fact_registry transaction submitted.");
                 let (spi_tx_hash, spi_block) = tx_outcome(&set_program_tx);
                 let (sfr_tx_hash, sfr_block) = tx_outcome(&set_fact_tx);
                 CoreContractResult::SetupProgram {

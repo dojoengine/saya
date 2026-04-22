@@ -4969,7 +4969,6 @@ dependencies = [
  "ciborium",
  "futures-util",
  "hex",
- "log",
  "num-traits",
  "piltover",
  "serde",
@@ -4983,6 +4982,7 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tokio-util",
+ "tracing",
  "url",
 ]
 
@@ -4996,6 +4996,17 @@ dependencies = [
  "starknet-types-core",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "saya-tracing"
+version = "0.3.2"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.16",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]

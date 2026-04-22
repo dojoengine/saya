@@ -2,7 +2,6 @@ use std::{io::Write, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace};
 use starknet::core::types::Felt;
 use tokio::{
     sync::{
@@ -11,6 +10,7 @@ use tokio::{
     },
     task,
 };
+use tracing::{debug, error, info, trace};
 use zip::{write::FileOptions, ZipWriter};
 
 use crate::{
@@ -84,7 +84,10 @@ where
                 .await
             {
                 Ok(proof) => {
-                    info!(block_number = new_block.number; "Proof already generated for block");
+                    info!(
+                        block_number = new_block.number,
+                        "Proof already generated for block"
+                    );
                     let raw_proof = String::from_utf8(proof).unwrap();
                     let parsed_proof: P = P::parse(raw_proof).unwrap();
                     let new_proof = SnosProof {
@@ -96,7 +99,7 @@ where
                 }
                 Err(_) => {
                     trace!(
-                        block_number = block_number_u32;
+                        block_number = block_number_u32,
                         "Proof not found in db for block",
                     );
                 }
@@ -116,7 +119,7 @@ where
                 Ok(atlantic_query_id) => {
                     info!(
                         block_number = new_block.number,
-                        atlantic_query_id:% = atlantic_query_id;
+                        atlantic_query_id = %atlantic_query_id,
                         "Atlantic proof generation already submitted for block",
                     );
                     let query_response = match wait_for_query(
@@ -130,15 +133,14 @@ where
                             break;
                         }
                         Err(ProverError::BlockFail(e)) => {
-                            log::error!("{}", e,);
+                            error!("{}", e);
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
                         Err(e) => {
-                            log::error!(
+                            error!(
                                 "Unreachable error: {:?} while processing query {}",
-                                e,
-                                atlantic_query_id
+                                e, atlantic_query_id
                             );
                             unreachable!("Unexpected ProverError: {:?}", e);
                         }
@@ -200,7 +202,7 @@ where
 
             info!(
                 block_number = new_block.number,
-                atlantic_query_id:% = atlantic_query_id;
+                atlantic_query_id = %atlantic_query_id,
                 "Atlantic proof generation submitted for block"
             );
 
@@ -215,15 +217,14 @@ where
                     break;
                 }
                 Err(ProverError::BlockFail(e)) => {
-                    log::error!("{}", e);
+                    error!("{}", e);
                     db.add_failed_block(block_number_u32, e).await.unwrap();
                     continue;
                 }
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Unreachable error: {:?} while processing query {}",
-                        e,
-                        atlantic_query_id
+                        e, atlantic_query_id
                     );
                     unreachable!("Unexpected ProverError: {:?}", e);
                 }
@@ -279,7 +280,7 @@ where
         let mock_proof = stark_proof_mock(&output);
 
         info!(
-            block_number = new_block.number;
+            block_number = new_block.number,
             "Mock proof generated from PIE",
         );
 
@@ -395,7 +396,7 @@ pub async fn compress_pie(pie: CairoPie) -> std::result::Result<Vec<u8>, std::io
 fn bootloader_snos_output(pie: &CairoPie) -> Vec<Felt> {
     let snos_program_hash =
         compute_program_hash_from_pie(pie).expect("Failed to compute program hash from PIE");
-    debug!(snos_program_hash:% = snos_program_hash; "SNOS program hash from PIE");
+    debug!(snos_program_hash = %snos_program_hash, "SNOS program hash from PIE");
 
     let snos_output = extract_pie_output(pie);
 

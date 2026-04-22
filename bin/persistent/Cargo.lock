@@ -6146,16 +6146,15 @@ dependencies = [
  "cairo-vm",
  "ciborium",
  "clap",
- "env_logger",
  "futures-util",
  "generate-pie",
  "hex",
  "integrity",
- "log",
  "num-traits",
  "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2)",
  "reqwest 0.12.23",
  "saya-core",
+ "saya-tracing",
  "serde",
  "serde_json",
  "starknet",
@@ -6170,6 +6169,7 @@ dependencies = [
  "swiftness_stark",
  "thiserror 2.0.16",
  "tokio",
+ "tracing",
  "url",
  "zip 2.4.2",
 ]
@@ -6186,7 +6186,6 @@ dependencies = [
  "ciborium",
  "futures-util",
  "hex",
- "log",
  "num-traits",
  "piltover 0.1.0 (git+https://github.com/cartridge-gg/piltover.git?rev=dc86b13de0713c172153c4833fd7b3d14a855351)",
  "serde",
@@ -6200,7 +6199,19 @@ dependencies = [
  "thiserror 2.0.16",
  "tokio",
  "tokio-util",
+ "tracing",
  "url",
+]
+
+[[package]]
+name = "saya-tracing"
+version = "0.3.1"
+dependencies = [
+ "chrono",
+ "thiserror 2.0.16",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]

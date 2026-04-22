@@ -1,7 +1,7 @@
 use anyhow::Result;
-use log::{debug, info};
 use swiftness_stark::types::StarkProof;
 use tokio::sync::mpsc::Receiver;
+use tracing::{debug, info};
 
 use saya_core::{
     block_ingestor::{BlockInfo, BlockIngestor, BlockIngestorBuilder},
@@ -180,7 +180,7 @@ where
                     da_pointer,
                 })
                 .await;
-            info!(block_number = new_cursor.block_number; "Chain advanced");
+            info!(block_number = new_cursor.block_number, "Chain advanced");
         }
 
         // Request graceful shutdown for all descendant services

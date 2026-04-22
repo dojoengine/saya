@@ -3,7 +3,6 @@ use crate::utils::{
 };
 use anyhow::Result;
 use integrity::{split_proof, VerifierConfiguration};
-use log::{debug, info};
 use piltover::{DaLayerInfo, PiltoverInput};
 use saya_core::{
     block_ingestor::BlockInfo,
@@ -30,6 +29,7 @@ use std::{
 use swiftness::types::StarkProof;
 use swiftness::TransformTo;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, info};
 use url::Url;
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(1);
@@ -150,7 +150,7 @@ where
                                 .collect_calls(integrity_address);
                             let integrity_call_chunks = split_calls(integrity_calls);
                             debug!(
-                                integrity_job_id:% = format!("{:#064x}",integrity_job_id);
+                                integrity_job_id = %format!("{:#064x}",integrity_job_id),
                                 "{} transactions to integrity verifier generated",
                                 integrity_call_chunks.len()
                             );
@@ -196,7 +196,7 @@ where
                                 };
 
                                 debug!(
-                                    transaction_hash:% = format!("{:#064x}", tx.transaction_hash);
+                                    transaction_hash = %format!("{:#064x}", tx.transaction_hash),
                                     "[{} / {}] Integrity verification transaction confirmed",
                                     ind + 1,
                                     integrity_call_chunks.len()
@@ -242,7 +242,7 @@ where
                             program_output = output;
 
                             info!(
-                                block_number = new_da.block_number;
+                                block_number = new_da.block_number,
                                 "On-chain fact-registration skipped for block",
                             );
                         }
@@ -250,13 +250,13 @@ where
                 }
                 saya_core::storage::BlockStatus::VerifiedProof => {
                     info!(
-                        block_number = new_da.block_number;
+                        block_number = new_da.block_number,
                         "Block already verified, skipping verification",
                     );
                 }
                 _ => {
                     info!(
-                        block_number = new_da.block_number;
+                        block_number = new_da.block_number,
                         "Block in unexpected state, skipping settlement",
                     );
                     continue;
@@ -270,7 +270,7 @@ where
                     namespace: pointer.namespace,
                 };
                 info!(
-                    block_number = new_da.block_number;
+                    block_number = new_da.block_number,
                     "Submitting DA layer info with height {} and commitment {:#064x}",
                     da_layer_info.height,
                     da_layer_info.commitment
@@ -289,7 +289,7 @@ where
                 }
             } else {
                 info!(
-                    block_number = new_da.block_number;
+                    block_number = new_da.block_number,
                     "No DA layer info provided, submitting without DA",
                 );
                 Call {
@@ -314,7 +314,7 @@ where
             .await
             .unwrap();
             debug!(
-                block_number = new_da.block_number;
+                block_number = new_da.block_number,
                 "Estimated settlement transaction cost for block: {} STRK",
                 fees.overall_fee
             );
@@ -327,7 +327,7 @@ where
                     .unwrap();
             info!(
                 block_number = new_da.block_number,
-                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
+                transaction_hash = %format!("{:#064x}", transaction.transaction_hash),
                 "Piltover statement transaction sent",
             );
 
@@ -343,7 +343,7 @@ where
 
             info!(
                 block_number = new_da.block_number,
-                transaction_hash:% = format!("{:#064x}", transaction.transaction_hash);
+                transaction_hash = %format!("{:#064x}", transaction.transaction_hash),
                 "Piltover statement transaction confirmed",
             );
 

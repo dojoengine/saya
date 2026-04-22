@@ -5,7 +5,6 @@ use std::{sync::Arc, time::Duration};
 use anyhow::Result;
 use cainome::cairo_serde::{CairoSerde, ContractAddress};
 use katana_tee_client::{OnchainProof, StarknetCalldata};
-use log::debug;
 use piltover::{MessageToAppchain, MessageToStarknet, PiltoverInput, TEEInput};
 use sha3::{Digest, Keccak256};
 use starknet::{
@@ -16,6 +15,7 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, error};
 use url::Url;
 
 use saya_core::{
@@ -263,7 +263,7 @@ impl TeePiltoverSettlementBackend {
             let calldata = match build_tee_calldata(&proof, self.mock_prove) {
                 Ok(c) => c,
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Failed to build TEE calldata for block {}: {}",
                         proof.block_number.to_hex_string(),
                         e
@@ -283,7 +283,7 @@ impl TeePiltoverSettlementBackend {
             let _fees = match execution.estimate_fee().await {
                 Ok(f) => f,
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Fee estimation failed for block {}: {}",
                         proof.block_number.to_hex_string(),
                         e
@@ -294,10 +294,9 @@ impl TeePiltoverSettlementBackend {
             let transaction = match execution.send().await {
                 Ok(t) => t,
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Settlement transaction failed for block {}: {}",
-                        proof.block_number,
-                        e
+                        proof.block_number, e
                     );
                     continue;
                 }
@@ -306,10 +305,9 @@ impl TeePiltoverSettlementBackend {
             match self.watch_tx(transaction.transaction_hash).await {
                 Ok(()) => {}
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Settlement tx confirmation failed for block {}: {}",
-                        proof.block_number,
-                        e
+                        proof.block_number, e
                     );
                     continue;
                 }

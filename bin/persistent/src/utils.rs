@@ -10,7 +10,6 @@ use cairo_vm::{
     vm::runners::cairo_pie::CairoPie,
 };
 use integrity::Felt;
-use log::debug;
 use num_traits::ToPrimitive;
 use starknet::{
     core::types::{Call, ExecutionResult, StarknetError, TransactionReceiptWithBlockInfo},
@@ -18,6 +17,7 @@ use starknet::{
 };
 use swiftness_air::types::SegmentInfo;
 use swiftness_stark::types::StarkProof;
+use tracing::debug;
 
 const STARKNET_TX_CALLDATA_LIMIT: usize = 5_000;
 

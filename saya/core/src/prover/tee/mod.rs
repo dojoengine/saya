@@ -4,8 +4,8 @@
 //! same [`PipelineStageBuilder`] interface.
 
 use anyhow::Result;
-use log::debug;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::debug;
 
 use starknet_types_core::felt::Felt;
 

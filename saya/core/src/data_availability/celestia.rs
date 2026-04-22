@@ -2,9 +2,9 @@ use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use celestia_rpc::{BlobClient, Client, TxConfig};
 use celestia_types::{nmt::Namespace, AppVersion, Blob};
-use log::{debug, info};
 use starknet_types_core::felt::Felt;
 use tokio::sync::mpsc::{Receiver, Sender};
+use tracing::{debug, info};
 use url::Url;
 
 use crate::{
@@ -81,8 +81,8 @@ where
 
             debug!(
                 block_number = new_proof.block_number(),
-                commitment:? = hex::encode(commitment),
-                blob_bytes_size = blob.data.len();
+                commitment = ?hex::encode(commitment),
+                blob_bytes_size = blob.data.len(),
                 "Submitting Celestia DA blob.",
             );
 
@@ -98,8 +98,8 @@ where
             info!(
                 block_number = new_proof.block_number(),
                 celestia_block,
-                namespace:? = STANDARD.encode(self.namespace.as_bytes()),
-                commitment:? = hex::encode(commitment);
+                namespace = ?STANDARD.encode(self.namespace.as_bytes()),
+                commitment = ?hex::encode(commitment),
                 "Blob posted on Celestia."
             );
 

@@ -1,6 +1,6 @@
 use std::{future::Future, time::Duration};
 
-use log::debug;
+use tracing::debug;
 
 pub async fn retry_with_backoff<F, Fut, T, E>(
     operation: F,

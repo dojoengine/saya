@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
-use log::{debug, error, trace};
 use starknet::{
     core::types::BlockId,
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
@@ -14,6 +13,7 @@ use tokio::{
     task,
     time::sleep,
 };
+use tracing::{debug, error, trace};
 use url::Url;
 
 use crate::{
@@ -75,7 +75,7 @@ where
         match block_number {
             Ok(block_number) => Some(block_number),
             Err(err) => {
-                error!(error:? = err; "Failed to fetch latest block");
+                error!(error = ?err, "Failed to fetch latest block");
                 None
             }
         }
@@ -122,7 +122,7 @@ where
                 .await
                 .unwrap();
 
-            trace!(block_number; "Block mined, forwarding downstream");
+            trace!(block_number, "Block mined, forwarding downstream");
 
             let new_block = BlockInfo {
                 number: block_number,
@@ -131,7 +131,7 @@ where
             };
 
             if channel.send(new_block).await.is_err() {
-                error!(block_number; "Failed to send block");
+                error!(block_number, "Failed to send block");
             }
         }
     }
@@ -363,7 +363,7 @@ where
         match block_number {
             Ok(n) => Some(n),
             Err(err) => {
-                error!(error:? = err; "Failed to fetch latest block");
+                error!(error = ?err, "Failed to fetch latest block");
                 None
             }
         }
@@ -395,7 +395,7 @@ where
             .add_state_update(block_number.try_into()?, state_update.clone())
             .await?;
 
-        trace!(block_number; "Block fetched, buffering for next batch");
+        trace!(block_number, "Block fetched, buffering for next batch");
 
         Ok(BlockInfo {
             number: block_number,
@@ -430,16 +430,16 @@ where
                                 }
                             }
                             Err(e) => {
-                                error!(block_id, error:% = e; "Failed to re-fetch failed block");
+                                error!(block_id, error = %e, "Failed to re-fetch failed block");
                             }
                         }
                     }
                     if let Err(e) = self.db.mark_failed_blocks_as_handled(&block_ids).await {
-                        error!(error:% = e; "Failed to mark failed blocks as handled");
+                        error!(error = %e, "Failed to mark failed blocks as handled");
                     }
                 }
                 Ok(_) => {}
-                Err(e) => error!(error:% = e; "Failed to query failed blocks"),
+                Err(e) => error!(error = %e, "Failed to query failed blocks"),
             }
 
             // Advance to the next block in sequence.
@@ -471,7 +471,7 @@ where
                     Err(e) => {
                         error!(
                             block_number = self.current_block,
-                            error:% = e;
+                            error = %e,
                             "Failed to fetch block, retrying"
                         );
                         tokio::select! {
@@ -486,7 +486,7 @@ where
                     _ = sleep(BLOCK_CHECK_INTERVAL) => {}
                     _ = tokio::time::sleep_until(idle_deadline) => {
                         if !pending.is_empty() {
-                            debug!(count = pending.len(); "Idle timeout — flushing partial batch");
+                            debug!(count = pending.len(), "Idle timeout — flushing partial batch");
                             let batch = std::mem::take(&mut pending);
                             if self.channel.send(batch).await.is_err() {
                                 break 'outer;

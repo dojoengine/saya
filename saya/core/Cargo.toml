@@ -17,7 +17,6 @@ celestia-types.workspace = true
 ciborium.workspace = true
 futures-util.workspace = true
 hex.workspace = true
-log.workspace = true
 num-traits.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -28,6 +27,7 @@ swiftness_stark = { git = "https://github.com/chudkowsky/swiftness", rev = "e07d
 thiserror.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
+tracing.workspace = true
 url.workspace = true
 sqlx.workspace = true
 starknet_api.workspace = true

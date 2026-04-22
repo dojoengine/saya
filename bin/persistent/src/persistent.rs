@@ -122,8 +122,10 @@ impl Start {
         let [snos_worker_count, layout_bridge_workers_count, ingestor_worker_count] =
             workers_distribution;
 
-        log::info!(
-            snos_worker_count,layout_bridge_workers_count,ingestor_worker_count;
+        tracing::info!(
+            snos_worker_count,
+            layout_bridge_workers_count,
+            ingestor_worker_count,
             "workers distribution"
         );
 

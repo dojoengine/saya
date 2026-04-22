@@ -10,7 +10,6 @@ use crate::{
 };
 use anyhow::Result;
 use cairo_vm::vm::runners::cairo_pie::CairoPie;
-use log::{debug, info, trace, warn};
 use saya_core::{
     block_ingestor::BlockInfo,
     prover::{PipelineStage, PipelineStageBuilder, SnosProof},
@@ -21,6 +20,7 @@ use tokio::sync::{
     mpsc::{Receiver, Sender},
     Mutex,
 };
+use tracing::{debug, error, info, trace, warn};
 /// Prover implementation as a client to the hosted [Atlantic Prover](https://atlanticprover.com/)
 /// service.
 #[derive(Debug)]
@@ -82,7 +82,7 @@ where
                     let proof = swiftness::parse(verifier_proof);
                     if proof.is_ok() {
                         trace!(
-                            block_number = new_snos_proof.block_number;
+                            block_number = new_snos_proof.block_number,
                             "Proof already generated for block"
                         );
                         let block_info = BlockInfo {
@@ -96,14 +96,14 @@ where
                     } else {
                         // TODO: ensure the following match on the `get_query_id` isn't conflicting with this situation.
                         warn!(
-                            block_number = new_snos_proof.block_number;
+                            block_number = new_snos_proof.block_number,
                             "Invalid proof found in db, not using proof from db.",
                         );
                     }
                 }
                 Err(_) => {
                     trace!(
-                        block_number = new_snos_proof.block_number;
+                        block_number = new_snos_proof.block_number,
                         "Proof not found in db for block",
                     );
                 }
@@ -114,7 +114,10 @@ where
                 .await
             {
                 Ok(atlantic_query_id) => {
-                    info!(block_number = new_snos_proof.block_number; "Proof generation already submitted for block");
+                    info!(
+                        block_number = new_snos_proof.block_number,
+                        "Proof generation already submitted for block"
+                    );
                     let query_response = match wait_for_query(
                         client.clone(),
                         atlantic_query_id.clone(),
@@ -126,15 +129,14 @@ where
                             break;
                         }
                         Err(ProverError::BlockFail(e)) => {
-                            log::error!(error:% = e, atlantic_query_id:% = atlantic_query_id; "Proof generation failed");
+                            error!(error = %e, atlantic_query_id = %atlantic_query_id, "Proof generation failed");
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
                         Err(e) => {
-                            log::error!(
+                            error!(
                                 "Unreachable error: {:?} while processing query {}",
-                                e,
-                                atlantic_query_id
+                                e, atlantic_query_id
                             );
                             unreachable!("Unexpected ProverError: {:?}", e);
                         }
@@ -142,7 +144,7 @@ where
                     };
 
                     debug!(
-                        atlantic_query_id:? = atlantic_query_id;
+                        atlantic_query_id = ?atlantic_query_id,
                         "Atlantic layout bridge proof generation finished"
                     );
 
@@ -167,7 +169,7 @@ where
                 }
                 Err(_) => {
                     trace!(
-                        block_number = new_snos_proof.block_number;
+                        block_number = new_snos_proof.block_number,
                         "Proof generation not submitted for block"
                     );
                 }
@@ -216,7 +218,7 @@ where
 
                     info!(
                         block_number = new_snos_proof.block_number,
-                        atlantic_query_id:? = atlantic_query_id;
+                        atlantic_query_id = ?atlantic_query_id,
                         "Atlantic trace generation submitted",
                     );
 
@@ -231,15 +233,14 @@ where
                             break;
                         }
                         Err(ProverError::BlockFail(e)) => {
-                            log::error!("{}", e,);
+                            error!("{}", e);
                             db.add_failed_block(block_number_u32, e).await.unwrap();
                             continue;
                         }
                         Err(e) => {
-                            log::error!(
+                            error!(
                                 "Unreachable error: {:?} while processing query {}",
-                                e,
-                                atlantic_query_id
+                                e, atlantic_query_id
                             );
                             unreachable!("Unexpected ProverError: {:?}", e);
                         }
@@ -286,7 +287,7 @@ where
 
             info!(
                 block_number = new_snos_proof.block_number,
-                atlantic_query_id:? = atlantic_query_id;
+                atlantic_query_id = ?atlantic_query_id,
                 "Atlantic layout bridge proof generation submitted",
             );
 
@@ -300,15 +301,14 @@ where
             {
                 Err(ProverError::Shutdown) => break,
                 Err(ProverError::BlockFail(e)) => {
-                    log::error!(error:% = e, atlantic_query_id:% = atlantic_query_id; "Proof generation failed");
+                    error!(error = %e, atlantic_query_id = %atlantic_query_id, "Proof generation failed");
                     db.add_failed_block(block_number_u32, e).await.unwrap();
                     continue;
                 }
                 Err(e) => {
-                    log::error!(
+                    error!(
                         "Unreachable error: {:?} while processing query {}",
-                        e,
-                        atlantic_query_id
+                        e, atlantic_query_id
                     );
                     unreachable!("Unexpected ProverError: {:?}", e);
                 }
@@ -323,7 +323,7 @@ where
 
             debug!(
                 block_number = new_snos_proof.block_number,
-                atlantic_query_id:? = atlantic_query_id;
+                atlantic_query_id = ?atlantic_query_id,
                 "Atlantic layout bridge proof generation finished",
             );
 
