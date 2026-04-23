@@ -1,0 +1,34 @@
+name: docs-sync
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: "Commit SHA to analyze for documentation updates"
+        required: true
+        type: string
+
+jobs:
+  docs-sync:
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    uses: dojoengine/book/.github/workflows/docs-sync.yml@main
+    with:
+      target-docs-repo: dojoengine/book
+      source-repo-slug: dojoengine/saya
+      diff-globs: |
+        *.rs
+        *.cairo
+        *.toml
+        *.md
+      docs-patterns: |
+        ^bin/.*\.rs$
+        ^saya/.*\.rs$
+        ^contracts/.*\.cairo$
+      canonical-desc: |
+        Saya is documented at docs-repo/docs/pages/toolchain/saya/ — this is the single canonical location for saya (proving) docs.
+      docs-structure-desc: |
+        The site uses Vocs. Content lives in `docs-repo/docs/pages/`. Navigation is in `docs-repo/routes.ts`. SDK docs at `docs-repo/docs/pages/client/sdk/` are single `.md` files (bevy.md, javascript.md, unity.md, unrealengine.md, godot.md, rust.md, telegram.md), not subdirectories — the sole exception is `c/` which is a subdir.
+    secrets: inherit
