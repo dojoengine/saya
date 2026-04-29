@@ -39,6 +39,9 @@ pub struct TeeProof {
     pub l2_to_l1_messages: Vec<L2ToL1Message>,
     /// All L1→L2 messages processed in the attested block range.
     pub l1_to_l2_messages: Vec<L1ToL2Message>,
+    /// Versioned environment config hash carried through from the attestation.
+    /// Bound into Piltover's `TEEInput.katana_tee_config_hash` at settlement time.
+    pub katana_tee_config_hash: Felt,
 }
 
 impl HasBlockNumber for TeeProof {
@@ -152,6 +155,7 @@ impl TeeProver {
             messages_commitment: attestation.messages_commitment,
             l2_to_l1_messages: attestation.l2_to_l1_messages,
             l1_to_l2_messages: attestation.l1_to_l2_messages,
+            katana_tee_config_hash: attestation.katana_tee_config_hash,
         }
     }
 }

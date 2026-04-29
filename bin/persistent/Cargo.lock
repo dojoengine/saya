@@ -5134,7 +5134,7 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 [[package]]
 name = "piltover"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/piltover.git?rev=67e65b8928b7ee3c2c188bf36c6b9eddc14addb2#67e65b8928b7ee3c2c188bf36c6b9eddc14addb2"
+source = "git+https://github.com/cartridge-gg/piltover.git?branch=feat%2Ftee-persistent#ebb714b3a0e63da8088ea4f371bcca2a1a3f74f0"
 dependencies = [
  "cainome",
  "starknet",

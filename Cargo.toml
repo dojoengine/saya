@@ -60,7 +60,7 @@ tracing-subscriber = { version = "0.3.18", default-features = false, features = 
 url = { version = "2.5.4", default-features = false }
 zip = { version = "2.2.2", default-features = false, features = ["deflate"] }
 sqlx = { version = "0.8.2", features = [ "chrono", "macros", "regexp", "runtime-async-std", "runtime-tokio", "sqlite", "uuid" ] }
-piltover = {package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "dc86b13de0713c172153c4833fd7b3d14a855351" }
+piltover = {package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", branch = "feat/tee-persistent" }
 cainome = { version = "0.10.1", features = ["abigen-rs"] }
 generate-pie = {git = "https://github.com/keep-starknet-strange/snos.git",rev = "6cf7040"}
 
