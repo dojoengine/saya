@@ -129,7 +129,7 @@ services:
       - http://katana_l2:5050
       - setup-program
       - --core-contract-address
-      - "0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896"
+      - "0x5f8c60f1c40b63452d3b5cb39669d35b37ec57d0761ad12ecdadd00c3d90102"
       - --chain-id
       - ${L3_CHAIN_ID:-custom}
       - --fact-registry-address
@@ -152,7 +152,7 @@ services:
         sleep 2
 
         sozo deploy 0x011dceea1eeb800a2a87454e424acb9158b5c649687d92a045c3eb6b73a182db \
-          --constructor-calldata 0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896 \
+          --constructor-calldata 0x5f8c60f1c40b63452d3b5cb39669d35b37ec57d0761ad12ecdadd00c3d90102 \
           --salt 0x1234 \
           --katana-account katana0 \
           --rpc-url http://katana_l2:5050
@@ -171,7 +171,7 @@ services:
           --settlement-chain http://katana_l2:5050 \
           --output-path /shared/katana_config \
           --id ${L3_CHAIN_ID:-custom} \
-          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896} \
+          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x5f8c60f1c40b63452d3b5cb39669d35b37ec57d0761ad12ecdadd00c3d90102} \
           --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-1} \
           --settlement-facts-registry ${FACT_REGISTRY_ADDRESS:-0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd}
 
@@ -253,7 +253,7 @@ services:
         persistent start \
           --rollup-rpc http://katana_l3:5050 \
           --settlement-rpc http://katana_l2:5050 \
-          --settlement-piltover-address 0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896 \
+          --settlement-piltover-address 0x5f8c60f1c40b63452d3b5cb39669d35b37ec57d0761ad12ecdadd00c3d90102 \
           --settlement-account-address ${ADDRESS_KATANA0:-0x127fd5f1fe78a71f8bcd1fec63e3fe2f0486b6ecd5c86a0466c3a21fa5cfcec} \
           --settlement-account-private-key ${PRIVATE_KEY_KATANA0:-0xc5b2fcab997346f3ea1c00b002ecf6f382c5f9c9659a3894eb783c5320f912} \
           --mock-layout-bridge-program-hash 0x43c5c4cc37c4614d2cf3a833379052c3a38cd18d688b617e2c720e8f941cb8 \

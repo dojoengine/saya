@@ -43,7 +43,7 @@ services:
           --settlement-chain http://katana_l2:5050 \
           --output-path /shared/katana_config \
           --id ${L3_CHAIN_ID:-custom} \
-          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x387f8d08b19b4f0b3809a3411eab4a27f804ad672a37faeab77bd99af2b9896} \
+          --settlement-contract ${CORE_CONTRACT_ADDRESS:-0x5f8c60f1c40b63452d3b5cb39669d35b37ec57d0761ad12ecdadd00c3d90102} \
           --settlement-contract-deployed-block ${CORE_CONTRACT_DEPLOYED_BLOCK:-1} \
           --settlement-facts-registry ${FACT_REGISTRY_ADDRESS:-0x3eb0d510d1238120bf7f9d176faafe0c7066797a86be985855952f87769d3bd}
 
