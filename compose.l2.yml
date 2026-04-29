@@ -15,7 +15,9 @@
 # The saya_net network is created here and shared with compose.l3.yml / compose.e2e.yml.
 
 x-saya-common: &saya-common
-  image: ghcr.io/dojoengine/saya:v0.2.2
+  build:
+    context: .
+    dockerfile: Dockerfile
   dns: 127.0.0.11
   networks: [saya_net]
   restart: "no"

@@ -5,11 +5,14 @@ pub const MAINNET_RPC_URL: &str = "https://api.cartridge.gg/x/starknet/mainnet";
 
 // Embed contract files into the binary.
 //
-// PILTOVER_CONTRACT_BYTES stays vendored: its class hash
-// (`DEFAULT_PILTOVER_CLASS_HASH` below) is load-bearing for already-deployed
-// Piltover on Sepolia/Mainnet, and piltover's current `feat/tee-persistent`
-// branch has a modified `src/appchain.cairo` that would produce a different
-// class hash. DO NOT rebuild this artifact from the submodule.
+// PILTOVER_CONTRACT_BYTES is regenerated from the `piltover` submodule via
+// `scarb build` and committed alongside the submodule pointer at
+// `cartridge-gg/piltover#feat/tee-persistent` (`ebb714b`). The corresponding
+// class hash is mirrored in `DEFAULT_PILTOVER_CLASS_HASH` below.
+//
+// Operators interacting with already-deployed Piltovers on Sepolia/Mainnet
+// (whose class hash predates this rebuild) must pass `--class-hash` explicitly
+// to commands that take a default class hash.
 pub const PILTOVER_CONTRACT_BYTES: &[u8] =
     include_bytes!("../../../../contracts/core_contract.json");
 
@@ -32,9 +35,10 @@ pub const TEE_REGISTRY_MOCK_BYTES: &[u8] =
 /// The default class hash of the piltover core contract.
 /// This class hash corresponds to the piltover contract compiled from
 /// the source code at:
-/// https://github.com/cartridge-gg/piltover/tree/67e65b8928b7ee3c2c188bf36c6b9eddc14addb2
+/// https://github.com/cartridge-gg/piltover/tree/ebb714b3a0e63da8088ea4f371bcca2a1a3f74f0
+/// (`feat/tee-persistent` post-PR-#16, with `ProgramInfo` enum split).
 pub const DEFAULT_PILTOVER_CLASS_HASH: &str =
-    "0x777e9e5d8191c112d75551c5c323809ebb25e76d45d0ee9fcd7f95a9abf76fe";
+    "0x38a8e7e81744f89ae85d64c036101c124c19b4e6844c6d73f922f03d89487e6";
 
 /// The StarknetOS program (SNOS) is the cairo program that executes the state
 /// transition of a new Katana block from the previous block.

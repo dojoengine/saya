@@ -12,7 +12,9 @@
 
 services:
   saya:
-    image: ${SAYA_IMAGE:-ghcr.io/dojoengine/saya:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: saya
     networks: [saya_net]
     restart: "no"
