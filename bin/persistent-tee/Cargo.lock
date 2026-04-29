@@ -666,7 +666,7 @@ dependencies = [
 [[package]]
 name = "amd-sev-snp-attestation-prover"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "alloy-network",
  "alloy-primitives",
@@ -694,7 +694,7 @@ dependencies = [
 [[package]]
 name = "amd-sev-snp-attestation-verifier"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -717,7 +717,7 @@ dependencies = [
 [[package]]
 name = "amd_tee_registry_client"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "alloy-primitives",
  "amd-sev-snp-attestation-prover",
@@ -4827,7 +4827,7 @@ checksum = "42012b0f064e01aa58b545fe3727f90f7dd4020f4a3ea735b50344965f5a57e9"
 [[package]]
 name = "garaga_rs"
 version = "1.0.1"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "arbitrary",
  "getrandom 0.3.4",
@@ -6058,7 +6058,7 @@ dependencies = [
 [[package]]
 name = "katana_tee_client"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "amd-sev-snp-attestation-prover",
  "amd_tee_registry_client",
@@ -7476,7 +7476,7 @@ checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
 [[package]]
 name = "piltover"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/piltover.git?rev=dc86b13de0713c172153c4833fd7b3d14a855351#dc86b13de0713c172153c4833fd7b3d14a855351"
+source = "git+https://github.com/cartridge-gg/piltover.git?branch=feat%2Ftee-persistent#ebb714b3a0e63da8088ea4f371bcca2a1a3f74f0"
 dependencies = [
  "cainome",
  "starknet",
@@ -9744,7 +9744,7 @@ dependencies = [
 [[package]]
 name = "sp1-methods"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "lazy_static",
  "sp1-build",
@@ -10501,7 +10501,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-accounts"
 version = "0.17.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -10515,7 +10515,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-core"
 version = "0.17.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "base64 0.21.7",
  "crypto-bigint 0.5.5",
@@ -10538,7 +10538,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-core-derive"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10548,7 +10548,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-crypto"
 version = "0.9.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "blake2",
  "crypto-bigint 0.5.5",
@@ -10568,7 +10568,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-curve"
 version = "0.6.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "starknet-types-core 0.2.4",
 ]
@@ -10576,7 +10576,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-providers"
 version = "0.17.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -10596,7 +10596,7 @@ dependencies = [
 [[package]]
 name = "starknet-rust-signers"
 version = "0.15.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -12541,7 +12541,7 @@ dependencies = [
 [[package]]
 name = "x509-verifier-rust-crypto"
 version = "0.1.0"
-source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=56aa752d2e73e505c356c80b7a00eddd27d4d263#56aa752d2e73e505c356c80b7a00eddd27d4d263"
+source = "git+https://github.com/cartridge-gg/katana-tee.git?rev=649f0864434ea7895a977318e502b4e19666d10b#649f0864434ea7895a977318e502b4e19666d10b"
 dependencies = [
  "alloy-primitives",
  "anyhow",

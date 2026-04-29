@@ -204,10 +204,15 @@ pub async fn set_program_info(
     let txn_config = TxnConfig::default();
     let invoker = Invoker::new(account, txn_config);
 
+    // `ProgramInfo` is a Cairo enum (StarknetOs / KatanaTee). Cairo serializes an enum
+    // as `[variant_index, ...inner_struct_fields]`. `ops` only deploys for the
+    // validity-proof path, so always emit the `StarknetOs` variant (index 0) followed
+    // by the four `StarknetOsProgramInfo` fields in declaration order.
     let call = Call {
         to: contract_address,
         selector: selector!("set_program_info"),
         calldata: vec![
+            Felt::ZERO, // ProgramInfo::StarknetOs variant index
             BOOTLOADER_PROGRAM_HASH,
             snos_config_hash,
             SNOS_PROGRAM_HASH,

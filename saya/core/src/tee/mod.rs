@@ -50,6 +50,11 @@ pub struct TeeAttestation {
     pub l2_to_l1_messages: Vec<L2ToL1Message>,
     /// All L1→L2 messages processed in the attested block range.
     pub l1_to_l2_messages: Vec<L1ToL2Message>,
+    /// Versioned environment config hash bound into v1 SEV-SNP `report_data`.
+    /// Sourced from the Katana RPC response and threaded to the on-chain
+    /// `TEEInput.katana_tee_config_hash` so Piltover's runtime invariant
+    /// (`tee_input == KatanaTeeProgramInfo.katana_tee_config_hash`) holds.
+    pub katana_tee_config_hash: Felt,
 }
 
 impl HasBlockNumber for TeeAttestation {
