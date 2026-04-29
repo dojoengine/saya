@@ -1,3 +1,4 @@
+use piltover::ProgramInfo;
 use saya_e2e::{
     compose_up, env, get_facts_registry, get_program_info, provider, wait_for_settlement,
     ComposeGuard,
@@ -38,16 +39,17 @@ async fn test_program_info_and_fact_registry() {
         env::fee_token_address(),
     ]);
 
-    assert_eq!(
-        program_info.bootloader_program_hash,
-        BOOTLOADER_PROGRAM_HASH
-    );
-    assert_eq!(program_info.snos_program_hash, SNOS_PROGRAM_HASH);
-    assert_eq!(
-        program_info.layout_bridge_program_hash,
-        LAYOUT_BRIDGE_PROGRAM_HASH
-    );
-    assert_eq!(program_info.snos_config_hash, snos_config_hash);
+    let info = match program_info {
+        ProgramInfo::StarknetOs(info) => info,
+        ProgramInfo::KatanaTee(_) => {
+            panic!("e2e settlement test expects StarknetOs config, got KatanaTee variant")
+        }
+    };
+
+    assert_eq!(info.bootloader_program_hash, BOOTLOADER_PROGRAM_HASH);
+    assert_eq!(info.snos_program_hash, SNOS_PROGRAM_HASH);
+    assert_eq!(info.layout_bridge_program_hash, LAYOUT_BRIDGE_PROGRAM_HASH);
+    assert_eq!(info.snos_config_hash, snos_config_hash);
     assert_eq!(facts_registry, env::fact_registry_address());
 }
 

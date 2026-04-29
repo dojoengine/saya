@@ -174,6 +174,7 @@ impl TeeAttestor {
             messages_commitment: attestation.messages_commitment,
             l2_to_l1_messages,
             l1_to_l2_messages,
+            katana_tee_config_hash: attestation.katana_tee_config_hash,
         })
     }
 }
