@@ -29,7 +29,7 @@ generate-pie = { git = "https://github.com/keep-starknet-strange/snos.git", rev 
 hex = { version = "0.4.3", default-features = false }
 integrity = { git = "https://github.com/chudkowsky/integrity-rs.git", rev = "9729be1", default-features = false, features = ["recursive_with_poseidon", "keccak_160_lsb", "stone6"] }
 num-traits = { version = "0.2.19", default-features = false }
-piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "67e65b8928b7ee3c2c188bf36c6b9eddc14addb2" }
+piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", branch = "feat/tee-persistent" }
 cainome = { version = "0.10.1", features = ["abigen-rs"] }
 reqwest = { version = "0.12.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 serde = { version = "1.0.217", default-features = false, features = ["derive"] }

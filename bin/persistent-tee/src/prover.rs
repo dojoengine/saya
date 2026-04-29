@@ -136,6 +136,7 @@ impl TeeProver {
             messages_commitment: attestation.messages_commitment,
             l2_to_l1_messages: vec![],
             l1_to_l2_messages: vec![],
+            katana_tee_config_hash: attestation.katana_tee_config_hash,
         };
 
         let tee = TeeAttestationProver::from_response(&response)?;
@@ -167,6 +168,7 @@ impl TeeProver {
             messages_commitment: attestation.messages_commitment,
             l2_to_l1_messages: attestation.l2_to_l1_messages,
             l1_to_l2_messages: attestation.l1_to_l2_messages,
+            katana_tee_config_hash: attestation.katana_tee_config_hash,
         })
     }
 }

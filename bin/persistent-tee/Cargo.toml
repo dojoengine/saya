@@ -20,14 +20,14 @@ repository.workspace = true
 
 [dependencies]
 saya-core = { path = "../../saya/core" }
-katana_tee_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
-amd-sev-snp-attestation-prover = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263", features = ["sp1"] }
-amd-sev-snp-attestation-verifier = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
-amd_tee_registry_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
-x509-verifier-rust-crypto = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "56aa752d2e73e505c356c80b7a00eddd27d4d263" }
+katana_tee_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "649f0864434ea7895a977318e502b4e19666d10b" }
+amd-sev-snp-attestation-prover = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "649f0864434ea7895a977318e502b4e19666d10b", features = ["sp1"] }
+amd-sev-snp-attestation-verifier = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "649f0864434ea7895a977318e502b4e19666d10b" }
+amd_tee_registry_client = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "649f0864434ea7895a977318e502b4e19666d10b" }
+x509-verifier-rust-crypto = { git = "ssh://git@github.com/cartridge-gg/katana-tee.git", rev = "649f0864434ea7895a977318e502b4e19666d10b" }
 alloy-primitives = "1.3.1"
 
-piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", rev = "dc86b13de0713c172153c4833fd7b3d14a855351" }
+piltover = { package = "piltover", git = "https://github.com/cartridge-gg/piltover.git", branch = "feat/tee-persistent" }
 cainome = { version = "0.10.1", features = ["abigen-rs"] }
 sha3 = "0.10"
 

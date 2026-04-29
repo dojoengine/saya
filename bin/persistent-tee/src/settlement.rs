@@ -94,6 +94,7 @@ fn build_tee_calldata(proof: &TeeProof) -> Result<Vec<Felt>> {
         messages_to_starknet: messages_to_starknet(&proof.l2_to_l1_messages),
         messages_to_appchain: messages_to_appchain(&proof.l1_to_l2_messages),
         l1_to_l2_msg_hashes,
+        katana_tee_config_hash: proof.katana_tee_config_hash,
     };
 
     Ok(PiltoverInput::cairo_serialize(&PiltoverInput::TeeInput(
