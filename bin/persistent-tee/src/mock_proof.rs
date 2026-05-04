@@ -82,7 +82,10 @@ pub const KATANA_TEE_APPCHAIN_MODE: Felt =
 ///
 /// Mirrors the inline recomputation in
 /// `cartridge-gg/piltover` `src/input/component.cairo:198-207` and Katana's
-/// `compute_report_data_appchain`.
+/// `compute_report_data_appchain`. The argument list is intentionally flat to
+/// match the on-chain Cairo call shape one-for-one — bundling into a struct
+/// would obscure the parity check.
+#[allow(clippy::too_many_arguments)]
 pub fn compute_appchain_commitment(
     prev_state_root: Felt,
     state_root: Felt,
