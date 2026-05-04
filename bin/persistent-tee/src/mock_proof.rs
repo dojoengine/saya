@@ -35,42 +35,29 @@
 //! Within `raw_report`, only the 16 u32 words at the `report_data` offset
 //! (u32 index 20) carry meaningful data; all other words are zero.
 //!
-//! ## `report_data` byte layout
+//! ## `report_data` byte layout (v1)
 //!
 //! Piltover (`src/input/component.cairo`, `validate_input` for `TeeInput`)
-//! computes:
+//! decodes both halves of the 64-byte `report_data`:
 //!
-//! ```cairo
-//! let raw_report = RawAttestationReport { raw: journal.raw_report };
-//! let report_data = raw_report.report_data();          // u512
-//! assert!(report_data.limb2 == 0 && report_data.limb3 == 0);
-//! let expected_commitment = u256 {
-//!     low:  u128_byte_reverse(report_data.limb1),
-//!     high: u128_byte_reverse(report_data.limb0),
-//! };
-//! ```
+//! - bytes 0..32  → first-half v1 commitment
+//! - bytes 32..64 → `katana_tee_config_hash`
 //!
-//! `get_u128_at` reads 4 consecutive u32 words and combines them
-//! **little-endian**: `limb = w0 + w1·2^32 + w2·2^64 + w3·2^96`. Then
-//! `u128_byte_reverse` swaps the byte order, converting LE → BE. Composing
-//! these:
+//! and asserts:
 //!
-//! - `expected_commitment.high == BE_u128(bytes 0..16 of report_data)`
-//! - `expected_commitment.low  == BE_u128(bytes 16..32 of report_data)`
+//! 1. `tee_input.katana_tee_config_hash == piltover.config_hash`
+//! 2. second-half decoded felt `== tee_input.katana_tee_config_hash`
+//! 3. first-half decoded felt `== Poseidon([
+//!      'KatanaTeeReport1', 'KatanaTeeAppchain',
+//!      prev_state_root, state_root, prev_block_hash, block_hash,
+//!      prev_block_number, block_number,
+//!      messages_commitment, katana_tee_config_hash,
+//!    ])`
 //!
-//! Therefore `report_data` bytes 0..32 are exactly `commitment.to_bytes_be()`
-//! (the 32-byte big-endian encoding of the felt commitment as a `u256`), and
-//! bytes 32..64 must be zero.
-//!
-//! Packing those 32 BE bytes into 8 u32 words for `raw_report[20..28]`
-//! requires reading each 4-byte chunk **little-endian** so that
-//! `get_u128_at`'s LE recombination produces the correct limb. See
-//! [`commitment_to_report_words`] for the implementation.
-//!
-//! Piltover then asserts `expected_commitment` equals
-//! `Poseidon(prev_state_root, state_root, prev_block_hash, block_hash,
-//!           prev_block_number, block_number, messages_commitment)`, which the
-//! mock prover computes ahead of time and embeds via this layout.
+//! Each 32-byte half is packed into 8 u32 words by reading each 4-byte BE
+//! chunk as a little-endian u32, so that Piltover's
+//! `u128_byte_reverse(get_u128_at(...))` reconstruction yields the original
+//! BE felt. See [`felt_to_report_words`].
 
 use starknet_types_core::felt::Felt;
 use starknet_types_core::hash::{Poseidon, StarkHash};
@@ -82,11 +69,20 @@ pub const ATTESTATION_REPORT_WORDS: usize = 296;
 /// (byte offset 0x50 / 4).
 pub const REPORT_DATA_WORD_OFFSET: usize = 20;
 
-/// Computes the Poseidon commitment Piltover asserts against `report_data` for
-/// the appchain (non-fork) TEE settlement path.
+/// Short-string `'KatanaTeeReport1'` — version tag for the v1 report-data schema.
+pub const KATANA_TEE_REPORT_VERSION: Felt =
+    Felt::from_hex_unchecked("0x4b6174616e615465655265706f727431");
+
+/// Short-string `'KatanaTeeAppchain'` — mode tag for appchain settlement.
+pub const KATANA_TEE_APPCHAIN_MODE: Felt =
+    Felt::from_hex_unchecked("0x4b6174616e61546565417070636861696e");
+
+/// Computes the v1 Poseidon commitment Piltover asserts against the first half
+/// of `report_data` for the appchain TEE settlement path.
 ///
-/// Mirrors `compute_report_data_appchain` in
-/// `katana::crates::rpc::rpc-server::src::tee.rs`.
+/// Mirrors the inline recomputation in
+/// `cartridge-gg/piltover` `src/input/component.cairo:198-207` and Katana's
+/// `compute_report_data_appchain`.
 pub fn compute_appchain_commitment(
     prev_state_root: Felt,
     state_root: Felt,
@@ -95,8 +91,11 @@ pub fn compute_appchain_commitment(
     prev_block_number: Felt,
     block_number: Felt,
     messages_commitment: Felt,
+    katana_tee_config_hash: Felt,
 ) -> Felt {
     Poseidon::hash_array(&[
+        KATANA_TEE_REPORT_VERSION,
+        KATANA_TEE_APPCHAIN_MODE,
         prev_state_root,
         state_root,
         prev_block_hash,
@@ -104,17 +103,16 @@ pub fn compute_appchain_commitment(
         prev_block_number,
         block_number,
         messages_commitment,
+        katana_tee_config_hash,
     ])
 }
 
-/// Encodes a 256-bit commitment into the 8 u32 words at the `report_data`
-/// offset such that Piltover's `expected_commitment` reconstruction yields
-/// the original commitment.
+/// Packs a felt into 8 u32 words such that Piltover's `u128_byte_reverse(
+/// get_u128_at(..))` reconstruction yields back the original felt.
 ///
-/// Each 4-byte BE chunk of `commitment.to_bytes_be()` is interpreted as a
-/// little-endian `u32`. See module docs for the derivation.
-fn commitment_to_report_words(commitment: Felt) -> [Felt; 8] {
-    let bytes = commitment.to_bytes_be();
+/// Each 4-byte BE chunk of `value.to_bytes_be()` is read as a little-endian u32.
+fn felt_to_report_words(value: Felt) -> [Felt; 8] {
+    let bytes = value.to_bytes_be();
     let mut words = [Felt::ZERO; 8];
     for i in 0..8 {
         let chunk = [
@@ -129,26 +127,27 @@ fn commitment_to_report_words(commitment: Felt) -> [Felt; 8] {
     words
 }
 
-/// Builds a 296-word `raw_report` whose `report_data` field encodes the given
-/// commitment per the layout documented in [`commitment_to_report_words`]. All
-/// other words are zero.
-pub fn build_raw_report(commitment: Felt) -> Vec<Felt> {
+/// Builds a 296-word `raw_report` whose `report_data` carries the v1
+/// commitment in the first 32 bytes and `katana_tee_config_hash` in the
+/// second 32 bytes. All other words are zero.
+pub fn build_raw_report(commitment: Felt, katana_tee_config_hash: Felt) -> Vec<Felt> {
     let mut raw_report = vec![Felt::ZERO; ATTESTATION_REPORT_WORDS];
-    let words = commitment_to_report_words(commitment);
-    raw_report[REPORT_DATA_WORD_OFFSET..REPORT_DATA_WORD_OFFSET + 8].copy_from_slice(&words);
-    // Words [28..36) (limb2 + limb3 of report_data) remain zero, satisfying the
-    // `assert!(report_data.limb2 == 0 && report_data.limb3 == 0)` check.
+    let first_half = felt_to_report_words(commitment);
+    let second_half = felt_to_report_words(katana_tee_config_hash);
+    raw_report[REPORT_DATA_WORD_OFFSET..REPORT_DATA_WORD_OFFSET + 8].copy_from_slice(&first_half);
+    raw_report[REPORT_DATA_WORD_OFFSET + 8..REPORT_DATA_WORD_OFFSET + 16]
+        .copy_from_slice(&second_half);
     raw_report
 }
 
 /// Cairo-Serde-serializes a stub `VerifierJournal` whose `raw_report` field
-/// encodes the given Poseidon commitment in the position Piltover reads.
+/// encodes the v1 commitment + config hash in the positions Piltover reads.
 ///
 /// The output is a `Vec<Felt>` matching what
 /// `Serde::<VerifierJournal>::deserialize` reconstructs in
 /// `piltover_mock_amd_tee_registry::verify_sp1_proof`.
-pub fn serialize_mock_journal(commitment: Felt) -> Vec<Felt> {
-    let raw_report = build_raw_report(commitment);
+pub fn serialize_mock_journal(commitment: Felt, katana_tee_config_hash: Felt) -> Vec<Felt> {
+    let raw_report = build_raw_report(commitment, katana_tee_config_hash);
 
     // 1 (result) + 1 (timestamp) + 1 (processor_model)
     // + 1 (raw_report len) + 296 (raw_report elements)
@@ -229,14 +228,15 @@ mod tests {
 
     #[test]
     fn raw_report_has_canonical_size() {
-        let raw_report = build_raw_report(Felt::from(42u64));
+        let raw_report = build_raw_report(Felt::from(42u64), Felt::from(7u64));
         assert_eq!(raw_report.len(), ATTESTATION_REPORT_WORDS);
     }
 
     #[test]
-    fn report_data_zero_outside_first_32_bytes() {
-        let raw_report = build_raw_report(Felt::from(42u64));
-        // Words [0..20) and [28..296) must be zero.
+    fn report_data_zero_outside_64_bytes() {
+        let raw_report = build_raw_report(Felt::from(42u64), Felt::from(7u64));
+        // Words [0..20) and [36..296) must be zero; [20..36) carry the v1
+        // commitment + config_hash halves.
         for (i, word) in raw_report.iter().enumerate().take(20) {
             assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
         }
@@ -244,23 +244,25 @@ mod tests {
             .iter()
             .enumerate()
             .take(ATTESTATION_REPORT_WORDS)
-            .skip(28)
+            .skip(36)
         {
             assert_eq!(*word, Felt::ZERO, "word {i} should be zero");
         }
     }
 
     #[test]
-    fn report_data_round_trips_commitment() {
-        // Mirror Piltover's reconstruction:
+    fn report_data_round_trips_both_halves() {
+        // Mirror Piltover's reconstruction for both halves:
         //   limb_i = sum(w_{4i+j} * 2^(32*j)) for j in 0..4   (little-endian u32 → u128)
-        //   high   = u128_byte_reverse(limb0)
-        //   low    = u128_byte_reverse(limb1)
-        //   commitment = (high << 128) | low
+        //   commitment   = (u128_byte_reverse(limb0) << 128) | u128_byte_reverse(limb1)
+        //   config_hash  = (u128_byte_reverse(limb2) << 128) | u128_byte_reverse(limb3)
         let commitment =
             Felt::from_hex("0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
                 .unwrap();
-        let raw_report = build_raw_report(commitment);
+        let config_hash =
+            Felt::from_hex("0x00c53b8a360950659fdafc5f9e42ab39db23d3ac909bafe9f9428fd72e57828")
+                .unwrap();
+        let raw_report = build_raw_report(commitment, config_hash);
 
         let read_limb = |start: usize| -> u128 {
             let w0 = u128::from(
@@ -290,28 +292,40 @@ mod tests {
             w0 + (w1 << 32) + (w2 << 64) + (w3 << 96)
         };
 
-        let limb0 = read_limb(REPORT_DATA_WORD_OFFSET);
-        let limb1 = read_limb(REPORT_DATA_WORD_OFFSET + 4);
-        let limb2 = read_limb(REPORT_DATA_WORD_OFFSET + 8);
-        let limb3 = read_limb(REPORT_DATA_WORD_OFFSET + 12);
+        let limbs = [
+            read_limb(REPORT_DATA_WORD_OFFSET),
+            read_limb(REPORT_DATA_WORD_OFFSET + 4),
+            read_limb(REPORT_DATA_WORD_OFFSET + 8),
+            read_limb(REPORT_DATA_WORD_OFFSET + 12),
+        ];
 
-        assert_eq!(limb2, 0, "limb2 must be zero");
-        assert_eq!(limb3, 0, "limb3 must be zero");
+        let reconstruct = |hi: u128, lo: u128| -> Felt {
+            let mut bytes = [0u8; 32];
+            bytes[..16].copy_from_slice(&hi.swap_bytes().to_be_bytes());
+            bytes[16..].copy_from_slice(&lo.swap_bytes().to_be_bytes());
+            Felt::from_bytes_be(&bytes)
+        };
 
-        let high = limb0.swap_bytes();
-        let low = limb1.swap_bytes();
-
-        let mut reconstructed = [0u8; 32];
-        reconstructed[..16].copy_from_slice(&high.to_be_bytes());
-        reconstructed[16..].copy_from_slice(&low.to_be_bytes());
-
-        assert_eq!(Felt::from_bytes_be(&reconstructed), commitment);
+        assert_eq!(reconstruct(limbs[0], limbs[1]), commitment);
+        assert_eq!(reconstruct(limbs[2], limbs[3]), config_hash);
     }
 
     #[test]
     fn serialized_journal_has_expected_length() {
-        let felts = serialize_mock_journal(Felt::from(1u64));
+        let felts = serialize_mock_journal(Felt::from(1u64), Felt::from(2u64));
         // Expected total = 306 felts (see docstring).
         assert_eq!(felts.len(), 306);
+    }
+
+    #[test]
+    fn version_tags_decode_to_expected_strings() {
+        assert_eq!(
+            &KATANA_TEE_REPORT_VERSION.to_bytes_be()[16..],
+            b"KatanaTeeReport1"
+        );
+        assert_eq!(
+            &KATANA_TEE_APPCHAIN_MODE.to_bytes_be()[15..],
+            b"KatanaTeeAppchain"
+        );
     }
 }
