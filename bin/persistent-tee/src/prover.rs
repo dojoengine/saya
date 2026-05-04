@@ -165,8 +165,10 @@ impl TeeProver {
                 attestation.prev_block_number,
                 attestation.block_number,
                 attestation.messages_commitment,
+                attestation.katana_tee_config_hash,
             );
-            let felts = mock_proof::serialize_mock_journal(commitment);
+            let felts =
+                mock_proof::serialize_mock_journal(commitment, attestation.katana_tee_config_hash);
             mock_proof::felts_to_bytes(&felts)
         } else {
             info!(block_number, "TEE proving started for block batch");
