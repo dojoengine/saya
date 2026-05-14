@@ -8,12 +8,15 @@ use anyhow::Result;
 use cairo_lang_starknet_classes::casm_contract_class::CasmContractClass;
 use cairo_lang_starknet_classes::contract_class::ContractClass;
 use dojo_utils::{Declarer, Deployer, Invoker, LabeledClass, TransactionResult, TxnConfig};
-use starknet::accounts::{Account, SingleOwnerAccount};
+use starknet::accounts::{Account, ConnectedAccount, SingleOwnerAccount};
 use starknet::core::crypto::compute_hash_on_elements;
-use starknet::core::types::{contract::SierraClass, Call, Felt, FlattenedSierraClass};
+use starknet::core::types::{
+    contract::SierraClass, BlockId, BlockTag, Call, Felt, FlattenedSierraClass,
+    MaybePreConfirmedBlockWithTxHashes,
+};
 use starknet::macros::{selector, short_string};
 use starknet::providers::jsonrpc::HttpTransport;
-use starknet::providers::JsonRpcClient;
+use starknet::providers::{JsonRpcClient, Provider};
 use starknet::signers::LocalWallet;
 use starknet_api::contract_class::compiled_class_hash::{HashVersion, HashableCompiledClass};
 use std::{fs, path::Path};
@@ -32,8 +35,9 @@ pub async fn declare_contract(
 ) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
+    let use_blake2s = chain_uses_blake2s_casm_hash(account.provider()).await?;
     let mut declarer = Declarer::new(account, txn_config);
-    let class = prepare_class(contract_path, true)?;
+    let class = prepare_class(contract_path, use_blake2s)?;
     let labeled = LabeledClass {
         label: class.label.clone(),
         casm_class_hash: class.casm_class_hash,
@@ -66,8 +70,9 @@ pub async fn declare_contract_from_bytes(
 ) -> Result<(Felt, TransactionResult)> {
     let txn_config = TxnConfig::default();
 
+    let use_blake2s = chain_uses_blake2s_casm_hash(account.provider()).await?;
     let mut declarer = Declarer::new(account, txn_config);
-    let class = prepare_class_from_bytes(contract_bytes, true, contract_name.to_string())?;
+    let class = prepare_class_from_bytes(contract_bytes, use_blake2s, contract_name.to_string())?;
     let labeled = LabeledClass {
         label: class.label.clone(),
         casm_class_hash: class.casm_class_hash,
@@ -292,6 +297,36 @@ fn casm_class_hash_from_bytes(data: &[u8], use_blake2s: bool) -> Result<Felt> {
     Ok(Felt::from_bytes_be(&hash.0.to_bytes_be()))
 }
 
+/// Returns whether the settlement chain expects the Blake2s-based compiled
+/// class hash for `declare` transactions.
+///
+/// Starknet v0.14.1 switched the canonical compiled class hash from Poseidon
+/// to Blake2s and rejects declares using the old algorithm; earlier versions
+/// still expect Poseidon. The decision is sourced from the chain's
+/// `starknet_version` on the latest block header so it auto-adapts when the
+/// settlement chain upgrades.
+async fn chain_uses_blake2s_casm_hash<P: Provider>(provider: &P) -> Result<bool> {
+    let block = provider
+        .get_block_with_tx_hashes(BlockId::Tag(BlockTag::Latest))
+        .await?;
+    let version_str = match block {
+        MaybePreConfirmedBlockWithTxHashes::Block(b) => b.starknet_version,
+        MaybePreConfirmedBlockWithTxHashes::PreConfirmedBlock(b) => b.starknet_version,
+    };
+    Ok(version_at_least_v0_14_1(&version_str))
+}
+
+/// Parses `MAJOR.MINOR.PATCH[.BUILD]` and returns true if it is at least
+/// `0.14.1`. Strings that don't have at least three numeric components fall
+/// back to `false` so the caller uses the legacy Poseidon hash.
+fn version_at_least_v0_14_1(version: &str) -> bool {
+    let parts: Vec<u64> = version.split('.').map(|s| s.parse().unwrap_or(0)).collect();
+    match parts.as_slice() {
+        [major, minor, patch, ..] => (*major, *minor, *patch) >= (0, 14, 1),
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -318,5 +353,23 @@ mod test {
         let computed = compute_starknet_os_config_hash(chain, STRK_FEE_TOKEN);
 
         assert_eq!(computed, expected);
+    }
+
+    #[test]
+    fn version_comparison_picks_blake2s_for_0_14_1_and_above() {
+        assert!(version_at_least_v0_14_1("0.14.1"));
+        assert!(version_at_least_v0_14_1("0.14.2"));
+        assert!(version_at_least_v0_14_1("0.15.0"));
+        assert!(version_at_least_v0_14_1("1.0.0"));
+        assert!(version_at_least_v0_14_1("0.14.1.0"));
+    }
+
+    #[test]
+    fn version_comparison_picks_poseidon_for_pre_0_14_1() {
+        assert!(!version_at_least_v0_14_1("0.13.4"));
+        assert!(!version_at_least_v0_14_1("0.14.0"));
+        assert!(!version_at_least_v0_14_1("0.13.2"));
+        assert!(!version_at_least_v0_14_1(""));
+        assert!(!version_at_least_v0_14_1("not-a-version"));
     }
 }
