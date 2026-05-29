@@ -6,7 +6,6 @@ use anyhow::Result;
 use cainome::cairo_serde::{CairoSerde, ContractAddress};
 use katana_tee_client::{OnchainProof, StarknetCalldata};
 use piltover::{MessageToAppchain, MessageToStarknet, PiltoverInput, TEEInput};
-use sha3::{Digest, Keccak256};
 use starknet::{
     accounts::{Account, ExecutionEncoding, SingleOwnerAccount},
     core::types::{BlockId, BlockTag, Call, Felt, FunctionCall, TransactionReceipt},
@@ -14,6 +13,7 @@ use starknet::{
     providers::{jsonrpc::HttpTransport, JsonRpcClient, Provider},
     signers::{LocalWallet, SigningKey},
 };
+use starknet_types_core::hash::{Poseidon, StarkHash};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tracing::{debug, error};
 use url::Url;
@@ -27,22 +27,40 @@ use saya_core::{
 
 const POLLING_INTERVAL: Duration = Duration::from_secs(2);
 
-/// Computes the Starknet L1→L2 message hash using keccak256.
+/// Computes the L1→L2 message hash for a Starknet-settled appchain.
 ///
-/// Matches the Ethereum StarknetMessaging.sol formula:
-/// `keccak256(abi.encodePacked(from_address, to_address, nonce, selector, payload.length, payload))`
-/// where `from_address` is a 20-byte Ethereum address (lower 20 bytes of the felt252).
+/// `saya-tee` always settles to a Starknet piltover core, so the canonical L1→L2
+/// message hash is Poseidon-based (`hash::compute_message_hash_sn_to_appc` in
+/// piltover), not the Ethereum `keccak256` `StarknetMessaging.sol` formula. Katana
+/// commits to this Poseidon hash in the appchain attestation's `messages_commitment`
+/// (it stores the L1-handler `message_hash` produced by its Starknet messaging
+/// collector). Using keccak here makes piltover's recomputed commitment mismatch and
+/// every block that consumes an L1→L2 message reverts with `'tee: invalid messages'`.
+///
+/// Katana hashes over the L1-handler CALLDATA, which is `[from_address, ...payload]`:
+///
+/// ```text
+/// Poseidon([from_address, to_address, nonce, selector, calldata.len(), ...calldata])
+///   where calldata = [from_address, ...payload]
+/// ```
+///
+/// See katana `crates/messaging/src/stream/collector/starknet.rs`
+/// (`compute_starknet_to_appchain_message_hash`).
 fn compute_l1_to_l2_msg_hash(msg: &L1ToL2Message) -> Felt {
-    let mut hasher = Keccak256::new();
-    hasher.update(&msg.from_address.to_bytes_be()[12..]);
-    hasher.update(msg.to_address.to_bytes_be());
-    hasher.update(msg.nonce.to_bytes_be());
-    hasher.update(msg.selector.to_bytes_be());
-    hasher.update(Felt::from(msg.payload.len() as u64).to_bytes_be());
-    for p in &msg.payload {
-        hasher.update(p.to_bytes_be());
-    }
-    Felt::from_bytes_be(&hasher.finalize().into())
+    let mut calldata: Vec<Felt> = Vec::with_capacity(msg.payload.len() + 1);
+    calldata.push(msg.from_address);
+    calldata.extend(msg.payload.iter().copied());
+
+    let mut buf: Vec<Felt> = vec![
+        msg.from_address,
+        msg.to_address,
+        msg.nonce,
+        msg.selector,
+        Felt::from(calldata.len() as u64),
+    ];
+    buf.extend(calldata);
+
+    Poseidon::hash_array(&buf)
 }
 
 fn messages_to_starknet(msgs: &[L2ToL1Message]) -> Vec<MessageToStarknet> {
