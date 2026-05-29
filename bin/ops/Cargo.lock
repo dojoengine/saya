@@ -4401,7 +4401,7 @@ dependencies = [
 
 [[package]]
 name = "saya-ops"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -4423,7 +4423,7 @@ dependencies = [
 
 [[package]]
 name = "saya-tracing"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "thiserror 2.0.18",
