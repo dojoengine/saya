@@ -165,6 +165,220 @@ fn settlement_action(onchain_block: Felt, proof_prev: Felt, proof_block: Felt) -
     }
 }
 
+/// The chain operations the settlement loop needs, abstracted so [`run_settlement`]
+/// can be unit-tested without a live Starknet node.
+trait SettlementChain {
+    /// The Piltover contract's current on-chain block (`get_state` block_number).
+    async fn onchain_block(&self) -> Result<Felt>;
+    /// Submit `update_state` for `proof` (calldata pre-built) and wait for it to be
+    /// accepted; returns the settlement tx hash.
+    async fn submit(&self, proof: &TeeProof, calldata: Vec<Felt>) -> Result<Felt>;
+}
+
+/// Read the Piltover contract's current block number (`get_state()[1]`).
+async fn piltover_block_number(
+    provider: &Arc<JsonRpcClient<HttpTransport>>,
+    piltover_address: Felt,
+) -> Result<Felt> {
+    let raw = provider
+        .call(
+            FunctionCall {
+                contract_address: piltover_address,
+                entry_point_selector: selector!("get_state"),
+                calldata: vec![],
+            },
+            BlockId::Tag(BlockTag::Latest),
+        )
+        .await?;
+    // AppchainState: [state_root, block_number, block_hash] — block_number is index 1.
+    raw.get(1)
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("get_state returned fewer than 2 felts"))
+}
+
+/// Poll a tx until it is accepted (or reverted / errored).
+async fn watch_tx(provider: &Arc<JsonRpcClient<HttpTransport>>, tx_hash: Felt) -> Result<()> {
+    loop {
+        tokio::time::sleep(POLLING_INTERVAL).await;
+        match provider.get_transaction_receipt(tx_hash).await {
+            Ok(receipt) => match receipt.receipt {
+                TransactionReceipt::Invoke(r) => {
+                    use starknet::core::types::ExecutionResult;
+                    match r.execution_result {
+                        ExecutionResult::Succeeded => return Ok(()),
+                        ExecutionResult::Reverted { reason } => {
+                            return Err(anyhow::anyhow!("Transaction reverted: {reason}"))
+                        }
+                    }
+                }
+                _ => return Ok(()),
+            },
+            Err(starknet::providers::ProviderError::StarknetError(
+                starknet::core::types::StarknetError::TransactionHashNotFound,
+            )) => continue,
+            Err(e) => return Err(e.into()),
+        }
+    }
+}
+
+/// Sleep one polling interval; returns `true` if shutdown was requested while waiting,
+/// so retry loops can stop promptly instead of hanging.
+async fn cooldown(finish: &FinishHandle, poll_interval: Duration) -> bool {
+    tokio::select! {
+        _ = finish.shutdown_requested() => true,
+        _ = tokio::time::sleep(poll_interval) => false,
+    }
+}
+
+/// The real chain: submits `update_state` to a Piltover contract on Starknet.
+struct PiltoverChain {
+    provider: Arc<JsonRpcClient<HttpTransport>>,
+    account: SingleOwnerAccount<Arc<JsonRpcClient<HttpTransport>>, LocalWallet>,
+    piltover_address: Felt,
+}
+
+impl SettlementChain for PiltoverChain {
+    async fn onchain_block(&self) -> Result<Felt> {
+        piltover_block_number(&self.provider, self.piltover_address).await
+    }
+
+    async fn submit(&self, _proof: &TeeProof, calldata: Vec<Felt>) -> Result<Felt> {
+        let call = Call {
+            to: self.piltover_address,
+            selector: selector!("update_state"),
+            calldata,
+        };
+        let execution = self.account.execute_v3(vec![call]);
+        execution.estimate_fee().await?;
+        let transaction = execution.send().await?;
+        watch_tx(&self.provider, transaction.transaction_hash).await?;
+        Ok(transaction.transaction_hash)
+    }
+}
+
+/// The settlement loop: drains proofs and settles them on `chain`, strictly in order.
+///
+/// Generic over [`SettlementChain`] so it can be tested with a fake chain. The two
+/// invariants it must uphold (see the tests): (1) only submit a proof when the chain
+/// is at its parent, waiting otherwise; (2) RETRY a transient submit failure on the
+/// same proof — never drop it, since a dropped proof permanently wedges every later
+/// block. Already-settled proofs (chain ahead of the proof) are skipped.
+async fn run_settlement<C: SettlementChain>(
+    chain: &C,
+    mut proof_channel: Receiver<TeeProof>,
+    cursor_channel: Sender<SettlementCursor>,
+    finish_handle: FinishHandle,
+    poll_interval: Duration,
+    mock_prove: bool,
+) {
+    'outer: loop {
+        let proof = tokio::select! {
+            _ = finish_handle.shutdown_requested() => break,
+            p = proof_channel.recv() => match p {
+                Some(p) => p,
+                None => {
+                    debug!("Proof channel closed, shutting down");
+                    break;
+                }
+            },
+        };
+
+        // Calldata is a pure function of the proof; a build failure means a malformed
+        // proof and retrying can't help, so skip it. The settlement errors below are
+        // the opposite — transient — so we RETRY the same proof and never drop it.
+        // Dropping a proof leaves a permanent gap: every later block's
+        // `prev_block_number` then mismatches the on-chain state and the contract
+        // rejects it forever ("State: invalid block number").
+        let calldata = match build_tee_calldata(&proof, mock_prove) {
+            Ok(c) => c,
+            Err(e) => {
+                error!(
+                    "Failed to build TEE calldata for block {}: {}",
+                    proof.block_number.to_hex_string(),
+                    e
+                );
+                continue;
+            }
+        };
+
+        // Settle strictly in order. Only submit once the chain's on-chain block equals
+        // this proof's parent; otherwise wait. Retry transient failures rather than
+        // advancing to the next proof. A `None` result means the block was already
+        // settled on-chain (e.g. resumed after a restart), so we just advance the cursor.
+        let tx_hash: Option<Felt> = loop {
+            if finish_handle.is_shutdown_requested() {
+                break 'outer;
+            }
+
+            let onchain = match chain.onchain_block().await {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!(
+                        "Failed to read Piltover block for {}: {}; retrying",
+                        proof.block_number.to_hex_string(),
+                        e
+                    );
+                    if cooldown(&finish_handle, poll_interval).await {
+                        break 'outer;
+                    }
+                    continue;
+                }
+            };
+
+            match settlement_action(onchain, proof.prev_block_number, proof.block_number) {
+                SettlementAction::AlreadySettled => {
+                    debug!(
+                        "Block {} already settled on-chain; advancing cursor",
+                        proof.block_number.to_hex_string()
+                    );
+                    break None;
+                }
+                SettlementAction::WaitForParent => {
+                    // Parent not yet on-chain — wait and recheck; do NOT skip ahead.
+                    if cooldown(&finish_handle, poll_interval).await {
+                        break 'outer;
+                    }
+                    continue;
+                }
+                SettlementAction::Submit => {}
+            }
+
+            match chain.submit(&proof, calldata.clone()).await {
+                Ok(h) => break Some(h),
+                Err(e) => {
+                    warn!(
+                        "Settlement of block {} failed: {}; retrying",
+                        proof.block_number.to_hex_string(),
+                        e
+                    );
+                    if cooldown(&finish_handle, poll_interval).await {
+                        break 'outer;
+                    }
+                    continue;
+                }
+            }
+        };
+
+        let new_cursor = SettlementCursor {
+            block_number: u64::try_from(proof.block_number).unwrap_or_else(|_| {
+                panic!(
+                    "Block number {} does not fit in u64",
+                    proof.block_number.to_hex_string()
+                )
+            }),
+            transaction_hash: tx_hash.unwrap_or(Felt::ZERO),
+        };
+
+        tokio::select! {
+            _ = finish_handle.shutdown_requested() => break,
+            _ = cursor_channel.send(new_cursor) => {},
+        }
+    }
+
+    debug!("TeePiltoverSettlementBackend graceful shutdown finished");
+    finish_handle.finish();
+}
+
 /// Settlement backend that submits TEE proofs to the Piltover contract via `update_state`.
 #[derive(Debug)]
 pub struct TeePiltoverSettlementBackend {
@@ -254,205 +468,39 @@ impl TeeSettlementBackendBuilder for TeePiltoverSettlementBackendBuilder {
 }
 
 impl TeePiltoverSettlementBackend {
-    async fn get_piltover_block_number(&self) -> Result<Felt> {
-        let raw = self
-            .provider
-            .call(
-                FunctionCall {
-                    contract_address: self.piltover_address,
-                    entry_point_selector: selector!("get_state"),
-                    calldata: vec![],
-                },
-                BlockId::Tag(BlockTag::Latest),
-            )
-            .await?;
-        // AppchainState: [state_root, block_number, block_hash] — block_number is index 1.
-        raw.get(1)
-            .copied()
-            .ok_or_else(|| anyhow::anyhow!("get_state returned fewer than 2 felts"))
-    }
-
-    async fn watch_tx(&self, tx_hash: Felt) -> Result<()> {
-        loop {
-            tokio::time::sleep(POLLING_INTERVAL).await;
-            match self.provider.get_transaction_receipt(tx_hash).await {
-                Ok(receipt) => match receipt.receipt {
-                    TransactionReceipt::Invoke(r) => {
-                        use starknet::core::types::ExecutionResult;
-                        match r.execution_result {
-                            ExecutionResult::Succeeded => return Ok(()),
-                            ExecutionResult::Reverted { reason } => {
-                                return Err(anyhow::anyhow!("Transaction reverted: {reason}"))
-                            }
-                        }
-                    }
-                    _ => return Ok(()),
-                },
-                Err(starknet::providers::ProviderError::StarknetError(
-                    starknet::core::types::StarknetError::TransactionHashNotFound,
-                )) => continue,
-                Err(e) => return Err(e.into()),
-            }
-        }
-    }
-
-    /// Sleep one polling interval; returns `true` if shutdown was requested while
-    /// waiting, so retry loops can stop promptly instead of hanging.
-    async fn cooldown(&self) -> bool {
-        tokio::select! {
-            _ = self.finish_handle.shutdown_requested() => true,
-            _ = tokio::time::sleep(POLLING_INTERVAL) => false,
-        }
-    }
-
-    async fn run(mut self) {
-        'outer: loop {
-            let proof = tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                p = self.proof_channel.recv() => match p {
-                    Some(p) => p,
-                    None => {
-                        debug!("Proof channel closed, shutting down");
-                        break;
-                    }
-                },
-            };
-
-            // Calldata is a pure function of the proof; a build failure means a
-            // malformed proof and retrying can't help, so skip it. The settlement
-            // errors below are the opposite — transient — so we RETRY the same proof
-            // and never drop it. Dropping a proof leaves a permanent gap: every later
-            // block's `prev_block_number` then mismatches the on-chain state and the
-            // contract rejects it forever ("State: invalid block number").
-            let calldata = match build_tee_calldata(&proof, self.mock_prove) {
-                Ok(c) => c,
-                Err(e) => {
-                    error!(
-                        "Failed to build TEE calldata for block {}: {}",
-                        proof.block_number.to_hex_string(),
-                        e
-                    );
-                    continue;
-                }
-            };
-
-            // Settle strictly in order. Only submit `update_state` once the Piltover
-            // contract's on-chain block equals this proof's parent; otherwise wait —
-            // a prior settlement is still landing, or `latest` lags `pre_confirmed`
-            // (fee estimation runs against `latest`, so submitting early reverts with
-            // "invalid block number"). Retry transient failures rather than advancing
-            // to the next proof. A `None` result means the block was already settled
-            // on-chain (e.g. resumed after a restart), so we just advance the cursor.
-            let tx_hash: Option<Felt> = loop {
-                if self.finish_handle.is_shutdown_requested() {
-                    break 'outer;
-                }
-
-                let onchain = match self.get_piltover_block_number().await {
-                    Ok(b) => b,
-                    Err(e) => {
-                        warn!(
-                            "Failed to read Piltover block for {}: {}; retrying",
-                            proof.block_number.to_hex_string(),
-                            e
-                        );
-                        if self.cooldown().await {
-                            break 'outer;
-                        }
-                        continue;
-                    }
-                };
-
-                match settlement_action(onchain, proof.prev_block_number, proof.block_number) {
-                    SettlementAction::AlreadySettled => {
-                        debug!(
-                            "Block {} already settled on-chain; advancing cursor",
-                            proof.block_number.to_hex_string()
-                        );
-                        break None;
-                    }
-                    SettlementAction::WaitForParent => {
-                        // Parent not yet on-chain — wait and recheck; do NOT skip ahead.
-                        if self.cooldown().await {
-                            break 'outer;
-                        }
-                        continue;
-                    }
-                    SettlementAction::Submit => {}
-                }
-
-                let call = Call {
-                    to: self.piltover_address,
-                    selector: selector!("update_state"),
-                    calldata: calldata.clone(),
-                };
-                let execution = self.account.execute_v3(vec![call]);
-
-                if let Err(e) = execution.estimate_fee().await {
-                    warn!(
-                        "Fee estimation failed for block {}: {}; retrying",
-                        proof.block_number.to_hex_string(),
-                        e
-                    );
-                    if self.cooldown().await {
-                        break 'outer;
-                    }
-                    continue;
-                }
-                let transaction = match execution.send().await {
-                    Ok(t) => t,
-                    Err(e) => {
-                        warn!(
-                            "Settlement transaction failed for block {}: {}; retrying",
-                            proof.block_number.to_hex_string(),
-                            e
-                        );
-                        if self.cooldown().await {
-                            break 'outer;
-                        }
-                        continue;
-                    }
-                };
-                match self.watch_tx(transaction.transaction_hash).await {
-                    Ok(()) => break Some(transaction.transaction_hash),
-                    Err(e) => {
-                        warn!(
-                            "Settlement tx confirmation failed for block {}: {}; retrying",
-                            proof.block_number.to_hex_string(),
-                            e
-                        );
-                        if self.cooldown().await {
-                            break 'outer;
-                        }
-                        continue;
-                    }
-                }
-            };
-
-            let new_cursor = SettlementCursor {
-                block_number: u64::try_from(proof.block_number).unwrap_or_else(|_| {
-                    panic!(
-                        "Block number {} does not fit in u64",
-                        proof.block_number.to_hex_string()
-                    )
-                }),
-                transaction_hash: tx_hash.unwrap_or(Felt::ZERO),
-            };
-
-            tokio::select! {
-                _ = self.finish_handle.shutdown_requested() => break,
-                _ = self.cursor_channel.send(new_cursor) => {},
-            }
-        }
-
-        debug!("TeePiltoverSettlementBackend graceful shutdown finished");
-        self.finish_handle.finish();
+    async fn run(self) {
+        // Move the chain-facing fields into a `PiltoverChain` so the settlement loop
+        // (`run_settlement`) is generic over the chain and can be unit-tested with a
+        // fake; the channels and the shutdown handle drive it.
+        let Self {
+            provider,
+            account,
+            piltover_address,
+            mock_prove,
+            proof_channel,
+            cursor_channel,
+            finish_handle,
+        } = self;
+        let chain = PiltoverChain {
+            provider,
+            account,
+            piltover_address,
+        };
+        run_settlement(
+            &chain,
+            proof_channel,
+            cursor_channel,
+            finish_handle,
+            POLLING_INTERVAL,
+            mock_prove,
+        )
+        .await;
     }
 }
 
 impl SettlementBackend for TeePiltoverSettlementBackend {
     async fn get_block_number(&self) -> Result<Felt> {
-        self.get_piltover_block_number().await
+        piltover_block_number(&self.provider, self.piltover_address).await
     }
 }
 
@@ -468,8 +516,16 @@ impl Daemon for TeePiltoverSettlementBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::{settlement_action, SettlementAction};
+    use super::{
+        run_settlement, settlement_action, FinishHandle, SettlementAction, SettlementChain,
+        TeeProof,
+    };
+    use anyhow::{anyhow, Result};
     use starknet::core::types::Felt;
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+    use std::time::Duration;
+    use tokio::sync::mpsc;
 
     fn f(n: u64) -> Felt {
         Felt::from(n)
@@ -539,5 +595,124 @@ mod tests {
             settlement_action(f(6), f(5), f(6)),
             SettlementAction::AlreadySettled
         );
+    }
+
+    // --- integration tests: drive the `run_settlement` loop against a fake chain ---
+
+    /// A dummy proof for `block` (parent = block-1, or the genesis sentinel for block 0).
+    /// `data` is empty (a valid mock-proof buffer) so `build_tee_calldata` succeeds; the
+    /// fake chain ignores the calldata and acts on the block numbers.
+    fn proof(block: u64) -> TeeProof {
+        TeeProof {
+            blocks: vec![],
+            data: vec![],
+            prev_state_root: Felt::ZERO,
+            state_root: Felt::ZERO,
+            prev_block_hash: Felt::ZERO,
+            block_hash: Felt::ZERO,
+            prev_block_number: if block == 0 { genesis() } else { f(block - 1) },
+            block_number: f(block),
+            messages_commitment: Felt::ZERO,
+            l2_to_l1_messages: vec![],
+            l1_to_l2_messages: vec![],
+            katana_tee_config_hash: Felt::ZERO,
+        }
+    }
+
+    /// A fake Piltover that simulates `update_state` ordering: it tracks an on-chain
+    /// block (starting at `at`) and advances exactly one block per accepted submit.
+    /// `failing_once` makes the first submit of a given block error transiently.
+    struct FakeChain {
+        onchain: Mutex<Felt>,
+        settled: Mutex<Vec<u64>>,
+        fail_once: Mutex<HashSet<u64>>,
+    }
+
+    impl FakeChain {
+        fn at(start: Felt) -> Self {
+            Self {
+                onchain: Mutex::new(start),
+                settled: Mutex::new(Vec::new()),
+                fail_once: Mutex::new(HashSet::new()),
+            }
+        }
+        fn failing_once(self, blocks: &[u64]) -> Self {
+            *self.fail_once.lock().unwrap() = blocks.iter().copied().collect();
+            self
+        }
+        fn settled(&self) -> Vec<u64> {
+            self.settled.lock().unwrap().clone()
+        }
+    }
+
+    impl SettlementChain for FakeChain {
+        async fn onchain_block(&self) -> Result<Felt> {
+            Ok(*self.onchain.lock().unwrap())
+        }
+        async fn submit(&self, proof: &TeeProof, _calldata: Vec<Felt>) -> Result<Felt> {
+            let block = u64::try_from(proof.block_number).unwrap();
+            if self.fail_once.lock().unwrap().remove(&block) {
+                return Err(anyhow!("transient submit failure for block {block}"));
+            }
+            // The loop only submits when the chain is at the proof's parent, so advance.
+            *self.onchain.lock().unwrap() = proof.block_number;
+            self.settled.lock().unwrap().push(block);
+            Ok(f(block))
+        }
+    }
+
+    /// Run `run_settlement` over `proofs` against `chain` to completion; returns the
+    /// cursor block numbers it emitted. A zero poll interval keeps retries instant.
+    async fn drive(chain: &FakeChain, proofs: Vec<TeeProof>) -> Vec<u64> {
+        let (proof_tx, proof_rx) = mpsc::channel(64);
+        let (cursor_tx, mut cursor_rx) = mpsc::channel(64);
+        for p in proofs {
+            proof_tx.send(p).await.unwrap();
+        }
+        drop(proof_tx); // close the proof channel so the loop finishes
+        run_settlement(
+            chain,
+            proof_rx,
+            cursor_tx,
+            FinishHandle::new(),
+            Duration::from_millis(0),
+            true, // mock_prove
+        )
+        .await;
+        let mut cursors = Vec::new();
+        while let Ok(c) = cursor_rx.try_recv() {
+            cursors.push(c.block_number);
+        }
+        cursors
+    }
+
+    #[tokio::test]
+    async fn settles_a_fresh_chain_from_genesis_in_order() {
+        // A fresh Piltover sits at the -1 sentinel; the loop must settle block 0 and
+        // every block after it, in order.
+        let chain = FakeChain::at(genesis());
+        let cursors = drive(&chain, (0..5).map(proof).collect()).await;
+        assert_eq!(chain.settled(), vec![0, 1, 2, 3, 4]);
+        assert_eq!(cursors, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[tokio::test]
+    async fn retries_a_transient_submit_failure_without_dropping_the_block() {
+        // Block 2's first submit fails. The loop must retry the SAME block — not drop it
+        // and skip ahead (which would wedge every later block) — so all blocks settle.
+        let chain = FakeChain::at(genesis()).failing_once(&[2]);
+        let cursors = drive(&chain, (0..5).map(proof).collect()).await;
+        assert_eq!(chain.settled(), vec![0, 1, 2, 3, 4]);
+        assert_eq!(cursors, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[tokio::test]
+    async fn skips_blocks_already_settled_on_chain_after_a_restart() {
+        // Resumed with the chain already at block 3: proofs for 2 and 3 are skipped
+        // (not re-submitted), and 4, 5 are settled. Every proof still advances a cursor.
+        let chain = FakeChain::at(f(3));
+        let cursors = drive(&chain, (2..6).map(proof).collect()).await;
+        assert_eq!(chain.settled(), vec![4, 5]);
+        assert_eq!(cursors, vec![2, 3, 4, 5]);
     }
 }
