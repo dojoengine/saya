@@ -117,6 +117,36 @@ fn build_tee_calldata(proof: &TeeProof, mock_prove: bool) -> Result<Vec<Felt>> {
     )))
 }
 
+/// What to do with a proof, given the Piltover contract's current on-chain block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SettlementAction {
+    /// Already settled on-chain (e.g. resumed after a restart, or a re-proved block)
+    /// — skip it and just advance the local cursor.
+    AlreadySettled,
+    /// The chain is exactly at this proof's parent — safe to submit `update_state`.
+    Submit,
+    /// The chain hasn't reached this proof's parent yet (a prior settlement is still
+    /// landing, or `latest` lags `pre_confirmed`) — wait and recheck; never skip.
+    WaitForParent,
+}
+
+/// Decide whether to submit, wait, or skip a proof.
+///
+/// Submitting only when the chain is exactly at the proof's parent keeps settlement
+/// strictly in order: it never sends an `update_state` the contract would reject with
+/// "invalid block number", and never skips a gap. Submitting out of order — or
+/// dropping the failed block and moving on — is what wedged the pipeline; see the
+/// unit tests below.
+fn settlement_action(onchain_block: Felt, proof_prev: Felt, proof_block: Felt) -> SettlementAction {
+    if onchain_block >= proof_block {
+        SettlementAction::AlreadySettled
+    } else if onchain_block == proof_prev {
+        SettlementAction::Submit
+    } else {
+        SettlementAction::WaitForParent
+    }
+}
+
 /// Settlement backend that submits TEE proofs to the Piltover contract via `update_state`.
 #[derive(Debug)]
 pub struct TeePiltoverSettlementBackend {
@@ -315,19 +345,22 @@ impl TeePiltoverSettlementBackend {
                     }
                 };
 
-                if onchain >= proof.block_number {
-                    debug!(
-                        "Block {} already settled on-chain; advancing cursor",
-                        proof.block_number.to_hex_string()
-                    );
-                    break None;
-                }
-                if onchain != proof.prev_block_number {
-                    // Parent not yet on-chain — wait and recheck; do NOT skip ahead.
-                    if self.cooldown().await {
-                        break 'outer;
+                match settlement_action(onchain, proof.prev_block_number, proof.block_number) {
+                    SettlementAction::AlreadySettled => {
+                        debug!(
+                            "Block {} already settled on-chain; advancing cursor",
+                            proof.block_number.to_hex_string()
+                        );
+                        break None;
                     }
-                    continue;
+                    SettlementAction::WaitForParent => {
+                        // Parent not yet on-chain — wait and recheck; do NOT skip ahead.
+                        if self.cooldown().await {
+                            break 'outer;
+                        }
+                        continue;
+                    }
+                    SettlementAction::Submit => {}
                 }
 
                 let call = Call {
@@ -412,5 +445,68 @@ impl Daemon for TeePiltoverSettlementBackend {
 
     fn start(self) {
         tokio::spawn(self.run());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{settlement_action, SettlementAction};
+    use starknet::core::types::Felt;
+
+    fn f(n: u64) -> Felt {
+        Felt::from(n)
+    }
+
+    #[test]
+    fn submits_when_chain_is_at_the_proofs_parent() {
+        // Chain settled up to block 5; the next proof (block 6, parent 5) is the only
+        // one that may be submitted.
+        assert_eq!(
+            settlement_action(f(5), f(5), f(6)),
+            SettlementAction::Submit
+        );
+    }
+
+    #[test]
+    fn genesis_first_block_is_submittable() {
+        // Fresh chain at genesis (block 0): the first proof settles block 1 (parent 0).
+        assert_eq!(
+            settlement_action(f(0), f(0), f(1)),
+            SettlementAction::Submit
+        );
+    }
+
+    #[test]
+    fn waits_for_parent_instead_of_settling_out_of_order() {
+        // Regression for the settlement wedge: the prover/ingestor race ahead while the
+        // chain is stuck at block 5, offering block 10 (parent 9). Submitting it would
+        // revert with "State: invalid block number"; the old code then dropped the
+        // proof and every later block's parent mismatched, cascading into a permanent
+        // stall. The backend must WAIT for the parent — never submit out of order.
+        assert_eq!(
+            settlement_action(f(5), f(9), f(10)),
+            SettlementAction::WaitForParent
+        );
+        // Even one block ahead must wait: `latest` lags `pre_confirmed`, so the parent
+        // may not be visible to fee estimation yet.
+        assert_eq!(
+            settlement_action(f(5), f(6), f(7)),
+            SettlementAction::WaitForParent
+        );
+    }
+
+    #[test]
+    fn skips_blocks_already_settled_on_chain() {
+        // Resumed after a restart with a stale local cursor: the chain is at 8, but a
+        // re-proved block 6 arrives — skip it (idempotent), don't re-settle.
+        assert_eq!(
+            settlement_action(f(8), f(5), f(6)),
+            SettlementAction::AlreadySettled
+        );
+        // The proof's own block already being on-chain counts as settled too.
+        assert_eq!(
+            settlement_action(f(6), f(5), f(6)),
+            SettlementAction::AlreadySettled
+        );
     }
 }
