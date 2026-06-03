@@ -130,6 +130,11 @@ enum SettlementAction {
     WaitForParent,
 }
 
+/// The block number a freshly deployed Piltover contract reports before it has settled
+/// any block: `-1` in the field, i.e. `PRIME - 1` ([`Felt::MAX`]). The first proof a
+/// chain ever submits is block 0, whose `prev_block_number` is also this sentinel.
+const FRESH_PILTOVER_BLOCK: Felt = Felt::MAX;
+
 /// Decide whether to submit, wait, or skip a proof.
 ///
 /// Submitting only when the chain is exactly at the proof's parent keeps settlement
@@ -138,6 +143,19 @@ enum SettlementAction {
 /// dropping the failed block and moving on — is what wedged the pipeline; see the
 /// unit tests below.
 fn settlement_action(onchain_block: Felt, proof_prev: Felt, proof_block: Felt) -> SettlementAction {
+    // A fresh Piltover (block == the -1 sentinel) has settled nothing yet, so no block
+    // can be "already settled" and the only submittable proof is the genesis block
+    // (block 0, whose parent is also the sentinel). Handle it explicitly: comparing the
+    // sentinel numerically would make it look `>=` every block and skip them all, so a
+    // fresh chain would never start settling.
+    if onchain_block == FRESH_PILTOVER_BLOCK {
+        return if proof_prev == FRESH_PILTOVER_BLOCK {
+            SettlementAction::Submit
+        } else {
+            SettlementAction::WaitForParent
+        };
+    }
+
     if onchain_block >= proof_block {
         SettlementAction::AlreadySettled
     } else if onchain_block == proof_prev {
@@ -457,6 +475,11 @@ mod tests {
         Felt::from(n)
     }
 
+    /// The Piltover "no block settled yet" sentinel: block_number == -1 (PRIME - 1).
+    fn genesis() -> Felt {
+        Felt::ZERO - Felt::ONE
+    }
+
     #[test]
     fn submits_when_chain_is_at_the_proofs_parent() {
         // Chain settled up to block 5; the next proof (block 6, parent 5) is the only
@@ -468,11 +491,19 @@ mod tests {
     }
 
     #[test]
-    fn genesis_first_block_is_submittable() {
-        // Fresh chain at genesis (block 0): the first proof settles block 1 (parent 0).
+    fn settles_the_genesis_block_from_the_minus_one_sentinel() {
+        // Regression: a fresh Piltover reports its block as -1 (felt PRIME-1). The first
+        // proof is block 0 with parent -1. Comparing felts numerically made the huge
+        // sentinel look "already settled" >= every block, so settlement never started
+        // (it skipped every block). Genesis must be ordered below block 0 and submitted.
         assert_eq!(
-            settlement_action(f(0), f(0), f(1)),
+            settlement_action(genesis(), genesis(), f(0)),
             SettlementAction::Submit
+        );
+        // From genesis, block 1 (parent 0) must still wait for block 0 first.
+        assert_eq!(
+            settlement_action(genesis(), f(0), f(1)),
+            SettlementAction::WaitForParent
         );
     }
 
